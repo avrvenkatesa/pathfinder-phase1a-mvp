@@ -105,7 +105,7 @@ export default function ContactFormModal() {
   const onSubmit = (data: FormData) => {
     const submitData: InsertContact = {
       ...data,
-      parentId: data.parentId || undefined,
+      parentId: (data.parentId && data.parentId !== "none") ? data.parentId : undefined,
       tags: data.tags || [],
     };
     createMutation.mutate(submitData);
@@ -206,7 +206,7 @@ export default function ContactFormModal() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {parentOptions.map((contact) => (
                           <SelectItem key={contact.id} value={contact.id}>
                             {contact.name} ({contact.type})

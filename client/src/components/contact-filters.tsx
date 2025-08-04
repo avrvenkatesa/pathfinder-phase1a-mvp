@@ -25,7 +25,7 @@ export default function ContactFilters({ onFiltersChange }: ContactFiltersProps)
     showCompanies: true,
     showDivisions: true,
     showPeople: true,
-    location: '',
+    location: 'all',
     tags: []
   });
 
@@ -122,7 +122,7 @@ export default function ContactFilters({ onFiltersChange }: ContactFiltersProps)
             <SelectValue placeholder="All Locations" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Locations</SelectItem>
+            <SelectItem value="all">All Locations</SelectItem>
             <SelectItem value="us">United States</SelectItem>
             <SelectItem value="uk">United Kingdom</SelectItem>
             <SelectItem value="ca">Canada</SelectItem>
