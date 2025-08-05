@@ -42,15 +42,17 @@ Preferred communication style: Simple, everyday language.
 
 ### Contact Management Features
 - **Hierarchical Structure**: Three-tier system supporting companies, divisions, and people
-- **Advanced Filtering**: Multi-criteria filtering by type, location, tags, and search terms
+- **Advanced Search & Filtering**: Multi-field search with Boolean operators, fuzzy matching, and real-time suggestions
 - **Tree Visualization**: Expandable/collapsible tree view for exploring contact relationships
 - **CRUD Operations**: Full create, read, update, delete functionality with optimistic updates
-- **Statistics Dashboard**: Real-time counts and analytics for contact types
+- **Analytics Dashboard**: Interactive charts with contact distribution, skills analysis, and capacity metrics
 - **Advanced Hierarchy Tree**: Interactive drag-and-drop tree with visual feedback and reorganization
 - **Relationship Management**: Multi-type relationships (reports to, works with, supervises, collaborates)
 - **Organization Chart**: Visual org chart with PDF export and team structure visualization
 - **Workflow Contact Selection**: Skills-based filtering and bulk assignment for workflow management
 - **Enhanced Contact Forms**: Multi-step forms with comprehensive contact data collection
+- **Export Capabilities**: Multiple formats (CSV, Excel, PDF, vCard) with custom field selection
+- **Performance Optimization**: Debounced search, contact caching, and efficient filtering
 
 ## External Dependencies
 

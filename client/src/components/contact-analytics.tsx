@@ -24,11 +24,14 @@ export function ContactAnalytics({ contacts, className = "" }: ContactAnalyticsP
     const people = contacts.filter(c => c.type === 'person').length;
     
     // Availability breakdown
-    const availabilityData = ['available', 'busy', 'partially_available', 'unavailable'].map(status => ({
-      name: status.replace('_', ' ').toUpperCase(),
-      value: contacts.filter(c => c.availabilityStatus === status).length,
-      percentage: Math.round((contacts.filter(c => c.availabilityStatus === status).length / totalContacts) * 100)
-    }));
+    const availabilityData = ['available', 'busy', 'partially_available', 'unavailable'].map(status => {
+      const count = contacts.filter(c => c.availabilityStatus === status).length;
+      return {
+        name: status.replace('_', ' ').toUpperCase(),
+        value: count,
+        percentage: totalContacts > 0 ? Math.round((count / totalContacts) * 100) : 0
+      };
+    });
     
     // Department distribution
     const departmentCounts = contacts.reduce((acc, contact) => {
@@ -71,7 +74,7 @@ export function ContactAnalytics({ contacts, className = "" }: ContactAnalyticsP
       .map(([name, value]) => ({ 
         name, 
         value, 
-        percentage: Math.round((value / people) * 100) // Percentage of people with this skill
+        percentage: people > 0 ? Math.round((value / people) * 100) : 0 // Percentage of people with this skill
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
@@ -81,9 +84,24 @@ export function ContactAnalytics({ contacts, className = "" }: ContactAnalyticsP
     
     // Contact type distribution for pie chart
     const typeData = [
-      { name: 'Companies', value: companies, color: '#8884d8' },
-      { name: 'Divisions', value: divisions, color: '#82ca9d' },
-      { name: 'People', value: people, color: '#ffc658' }
+      { 
+        name: 'Companies', 
+        value: companies, 
+        color: '#8884d8',
+        percentage: totalContacts > 0 ? Math.round((companies / totalContacts) * 100) : 0
+      },
+      { 
+        name: 'Divisions', 
+        value: divisions, 
+        color: '#82ca9d',
+        percentage: totalContacts > 0 ? Math.round((divisions / totalContacts) * 100) : 0
+      },
+      { 
+        name: 'People', 
+        value: people, 
+        color: '#ffc658',
+        percentage: totalContacts > 0 ? Math.round((people / totalContacts) * 100) : 0
+      }
     ];
     
     // Capacity analysis
@@ -91,7 +109,7 @@ export function ContactAnalytics({ contacts, className = "" }: ContactAnalyticsP
       c.availabilityStatus === 'available' || c.availabilityStatus === 'partially_available'
     ).length;
     
-    const capacityUtilization = Math.round(((people - availableCapacity) / people) * 100);
+    const capacityUtilization = people > 0 ? Math.round(((people - availableCapacity) / people) * 100) : 0;
     
     // Most connected contacts (those with the most skills or in multiple workflows)
     const mostConnected = contacts
