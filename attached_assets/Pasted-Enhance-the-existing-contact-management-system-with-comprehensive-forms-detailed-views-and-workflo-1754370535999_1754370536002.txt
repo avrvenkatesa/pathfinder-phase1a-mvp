@@ -1,0 +1,90 @@
+Enhance the existing contact management system with comprehensive forms, detailed views, and workflow integration. Build upon the current Express.js + React TypeScript application.
+
+REQUIREMENTS:
+
+1. ENHANCED CONTACT CREATION/EDIT FORM:
+   - Replace basic contact form with comprehensive multi-section form
+   - Form sections: Basic Info, Contact Details, Organizational Hierarchy, Skills & Availability, Workflow Preferences
+   - Fields to add:
+     * Basic: First Name, Last Name, Job Title, Department
+     * Contact: Email, Phone (with format validation), Secondary Phone, Address (multi-line)
+     * Hierarchy: Contact Type dropdown (Company/Division/Person), Parent Organization selector
+     * Skills: Multi-select skills tags, Availability status, Preferred work hours
+     * Workflow: Role preferences, Project types, Assignment capacity
+   - Real-time validation with inline error messages
+   - Auto-save draft functionality
+   - Form progress indicator for multi-step completion
+
+2. CONTACT DETAIL VIEW PAGE:
+   - Create comprehensive contact profile page (/contacts/:id)
+   - Information sections:
+     * Contact header with photo placeholder, name, title, company
+     * Contact information panel (email, phone, address)
+     * Organizational hierarchy visualization (parent → current → children)
+     * Skills and capabilities section with tags
+     * Workflow assignment history and current assignments
+     * Activity timeline (recent interactions, updates)
+   - Quick actions toolbar: Edit, Delete, Assign to Workflow, Export
+   - Related contacts sidebar (same company/division)
+   - Notes section for contact-specific information
+
+3. HIERARCHICAL RELATIONSHIP MANAGEMENT:
+   - Parent organization selector with search/filter
+   - Visual hierarchy tree showing: Company → Division → Person structure
+   - Drag-and-drop relationship modification
+   - Bulk assignment tools for moving contacts between organizations
+   - Circular reference prevention and validation
+   - Auto-update of hierarchy paths when relationships change
+
+4. WORKFLOW INTEGRATION FEATURES:
+   - "Assign to Workflow" button with modal popup
+   - Skills-based workflow matching engine
+   - Current workflow assignments display with status indicators
+   - Workflow capacity tracking (how many active assignments)
+   - Role-based assignment suggestions
+   - Integration with workflow templates (prepare for Phase 1B)
+
+5. ADVANCED FORM VALIDATION:
+   - Email format validation with duplicate checking across system
+   - Phone number format validation (multiple international formats)
+   - Required field validation with contextual error messages
+   - Unique constraint validation (email, phone)
+   - Hierarchy validation (prevent parent-child loops)
+   - Skills validation (from predefined skills database)
+   - Form submission prevention until all validation passes
+
+6. UI/UX ENHANCEMENTS:
+   - Responsive design for mobile and desktop
+   - Loading states for all form submissions and data fetching
+   - Success/error notifications using toast messages
+   - Auto-complete for common fields (company names, skills)
+   - Keyboard shortcuts for power users
+   - Accessibility compliance (ARIA labels, keyboard navigation)
+
+7. BACKEND API ENHANCEMENTS:
+   - Extend contact model with new fields (skills, availability, workflow_preferences)
+   - Add validation middleware for all new fields
+   - Create relationship management endpoints
+   - Add contact search with advanced filtering
+   - Implement contact activity logging
+   - Add bulk operations support (bulk update, bulk assignment)
+
+TECHNICAL SPECIFICATIONS:
+- Use existing TypeScript + React + Express.js stack
+- Extend current Material-UI component library
+- Integrate with existing authentication system
+- Use existing PostgreSQL database with schema migrations
+- Maintain current API structure and extend with new endpoints
+- Implement proper error handling and loading states
+- Add comprehensive unit tests for new functionality
+
+IMPLEMENTATION PRIORITY:
+1. Extend database schema and API endpoints
+2. Create enhanced contact form components
+3. Build detailed contact view page
+4. Add hierarchy management features
+5. Implement workflow integration foundation
+6. Add validation and error handling
+7. Test and polish UI/UX
+
+Please implement these enhancements while maintaining compatibility with the existing working contact management system. Focus on creating a professional, user-friendly interface that supports the Phase 1A contact management and workflow foundation requirements.
