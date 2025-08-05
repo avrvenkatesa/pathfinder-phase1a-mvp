@@ -366,7 +366,7 @@ export class DatabaseStorage implements IStorage {
       name: `${original.name} (Copy)`,
       description: original.description,
       category: original.category,
-      definitionJson: original.definitionJson,
+      definitionJson: original.definitionJson as any,
       bpmnXml: original.bpmnXml,
       status: 'draft',
       version: '1.0',
@@ -499,7 +499,7 @@ export class DatabaseStorage implements IStorage {
     // Increment usage count
     await db
       .update(workflowTemplates)
-      .set({ usageCount: String(parseInt(template.usageCount) + 1) })
+      .set({ usageCount: String(parseInt(template.usageCount || '0') + 1) })
       .where(eq(workflowTemplates.id, templateId));
 
     // Create workflow from template
@@ -507,7 +507,7 @@ export class DatabaseStorage implements IStorage {
       name: template.name,
       description: template.description,
       category: template.category,
-      definitionJson: template.workflowDefinition,
+      definitionJson: template.workflowDefinition as any,
       status: 'draft',
       version: '1.0',
       isTemplate: false,
