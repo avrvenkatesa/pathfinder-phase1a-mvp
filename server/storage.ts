@@ -23,6 +23,17 @@ export interface IStorage {
   deleteContact(id: string, userId: string): Promise<boolean>;
   getContactHierarchy(userId: string): Promise<Contact[]>;
   getContactStats(userId: string): Promise<ContactStats>;
+  
+  // Advanced hierarchy operations
+  getContactRelationships(userId: string): Promise<any[]>;
+  createContactRelationship(relationshipData: any): Promise<any>;
+  updateContactRelationship(id: string, relationshipData: any, userId: string): Promise<any>;
+  deleteContactRelationship(id: string, userId: string): Promise<boolean>;
+  bulkUpdateRelationships(relationshipIds: string[], operation: string, userId: string): Promise<number>;
+  getHierarchyChanges(userId: string, contactId?: string): Promise<any[]>;
+  createHierarchyChange(changeData: any): Promise<any>;
+  getWorkflowAssignments(userId: string, filters?: any): Promise<any[]>;
+  createWorkflowAssignment(assignmentData: any): Promise<any>;
 }
 
 export interface ContactFilters {
@@ -185,6 +196,47 @@ export class DatabaseStorage implements IStorage {
     });
 
     return stats;
+  }
+
+  // Advanced hierarchy operations
+  async getContactRelationships(userId: string): Promise<any[]> {
+    const relationships = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.userId, userId));
+    return [];
+  }
+
+  async createContactRelationship(relationshipData: any): Promise<any> {
+    return {};
+  }
+
+  async updateContactRelationship(id: string, relationshipData: any, userId: string): Promise<any> {
+    return {};
+  }
+
+  async deleteContactRelationship(id: string, userId: string): Promise<boolean> {
+    return true;
+  }
+
+  async bulkUpdateRelationships(relationshipIds: string[], operation: string, userId: string): Promise<number> {
+    return 0;
+  }
+
+  async getHierarchyChanges(userId: string, contactId?: string): Promise<any[]> {
+    return [];
+  }
+
+  async createHierarchyChange(changeData: any): Promise<any> {
+    return {};
+  }
+
+  async getWorkflowAssignments(userId: string, filters?: any): Promise<any[]> {
+    return [];
+  }
+
+  async createWorkflowAssignment(assignmentData: any): Promise<any> {
+    return {};
   }
 }
 
