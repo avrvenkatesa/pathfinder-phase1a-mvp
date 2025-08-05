@@ -1,0 +1,41 @@
+Fix the drag-and-drop validation logic that's preventing valid department transfers. Currently getting "Invalid Move: Relationship is not allowed" when trying to move Sara Mitchell from Editorial Services to Design and Production.
+
+ISSUES TO ADDRESS:
+
+1. OVERLY RESTRICTIVE VALIDATION:
+   - Allow department transfers for regular employees (non-supervisors)
+   - Only restrict moves that would create circular reporting relationships
+   - Allow cross-department moves unless they violate direct reporting chains
+
+2. VALIDATION RULES TO IMPLEMENT:
+   ALLOW:
+   - Moving employees between departments (if no direct reports in old department)
+   - Moving people within same company across divisions
+   - Updating department affiliation while preserving reporting relationships
+   
+   PREVENT:
+   - Circular reporting relationships (A reports to B, B reports to A)
+   - Moving supervisors who have direct reports (suggest bulk move instead)
+   - Cross-company moves without explicit permission
+
+3. IMPROVED USER FEEDBACK:
+   - Replace generic "Invalid Move" with specific reason:
+     * "Cannot move: Contact has direct reports in current department"
+     * "Cannot move: Would create circular reporting relationship"
+     * "Cannot move: Cross-company transfers require admin approval"
+   - Provide suggested solutions in error messages
+   - Show preview of relationship changes before confirming move
+
+4. ENHANCED MOVE FUNCTIONALITY:
+   - Add "Move with Team" option for supervisors
+   - Add confirmation dialog showing relationship impacts
+   - Allow temporary moves (project assignments) vs permanent transfers
+   - Provide bulk move options for entire teams
+
+5. TESTING SCENARIOS TO ENSURE WORK:
+   - Move regular employee between departments ✓
+   - Move supervisor with option to move team ✓
+   - Prevent circular relationships ✓
+   - Show clear error messages for invalid moves ✓
+
+Please fix the validation logic to be more permissive for valid business cases while maintaining data integrity. Focus on making department transfers work smoothly for typical organizational changes.

@@ -503,14 +503,21 @@ export default function AdvancedHierarchyTree({ contacts, className }: AdvancedH
 
     if (!activeContact || !overContact) return;
 
-    // Validate the move (prevent invalid relationships)
-    if (!isValidMove(activeContact, overContact)) {
+    // Validate the move with enhanced feedback
+    const moveValidation = isValidMove(activeContact, overContact);
+    if (!moveValidation.valid) {
       toast({
-        title: "Invalid Move",
-        description: "This relationship is not allowed",
+        title: "Cannot Move Contact",
+        description: `${moveValidation.reason}${moveValidation.suggestion ? `. ${moveValidation.suggestion}` : ''}`,
         variant: "destructive",
       });
       return;
+    }
+    
+    // Show warning for moves that need confirmation
+    if (moveValidation.reason && moveValidation.reason.includes("confirmation")) {
+      const confirmed = confirm(`${moveValidation.reason}. ${moveValidation.suggestion || ''}\n\nDo you want to proceed?`);
+      if (!confirmed) return;
     }
 
     // Perform the move
@@ -546,23 +553,80 @@ export default function AdvancedHierarchyTree({ contacts, className }: AdvancedH
     return null;
   };
 
-  const isValidMove = (draggedContact: Contact, targetContact: Contact): boolean => {
+  const isValidMove = (draggedContact: Contact, targetContact: Contact): { valid: boolean; reason?: string; suggestion?: string } => {
     // Prevent moving to self
-    if (draggedContact.id === targetContact.id) return false;
+    if (draggedContact.id === targetContact.id) {
+      return { valid: false, reason: "Cannot move contact to itself" };
+    }
     
     // Prevent circular references
-    if (isDescendant(targetContact, draggedContact, contacts)) return false;
+    if (isDescendant(targetContact, draggedContact, contacts)) {
+      return { 
+        valid: false, 
+        reason: "Would create circular reporting relationship",
+        suggestion: "Choose a different target that doesn't report to this contact"
+      };
+    }
     
-    // Business rules for valid relationships
+    // Check if contact has direct reports (for supervisors)
+    const hasDirectReports = contacts.some(c => c.parentId === draggedContact.id);
+    
+    // Enhanced business rules for valid relationships
     switch (draggedContact.type) {
       case 'company':
-        return false; // Companies can't be moved under other entities
+        return { 
+          valid: false, 
+          reason: "Companies cannot be moved under other entities",
+          suggestion: "Companies must remain at the root level"
+        };
+        
       case 'division':
-        return targetContact.type === 'company';
+        if (targetContact.type === 'company') {
+          if (hasDirectReports) {
+            return {
+              valid: true, // Allow but with warning - could suggest bulk move
+              reason: "Division has employees - consider bulk move",
+              suggestion: "Use 'Move with Team' option to transfer all employees"
+            };
+          }
+          return { valid: true };
+        }
+        return { 
+          valid: false, 
+          reason: "Divisions can only be moved under companies",
+          suggestion: "Select a company as the target"
+        };
+        
       case 'person':
-        return targetContact.type === 'company' || targetContact.type === 'division';
+        // Allow people to move between divisions and companies
+        if (targetContact.type === 'company' || targetContact.type === 'division') {
+          // Check for cross-company moves
+          const draggedCompany = findRootCompany(draggedContact.id, contacts);
+          const targetCompany = findRootCompany(targetContact.id, contacts);
+          
+          if (draggedCompany && targetCompany && draggedCompany.id !== targetCompany.id) {
+            return {
+              valid: true, // Allow cross-company moves but with confirmation
+              reason: "Cross-company transfer requires confirmation",
+              suggestion: "This will transfer the employee to a different company"
+            };
+          }
+          
+          // Regular department transfer within same company
+          return { valid: true };
+        }
+        return { 
+          valid: false, 
+          reason: "People can only be moved under companies or divisions",
+          suggestion: "Select a company or division as the target"
+        };
+        
       default:
-        return false;
+        return { 
+          valid: false, 
+          reason: "Unknown contact type",
+          suggestion: "Contact type not recognized"
+        };
     }
   };
 
@@ -573,6 +637,16 @@ export default function AdvancedHierarchyTree({ contacts, className }: AdvancedH
       if (isDescendant(potentialAncestor, child, allContacts)) return true;
     }
     return false;
+  };
+
+  const findRootCompany = (contactId: string, allContacts: Contact[]): Contact | null => {
+    const contact = allContacts.find(c => c.id === contactId);
+    if (!contact) return null;
+    
+    if (contact.type === 'company') return contact;
+    if (!contact.parentId) return null;
+    
+    return findRootCompany(contact.parentId, allContacts);
   };
 
   const getStats = () => {

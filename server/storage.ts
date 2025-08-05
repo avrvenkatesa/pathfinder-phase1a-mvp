@@ -150,7 +150,7 @@ export class DatabaseStorage implements IStorage {
       contactMap.set(contact.id, { ...contact, children: [] });
     });
 
-    // Second pass: build hierarchy
+    // Second pass: build hierarchy (without circular references)
     allContacts.forEach(contact => {
       const contactWithChildren = contactMap.get(contact.id)!;
       
@@ -159,7 +159,7 @@ export class DatabaseStorage implements IStorage {
         if (parent) {
           parent.children = parent.children || [];
           parent.children.push(contactWithChildren);
-          contactWithChildren.parent = parent;
+          // Don't set parent reference to avoid circular JSON
         }
       } else {
         rootContacts.push(contactWithChildren);
