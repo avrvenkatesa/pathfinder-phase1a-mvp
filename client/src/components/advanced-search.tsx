@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, Filter, Download, TrendingUp, Users, Target, MapPin, Clock, ChevronDown, X, Plus, Bookmark, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -210,17 +210,23 @@ export function AdvancedSearch({ contacts, onResultsUpdate, className = "" }: Ad
     return results;
   }, [contacts, debouncedQuery, filters.types, filters.availabilityStatus, filters.skills, filters.departments, filters.locations]);
 
-  // Update parent component with results
+  // Update parent component only when search actually happens
   useEffect(() => {
-    onResultsUpdate(searchResults);
-  }, [searchResults]); // Removing onResultsUpdate dependency to prevent infinite loop
+    const timer = setTimeout(() => {
+      onResultsUpdate(searchResults);
+    }, 100); // Small delay to batch updates
+    return () => clearTimeout(timer);
+  }, [debouncedQuery, filters.types, filters.availabilityStatus, filters.skills, filters.departments, filters.locations]); // Only update when search criteria change, not when results change
 
   // Save search to history
   const saveToHistory = useCallback((query: string) => {
-    if (query.trim() && !searchHistory.includes(query)) {
-      setSearchHistory(prev => [query, ...prev.slice(0, 9)]);
-    }
-  }, []); // Remove searchHistory dependency to prevent re-creation
+    setSearchHistory(prev => {
+      if (query.trim() && !prev.includes(query)) {
+        return [query, ...prev.slice(0, 9)];
+      }
+      return prev;
+    });
+  }, []);
 
   // Handle search input
   const handleSearchChange = (value: string) => {
@@ -495,7 +501,6 @@ export function AdvancedSearch({ contacts, onResultsUpdate, className = "" }: Ad
                   variant="outline"
                   onClick={() => {
                     setFilters({
-                      query: "",
                       types: [],
                       availabilityStatus: [],
                       skills: [],
