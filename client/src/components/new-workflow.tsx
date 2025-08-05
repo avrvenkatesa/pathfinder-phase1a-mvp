@@ -425,7 +425,7 @@ export function NewWorkflow() {
             </div>
           </TabsContent>
 
-          {/* Preview Tab */>
+          {/* Preview Tab */}
           <TabsContent value="preview" className="flex-1 overflow-hidden">
             <div className="h-full overflow-y-auto p-6">
               <div className="max-w-4xl mx-auto space-y-6">
@@ -490,7 +490,7 @@ export function NewWorkflow() {
           </TabsContent>
         </Tabs>
 
-        {/* Bottom Navigation */>
+        {/* Bottom Navigation */}
         <div className="bg-white border-t border-gray-200 px-6 py-4 flex-shrink-0">
           <div className="flex items-center justify-between max-w-4xl mx-auto">
             <Button
