@@ -84,6 +84,7 @@ export const contacts = pgTable("contacts", {
   tags: text("tags").array().default([]),
   notes: text("notes"), // Contact-specific notes
   isActive: boolean("is_active").default(true),
+  deletedAt: timestamp("deleted_at"), // Soft delete timestamp
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -290,3 +291,305 @@ export const PROJECT_TYPES = [
   "Marketing Campaign", "Product Launch", "System Integration", "Migration",
   "Optimization", "Maintenance", "Support"
 ] as const;
+
+// Workflow type exports
+export type Workflow = typeof workflows.$inferSelect & {
+  createdByUser?: User;
+  instances?: WorkflowInstance[];
+  elements?: WorkflowElement[];
+};
+export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>;
+export type UpdateWorkflow = z.infer<typeof updateWorkflowSchema>;
+
+export type WorkflowInstance = typeof workflowInstances.$inferSelect & {
+  workflow?: Workflow;
+  createdByUser?: User;
+  tasks?: WorkflowTask[];
+  executionHistory?: WorkflowExecutionHistory[];
+};
+export type InsertWorkflowInstance = z.infer<typeof insertWorkflowInstanceSchema>;
+
+export type WorkflowTask = typeof workflowTasks.$inferSelect & {
+  instance?: WorkflowInstance;
+  assignedContact?: Contact;
+};
+export type InsertWorkflowTask = z.infer<typeof insertWorkflowTaskSchema>;
+
+export type WorkflowTemplate = typeof workflowTemplates.$inferSelect & {
+  createdByUser?: User;
+};
+export type InsertWorkflowTemplate = z.infer<typeof insertWorkflowTemplateSchema>;
+
+export type WorkflowElement = typeof workflowElements.$inferSelect & {
+  workflow?: Workflow;
+};
+export type InsertWorkflowElement = z.infer<typeof insertWorkflowElementSchema>;
+
+export type WorkflowExecutionHistory = typeof workflowExecutionHistory.$inferSelect & {
+  instance?: WorkflowInstance;
+};
+
+// BPMN 2.0 interfaces for workflow definitions
+export interface BpmnElement {
+  id: string;
+  type: 'start_event' | 'end_event' | 'user_task' | 'system_task' | 'decision_gateway' | 'sequence_flow';
+  name: string;
+  position: { x: number; y: number };
+  properties?: Record<string, any>;
+}
+
+export interface BpmnConnection {
+  id: string;
+  type: 'sequence_flow';
+  sourceId: string;
+  targetId: string;
+  name?: string;
+  condition?: string;
+}
+
+export interface WorkflowDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  elements: BpmnElement[];
+  connections: BpmnConnection[];
+  variables?: Record<string, any>;
+  version: string;
+  metadata?: Record<string, any>;
+}
+
+// Workflow execution interfaces
+export interface TaskExecution {
+  taskId: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed';
+  assignedTo?: string;
+  startedAt?: Date;
+  completedAt?: Date;
+  input?: Record<string, any>;
+  output?: Record<string, any>;
+  notes?: string;
+}
+
+export interface WorkflowExecution {
+  instanceId: string;
+  workflowId: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  currentStep?: string;
+  variables: Record<string, any>;
+  tasks: TaskExecution[];
+  history: Array<{
+    timestamp: Date;
+    action: string;
+    details: Record<string, any>;
+  }>;
+}
+
+// Workflow status enum
+export const workflowStatusEnum = pgEnum("workflow_status", ["draft", "active", "paused", "completed", "archived"]);
+
+// Workflow execution status enum
+export const workflowExecutionStatusEnum = pgEnum("workflow_execution_status", ["pending", "running", "completed", "failed", "cancelled"]);
+
+// Task status enum
+export const taskStatusEnum = pgEnum("task_status", ["pending", "in_progress", "completed", "skipped", "failed"]);
+
+// BPMN element types enum
+export const bpmnElementTypeEnum = pgEnum("bpmn_element_type", [
+  "start_event", "end_event", "user_task", "system_task", "decision_gateway", "sequence_flow"
+]);
+
+// Main workflows table
+export const workflows = pgTable("workflows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  category: varchar("category").default("general"),
+  definitionJson: jsonb("definition_json").notNull(),
+  bpmnXml: text("bpmn_xml"),
+  status: workflowStatusEnum("status").default("draft"),
+  version: varchar("version").default("1.0"),
+  isTemplate: boolean("is_template").default(false),
+  isPublic: boolean("is_public").default(false),
+  createdBy: varchar("created_by").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Workflow instances table for execution tracking
+export const workflowInstances = pgTable("workflow_instances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: varchar("workflow_id").notNull(),
+  name: varchar("name"),
+  status: workflowExecutionStatusEnum("status").default("pending"),
+  currentStepId: varchar("current_step_id"),
+  variables: jsonb("variables").default('{}'),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  pausedAt: timestamp("paused_at"),
+  errorMessage: text("error_message"),
+  executionLog: jsonb("execution_log").default('[]'),
+  createdBy: varchar("created_by").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Workflow tasks table for individual task execution
+export const workflowTasks = pgTable("workflow_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  instanceId: varchar("instance_id").notNull(),
+  elementId: varchar("element_id").notNull(),
+  taskName: varchar("task_name").notNull(),
+  taskType: bpmnElementTypeEnum("task_type").notNull(),
+  assignedContactId: varchar("assigned_contact_id"),
+  status: taskStatusEnum("status").default("pending"),
+  input: jsonb("input").default('{}'),
+  output: jsonb("output").default('{}'),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  dueDate: timestamp("due_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Workflow templates table
+export const workflowTemplates = pgTable("workflow_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  category: varchar("category").notNull(),
+  workflowDefinition: jsonb("workflow_definition").notNull(),
+  isPublic: boolean("is_public").default(false),
+  tags: text("tags").array().default([]),
+  usageCount: varchar("usage_count").default("0"),
+  createdBy: varchar("created_by").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Workflow element definitions for BPMN compliance
+export const workflowElements = pgTable("workflow_elements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: varchar("workflow_id").notNull(),
+  elementId: varchar("element_id").notNull(), // BPMN element ID
+  elementType: bpmnElementTypeEnum("element_type").notNull(),
+  name: varchar("name").notNull(),
+  properties: jsonb("properties").default('{}'),
+  position: jsonb("position").notNull(), // {x, y} coordinates
+  connections: jsonb("connections").default('[]'), // Array of connected element IDs
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Workflow execution history for monitoring
+export const workflowExecutionHistory = pgTable("workflow_execution_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  instanceId: varchar("instance_id").notNull(),
+  stepId: varchar("step_id"),
+  action: varchar("action").notNull(), // started, completed, failed, skipped
+  details: jsonb("details").default('{}'),
+  executedAt: timestamp("executed_at").defaultNow(),
+  executedBy: varchar("executed_by"),
+});
+
+// Relations for workflow tables
+export const workflowsRelations = relations(workflows, ({ one, many }) => ({
+  createdByUser: one(users, {
+    fields: [workflows.createdBy],
+    references: [users.id],
+  }),
+  instances: many(workflowInstances),
+  elements: many(workflowElements),
+}));
+
+export const workflowInstancesRelations = relations(workflowInstances, ({ one, many }) => ({
+  workflow: one(workflows, {
+    fields: [workflowInstances.workflowId],
+    references: [workflows.id],
+  }),
+  createdByUser: one(users, {
+    fields: [workflowInstances.createdBy],
+    references: [users.id],
+  }),
+  tasks: many(workflowTasks),
+  executionHistory: many(workflowExecutionHistory),
+}));
+
+export const workflowTasksRelations = relations(workflowTasks, ({ one }) => ({
+  instance: one(workflowInstances, {
+    fields: [workflowTasks.instanceId],
+    references: [workflowInstances.id],
+  }),
+  assignedContact: one(contacts, {
+    fields: [workflowTasks.assignedContactId],
+    references: [contacts.id],
+  }),
+}));
+
+export const workflowTemplatesRelations = relations(workflowTemplates, ({ one }) => ({
+  createdByUser: one(users, {
+    fields: [workflowTemplates.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const workflowElementsRelations = relations(workflowElements, ({ one }) => ({
+  workflow: one(workflows, {
+    fields: [workflowElements.workflowId],
+    references: [workflows.id],
+  }),
+}));
+
+export const workflowExecutionHistoryRelations = relations(workflowExecutionHistory, ({ one }) => ({
+  instance: one(workflowInstances, {
+    fields: [workflowExecutionHistory.instanceId],
+    references: [workflowInstances.id],
+  }),
+}));
+
+// Export relationships and auditLog for workflow controller
+export const relationships = contactRelationships;
+export const auditLog = contactActivities;
+
+// Workflow validation schemas
+export const insertWorkflowSchema = createInsertSchema(workflows).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  createdBy: true,
+  userId: true,
+});
+
+export const updateWorkflowSchema = insertWorkflowSchema.partial();
+
+export const insertWorkflowInstanceSchema = createInsertSchema(workflowInstances).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  createdBy: true,
+  userId: true,
+});
+
+export const insertWorkflowTaskSchema = createInsertSchema(workflowTasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertWorkflowTemplateSchema = createInsertSchema(workflowTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  createdBy: true,
+  userId: true,
+  usageCount: true,
+});
+
+export const insertWorkflowElementSchema = createInsertSchema(workflowElements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});

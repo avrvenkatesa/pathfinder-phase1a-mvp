@@ -8,6 +8,8 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import ContactDetail from "@/pages/contact-detail";
+import WorkflowPage from "@/pages/workflow";
+import { WorkflowDashboard } from "@/components/workflow-dashboard";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -20,6 +22,8 @@ function Router() {
         <>
           <Route path="/" component={Home} />
           <Route path="/contacts/:id" component={ContactDetail} />
+          <Route path="/workflows" component={WorkflowDashboard} />
+          <Route path="/workflows/:id" component={WorkflowPage} />
         </>
       )}
       <Route component={NotFound} />

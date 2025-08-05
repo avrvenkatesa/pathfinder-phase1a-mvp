@@ -1,8 +1,10 @@
 import { useAuth } from "@/hooks/useAuth";
+import { Link, useLocation } from "wouter";
 import type { User } from "@shared/schema";
 
 export default function Header() {
   const { user } = useAuth();
+  const [location] = useLocation();
 
   const handleLogout = () => {
     window.location.href = "/api/logout";
@@ -26,9 +28,26 @@ export default function Header() {
               <h1 className="text-xl font-semibold text-gray-900">PathFinder</h1>
             </div>
             <nav className="ml-10 flex space-x-8">
-              <a href="#" className="text-primary border-b-2 border-primary px-1 pb-4 text-sm font-medium">
+              <Link 
+                href="/" 
+                className={`px-1 pb-4 text-sm font-medium ${
+                  location === '/' 
+                    ? 'text-primary border-b-2 border-primary' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
                 Contacts
-              </a>
+              </Link>
+              <Link 
+                href="/workflows" 
+                className={`px-1 pb-4 text-sm font-medium ${
+                  location.startsWith('/workflows') 
+                    ? 'text-primary border-b-2 border-primary' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Workflows
+              </Link>
               <a href="#" className="text-gray-500 hover:text-gray-700 px-1 pb-4 text-sm font-medium">
                 Analytics
               </a>

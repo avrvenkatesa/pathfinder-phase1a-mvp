@@ -2,7 +2,15 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertContactSchema, updateContactSchema } from "@shared/schema";
+import { 
+  insertContactSchema, 
+  updateContactSchema, 
+  insertWorkflowSchema, 
+  updateWorkflowSchema,
+  insertWorkflowInstanceSchema,
+  insertWorkflowTaskSchema,
+  insertWorkflowTemplateSchema
+} from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -273,6 +281,236 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating bulk workflow assignments:", error);
       res.status(500).json({ message: "Failed to create bulk workflow assignments" });
+    }
+  });
+
+  // Workflow management routes
+  app.get("/api/workflows", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const filters = {
+        search: req.query.search as string,
+        status: req.query.status ? (req.query.status as string).split(',') : undefined,
+        category: req.query.category as string,
+        isTemplate: req.query.isTemplate ? req.query.isTemplate === 'true' : undefined,
+      };
+      
+      const workflows = await storage.getWorkflows(userId, filters);
+      res.json(workflows);
+    } catch (error) {
+      console.error("Error fetching workflows:", error);
+      res.status(500).json({ message: "Failed to fetch workflows" });
+    }
+  });
+
+  app.get("/api/workflows/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const workflow = await storage.getWorkflowById(req.params.id, userId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+      
+      res.json(workflow);
+    } catch (error) {
+      console.error("Error fetching workflow:", error);
+      res.status(500).json({ message: "Failed to fetch workflow" });
+    }
+  });
+
+  app.post("/api/workflows", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const workflowData = insertWorkflowSchema.parse(req.body);
+      
+      const workflow = await storage.createWorkflow(workflowData, userId);
+      res.status(201).json(workflow);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid workflow data", errors: error.errors });
+      }
+      console.error("Error creating workflow:", error);
+      res.status(500).json({ message: "Failed to create workflow" });
+    }
+  });
+
+  app.put("/api/workflows/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const workflowData = updateWorkflowSchema.parse(req.body);
+      
+      const workflow = await storage.updateWorkflow(req.params.id, workflowData, userId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+      
+      res.json(workflow);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid workflow data", errors: error.errors });
+      }
+      console.error("Error updating workflow:", error);
+      res.status(500).json({ message: "Failed to update workflow" });
+    }
+  });
+
+  app.delete("/api/workflows/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteWorkflow(req.params.id, userId);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting workflow:", error);
+      res.status(500).json({ message: "Failed to delete workflow" });
+    }
+  });
+
+  app.post("/api/workflows/:id/duplicate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const duplicated = await storage.duplicateWorkflow(req.params.id, userId);
+      
+      if (!duplicated) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+      
+      res.status(201).json(duplicated);
+    } catch (error) {
+      console.error("Error duplicating workflow:", error);
+      res.status(500).json({ message: "Failed to duplicate workflow" });
+    }
+  });
+
+  // Workflow execution routes
+  app.post("/api/workflows/:id/execute", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { name, variables } = req.body;
+      
+      const instance = await storage.createWorkflowInstance(req.params.id, {
+        name: name || `Execution ${new Date().toISOString()}`,
+        variables: variables || {},
+        status: 'pending',
+      }, userId);
+      
+      res.status(201).json(instance);
+    } catch (error) {
+      console.error("Error executing workflow:", error);
+      res.status(500).json({ message: "Failed to execute workflow" });
+    }
+  });
+
+  app.get("/api/workflow-instances/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const instance = await storage.getWorkflowInstance(req.params.id, userId);
+      
+      if (!instance) {
+        return res.status(404).json({ message: "Workflow instance not found" });
+      }
+      
+      // Get tasks for this instance
+      const tasks = await storage.getWorkflowTasksByInstance(req.params.id);
+      
+      res.json({ ...instance, tasks });
+    } catch (error) {
+      console.error("Error fetching workflow instance:", error);
+      res.status(500).json({ message: "Failed to fetch workflow instance" });
+    }
+  });
+
+  app.put("/api/workflow-instances/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const instance = await storage.updateWorkflowInstance(req.params.id, req.body, userId);
+      
+      if (!instance) {
+        return res.status(404).json({ message: "Workflow instance not found" });
+      }
+      
+      res.json(instance);
+    } catch (error) {
+      console.error("Error updating workflow instance:", error);
+      res.status(500).json({ message: "Failed to update workflow instance" });
+    }
+  });
+
+  app.get("/api/workflows/:id/instances", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const instances = await storage.getWorkflowInstancesByWorkflow(req.params.id, userId);
+      res.json(instances);
+    } catch (error) {
+      console.error("Error fetching workflow instances:", error);
+      res.status(500).json({ message: "Failed to fetch workflow instances" });
+    }
+  });
+
+  // Workflow task routes
+  app.put("/api/workflow-tasks/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const task = await storage.updateWorkflowTask(req.params.id, req.body);
+      
+      if (!task) {
+        return res.status(404).json({ message: "Workflow task not found" });
+      }
+      
+      res.json(task);
+    } catch (error) {
+      console.error("Error updating workflow task:", error);
+      res.status(500).json({ message: "Failed to update workflow task" });
+    }
+  });
+
+  // Workflow template routes
+  app.get("/api/workflow-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const filters = {
+        search: req.query.search as string,
+        category: req.query.category as string,
+        isPublic: req.query.isPublic ? req.query.isPublic === 'true' : undefined,
+      };
+      
+      const templates = await storage.getWorkflowTemplates(userId, filters);
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching workflow templates:", error);
+      res.status(500).json({ message: "Failed to fetch workflow templates" });
+    }
+  });
+
+  app.post("/api/workflow-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const templateData = insertWorkflowTemplateSchema.parse(req.body);
+      
+      const template = await storage.createWorkflowTemplate(templateData, userId);
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid template data", errors: error.errors });
+      }
+      console.error("Error creating workflow template:", error);
+      res.status(500).json({ message: "Failed to create workflow template" });
+    }
+  });
+
+  app.post("/api/workflow-templates/:id/use", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const workflow = await storage.useWorkflowTemplate(req.params.id, userId);
+      res.status(201).json(workflow);
+    } catch (error) {
+      console.error("Error using workflow template:", error);
+      res.status(500).json({ message: "Failed to use workflow template" });
     }
   });
 
