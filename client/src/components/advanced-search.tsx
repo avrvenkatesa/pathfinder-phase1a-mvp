@@ -21,7 +21,6 @@ interface AdvancedSearchProps {
 }
 
 interface SearchFilters {
-  query: string;
   types: string[];
   availabilityStatus: string[];
   skills: string[];
@@ -45,7 +44,6 @@ export function AdvancedSearch({ contacts, onResultsUpdate, className = "" }: Ad
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<SearchFilters>({
-    query: "",
     types: [],
     availabilityStatus: [],
     skills: [],
@@ -62,10 +60,12 @@ export function AdvancedSearch({ contacts, onResultsUpdate, className = "" }: Ad
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [exportFormat, setExportFormat] = useState<'csv' | 'excel' | 'pdf' | 'vcard'>('csv');
 
-  // Debounced search
+  // Debounced search - use a separate state to avoid infinite loops
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  
   useEffect(() => {
     const timer = setTimeout(() => {
-      setFilters(prev => ({ ...prev, query: searchQuery }));
+      setDebouncedQuery(searchQuery);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -141,8 +141,8 @@ export function AdvancedSearch({ contacts, onResultsUpdate, className = "" }: Ad
     let results = contacts;
     
     // Text search across multiple fields
-    if (filters.query) {
-      const query = filters.query.toLowerCase();
+    if (debouncedQuery) {
+      const query = debouncedQuery.toLowerCase();
       const terms = query.split(/\s+/).filter(term => term.length > 0);
       
       results = results.filter(contact => {
@@ -208,7 +208,7 @@ export function AdvancedSearch({ contacts, onResultsUpdate, className = "" }: Ad
     }
     
     return results;
-  }, [contacts, filters]);
+  }, [contacts, debouncedQuery, filters.types, filters.availabilityStatus, filters.skills, filters.departments, filters.locations]);
 
   // Update parent component with results
   useEffect(() => {
@@ -257,7 +257,6 @@ export function AdvancedSearch({ contacts, onResultsUpdate, className = "" }: Ad
   // Load saved search
   const handleLoadSearch = (savedSearch: SavedSearch) => {
     setFilters(savedSearch.filters);
-    setSearchQuery(savedSearch.filters.query);
     setIsAdvancedOpen(true);
   };
 
