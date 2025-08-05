@@ -213,14 +213,14 @@ export function AdvancedSearch({ contacts, onResultsUpdate, className = "" }: Ad
   // Update parent component with results
   useEffect(() => {
     onResultsUpdate(searchResults);
-  }, [searchResults]); // Remove onResultsUpdate from deps to prevent infinite loop
+  }, [searchResults]); // Removing onResultsUpdate dependency to prevent infinite loop
 
   // Save search to history
   const saveToHistory = useCallback((query: string) => {
     if (query.trim() && !searchHistory.includes(query)) {
       setSearchHistory(prev => [query, ...prev.slice(0, 9)]);
     }
-  }, [searchHistory]);
+  }, []); // Remove searchHistory dependency to prevent re-creation
 
   // Handle search input
   const handleSearchChange = (value: string) => {
