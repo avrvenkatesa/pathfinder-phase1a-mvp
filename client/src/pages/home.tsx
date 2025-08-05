@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/header";
@@ -37,6 +37,11 @@ export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("search");
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
+
+  // Stable callback to prevent infinite re-renders in AdvancedSearch
+  const handleResultsUpdate = useCallback((results: Contact[]) => {
+    setFilteredContacts(results);
+  }, []);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -181,7 +186,7 @@ export default function Home() {
           <TabsContent value="search" className="space-y-6">
             <AdvancedSearch 
               contacts={contacts} 
-              onResultsUpdate={setFilteredContacts}
+              onResultsUpdate={handleResultsUpdate}
             />
             {filteredContacts.length > 0 && (
               <Card>

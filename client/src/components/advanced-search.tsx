@@ -213,7 +213,7 @@ export function AdvancedSearch({ contacts, onResultsUpdate, className = "" }: Ad
   // Update parent component with results
   useEffect(() => {
     onResultsUpdate(searchResults);
-  }, [searchResults]); // Remove onResultsUpdate from deps to prevent infinite loop
+  }, [searchResults, onResultsUpdate]);
 
   // Save search to history
   const saveToHistory = useCallback((query: string) => {
