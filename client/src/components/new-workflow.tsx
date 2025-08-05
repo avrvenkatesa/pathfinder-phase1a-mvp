@@ -665,57 +665,56 @@ export function NewWorkflow() {
         )}
       </div>
 
-        {/* Fixed Bottom Navigation Bar */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-4 shadow-lg z-50">
-          <div className="flex items-center justify-between max-w-4xl mx-auto">
-            <Button
-              variant="outline"
-              onClick={handlePrevious}
-              disabled={getCurrentTabIndex() === 0}
-            >
-              <ArrowLeft size={16} className="mr-2" />
-              Previous
-            </Button>
+      {/* Fixed Bottom Navigation Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-4 shadow-lg z-50">
+        <div className="flex items-center justify-between max-w-4xl mx-auto">
+          <Button
+            variant="outline"
+            onClick={handlePrevious}
+            disabled={getCurrentTabIndex() === 0}
+          >
+            <ArrowLeft size={16} className="mr-2" />
+            Previous
+          </Button>
+          
+          {/* Progress Info */}
+          <div className="flex items-center gap-4 flex-1 justify-center">
+            <span className="text-sm text-gray-500">
+              Step {getCurrentTabIndex() + 1} of {workflowTabs.length}
+            </span>
             
-            {/* Progress Info */}
-            <div className="flex items-center gap-4 flex-1 justify-center">
-              <span className="text-sm text-gray-500">
-                Step {getCurrentTabIndex() + 1} of {workflowTabs.length}
-              </span>
-              
-              {/* Progress Bar */}
-              <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-blue-600 transition-all duration-300"
-                  style={{ width: `${getProgressPercentage()}%` }}
-                />
-              </div>
-              
-              <span className="text-sm font-medium text-blue-600">
-                {workflowTabs[getCurrentTabIndex()].label}
-              </span>
+            {/* Progress Bar */}
+            <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-600 transition-all duration-300"
+                style={{ width: `${getProgressPercentage()}%` }}
+              />
             </div>
             
-            {getCurrentTabIndex() < workflowTabs.length - 1 ? (
-              <Button
-                onClick={handleNext}
-                disabled={!formValid}
-              >
-                Next
-                <ArrowRight size={16} className="ml-2" />
-              </Button>
-            ) : (
-              <Button onClick={handleSaveWorkflow} disabled={!formValid}>
-                <Save size={16} className="mr-2" />
-                Save Workflow
-              </Button>
-            )}
+            <span className="text-sm font-medium text-blue-600">
+              {workflowTabs[getCurrentTabIndex()].label}
+            </span>
           </div>
+          
+          {getCurrentTabIndex() < workflowTabs.length - 1 ? (
+            <Button
+              onClick={handleNext}
+              disabled={!formValid}
+            >
+              Next
+              <ArrowRight size={16} className="ml-2" />
+            </Button>
+          ) : (
+            <Button onClick={handleSaveWorkflow} disabled={!formValid}>
+              <Save size={16} className="mr-2" />
+              Save Workflow
+            </Button>
+          )}
         </div>
-
-        {/* Spacer for fixed bottom bar */}
-        <div className="h-20 flex-shrink-0" />
       </div>
+
+      {/* Spacer for fixed bottom bar */}
+      <div className="h-20 flex-shrink-0" />
     </div>
   );
 }
