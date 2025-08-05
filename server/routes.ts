@@ -132,6 +132,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Relationship management routes
+  app.get("/api/relationships", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const relationships = await storage.getContactRelationships(userId);
+      res.json(relationships);
+    } catch (error) {
+      console.error("Error fetching relationships:", error);
+      res.status(500).json({ message: "Failed to fetch relationships" });
+    }
+  });
+
+  app.post("/api/relationships", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const relationshipData = { ...req.body, userId };
+      const relationship = await storage.createContactRelationship(relationshipData);
+      res.status(201).json(relationship);
+    } catch (error) {
+      console.error("Error creating relationship:", error);
+      res.status(500).json({ message: "Failed to create relationship" });
+    }
+  });
+
+  app.put("/api/relationships/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const relationshipData = { ...req.body, userId };
+      const relationship = await storage.updateContactRelationship(req.params.id, relationshipData, userId);
+      
+      if (!relationship) {
+        return res.status(404).json({ message: "Relationship not found" });
+      }
+      
+      res.json(relationship);
+    } catch (error) {
+      console.error("Error updating relationship:", error);
+      res.status(500).json({ message: "Failed to update relationship" });
+    }
+  });
+
+  app.delete("/api/relationships/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteContactRelationship(req.params.id, userId);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Relationship not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting relationship:", error);
+      res.status(500).json({ message: "Failed to delete relationship" });
+    }
+  });
+
+  app.post("/api/relationships/bulk", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { operation, relationshipIds } = req.body;
+      
+      const result = await storage.bulkUpdateRelationships(relationshipIds, operation, userId);
+      res.json({ affected: result });
+    } catch (error) {
+      console.error("Error performing bulk relationship operation:", error);
+      res.status(500).json({ message: "Failed to perform bulk operation" });
+    }
+  });
+
+  // Hierarchy change tracking routes
+  app.get("/api/hierarchy-changes", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const contactId = req.query.contactId as string;
+      const changes = await storage.getHierarchyChanges(userId, contactId);
+      res.json(changes);
+    } catch (error) {
+      console.error("Error fetching hierarchy changes:", error);
+      res.status(500).json({ message: "Failed to fetch hierarchy changes" });
+    }
+  });
+
+  app.post("/api/hierarchy-changes", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const changeData = { ...req.body, userId };
+      const change = await storage.createHierarchyChange(changeData);
+      res.status(201).json(change);
+    } catch (error) {
+      console.error("Error creating hierarchy change:", error);
+      res.status(500).json({ message: "Failed to create hierarchy change" });
+    }
+  });
+
+  // Workflow assignment routes
+  app.get("/api/workflow-assignments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const contactId = req.query.contactId as string;
+      const workflowName = req.query.workflowName as string;
+      const assignments = await storage.getWorkflowAssignments(userId, { contactId, workflowName });
+      res.json(assignments);
+    } catch (error) {
+      console.error("Error fetching workflow assignments:", error);
+      res.status(500).json({ message: "Failed to fetch workflow assignments" });
+    }
+  });
+
+  app.post("/api/workflow-assignments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const assignmentData = { ...req.body, userId };
+      const assignment = await storage.createWorkflowAssignment(assignmentData);
+      res.status(201).json(assignment);
+    } catch (error) {
+      console.error("Error creating workflow assignment:", error);
+      res.status(500).json({ message: "Failed to create workflow assignment" });
+    }
+  });
+
+  app.post("/api/workflow-assignments/bulk", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { assignments, priority, deadline } = req.body;
+      
+      const results = await Promise.all(
+        assignments.map((assignment: any) => 
+          storage.createWorkflowAssignment({ 
+            ...assignment, 
+            userId, 
+            priority, 
+            deadline: deadline ? new Date(deadline) : undefined 
+          })
+        )
+      );
+      
+      res.status(201).json(results);
+    } catch (error) {
+      console.error("Error creating bulk workflow assignments:", error);
+      res.status(500).json({ message: "Failed to create bulk workflow assignments" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

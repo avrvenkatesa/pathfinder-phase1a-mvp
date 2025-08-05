@@ -4,15 +4,34 @@ import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/header";
 import ContactFilters from "@/components/contact-filters";
 import ContactTree from "@/components/contact-tree";
+import AdvancedHierarchyTree from "@/components/advanced-hierarchy-tree";
+import RelationshipManagement from "@/components/relationship-management";
+import OrgChartViewer from "@/components/org-chart-viewer";
+import WorkflowContactSelection from "@/components/workflow-contact-selection";
 import ContactFormModal from "@/components/contact-form-modal";
 import EnhancedContactForm from "@/components/enhanced-contact-form";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import type { ContactStats } from "@shared/schema";
+import type { ContactStats, Contact } from "@shared/schema";
+import { 
+  Building, 
+  Users, 
+  User, 
+  Network, 
+  Briefcase,
+  BarChart3,
+  Settings,
+  Eye,
+} from "lucide-react";
 
 export default function Home() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
+  const [activeTab, setActiveTab] = useState("hierarchy");
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -31,6 +50,11 @@ export default function Home() {
 
   const { data: stats, isLoading: statsLoading } = useQuery<ContactStats>({
     queryKey: ["/api/contacts/stats"],
+    retry: false,
+  });
+
+  const { data: contacts = [], isLoading: contactsLoading } = useQuery<Contact[]>({
+    queryKey: ["/api/contacts"],
     retry: false,
   });
 
@@ -64,66 +88,119 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-1">
-            <ContactFilters />
+        {/* Quick Stats Cards */}
+        {!statsLoading && stats && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <Building className="h-8 w-8 text-blue-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Companies</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.totalCompanies}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <Users className="h-8 w-8 text-orange-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Divisions</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.totalDivisions}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <User className="h-8 w-8 text-green-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">People</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.totalPeople}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <BarChart3 className="h-8 w-8 text-purple-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Total Contacts</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {stats.totalCompanies + stats.totalDivisions + stats.totalPeople}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-          
-          <div className="lg:col-span-3">
-            <ContactTree />
-            
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <i className="fas fa-building text-blue-600"></i>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total Companies</p>
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {statsLoading ? '...' : stats?.totalCompanies || 0}
-                    </p>
-                  </div>
-                </div>
-              </div>
+        )}
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <i className="fas fa-layer-group text-orange-600"></i>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total Divisions</p>
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {statsLoading ? '...' : stats?.totalDivisions || 0}
-                    </p>
-                  </div>
-                </div>
-              </div>
+        {/* Advanced Hierarchy Management Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="hierarchy" className="flex items-center space-x-2">
+              <Network className="h-4 w-4" />
+              <span>Advanced Tree</span>
+            </TabsTrigger>
+            <TabsTrigger value="relationships" className="flex items-center space-x-2">
+              <Users className="h-4 w-4" />
+              <span>Relationships</span>
+            </TabsTrigger>
+            <TabsTrigger value="orgchart" className="flex items-center space-x-2">
+              <BarChart3 className="h-4 w-4" />
+              <span>Org Chart</span>
+            </TabsTrigger>
+            <TabsTrigger value="workflow" className="flex items-center space-x-2">
+              <Briefcase className="h-4 w-4" />
+              <span>Workflow</span>
+            </TabsTrigger>
+            <TabsTrigger value="classic" className="flex items-center space-x-2">
+              <Eye className="h-4 w-4" />
+              <span>Classic View</span>
+            </TabsTrigger>
+          </TabsList>
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                      <i className="fas fa-users text-green-600"></i>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total People</p>
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {statsLoading ? '...' : stats?.totalPeople || 0}
-                    </p>
-                  </div>
-                </div>
+          <TabsContent value="hierarchy" className="space-y-6">
+            <AdvancedHierarchyTree contacts={contacts} />
+          </TabsContent>
+
+          <TabsContent value="relationships" className="space-y-6">
+            <RelationshipManagement contacts={contacts} />
+          </TabsContent>
+
+          <TabsContent value="orgchart" className="space-y-6">
+            <OrgChartViewer contacts={contacts} />
+          </TabsContent>
+
+          <TabsContent value="workflow" className="space-y-6">
+            <WorkflowContactSelection 
+              contacts={contacts}
+              onAssignmentComplete={(assignedContacts) => {
+                toast({
+                  title: "Assignment Complete",
+                  description: `${assignedContacts.length} contacts assigned to workflow`,
+                });
+              }}
+            />
+          </TabsContent>
+
+          <TabsContent value="classic" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <div className="lg:col-span-1">
+                <ContactFilters />
+              </div>
+              
+              <div className="lg:col-span-3">
+                <ContactTree />
               </div>
             </div>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

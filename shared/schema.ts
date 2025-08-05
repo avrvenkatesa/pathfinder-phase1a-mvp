@@ -110,6 +110,37 @@ export const contactActivities = pgTable("contact_activities", {
   userId: varchar("user_id").notNull(),
 });
 
+// Relationship types enum
+export const relationshipTypeEnum = pgEnum("relationship_type", [
+  "reports_to", "works_with", "supervises", "collaborates", "manages", "peers"
+]);
+
+// Contact relationships table for advanced relationship management
+export const contactRelationships = pgTable("contact_relationships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromContactId: varchar("from_contact_id").notNull(),
+  toContactId: varchar("to_contact_id").notNull(),
+  relationshipType: relationshipTypeEnum("relationship_type").notNull(),
+  isActive: boolean("is_active").default(true),
+  startDate: timestamp("start_date").defaultNow(),
+  endDate: timestamp("end_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  userId: varchar("user_id").notNull(),
+});
+
+// Hierarchy change history for tracking organization moves
+export const hierarchyChanges = pgTable("hierarchy_changes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull(),
+  oldParentId: varchar("old_parent_id"),
+  newParentId: varchar("new_parent_id"),
+  changeReason: text("change_reason"),
+  changedAt: timestamp("changed_at").defaultNow(),
+  userId: varchar("user_id").notNull(),
+});
+
 // Relations
 export const contactsRelations = relations(contacts, ({ one, many }) => ({
   parent: one(contacts, {
@@ -126,6 +157,37 @@ export const contactsRelations = relations(contacts, ({ one, many }) => ({
   }),
   workflowAssignments: many(workflowAssignments),
   activities: many(contactActivities),
+  relationshipsFrom: many(contactRelationships, { relationName: "from_relationship" }),
+  relationshipsTo: many(contactRelationships, { relationName: "to_relationship" }),
+  hierarchyChanges: many(hierarchyChanges),
+}));
+
+export const contactRelationshipsRelations = relations(contactRelationships, ({ one }) => ({
+  fromContact: one(contacts, {
+    fields: [contactRelationships.fromContactId],
+    references: [contacts.id],
+    relationName: "from_relationship",
+  }),
+  toContact: one(contacts, {
+    fields: [contactRelationships.toContactId],
+    references: [contacts.id],
+    relationName: "to_relationship",
+  }),
+  user: one(users, {
+    fields: [contactRelationships.userId],
+    references: [users.id],
+  }),
+}));
+
+export const hierarchyChangesRelations = relations(hierarchyChanges, ({ one }) => ({
+  contact: one(contacts, {
+    fields: [hierarchyChanges.contactId],
+    references: [contacts.id],
+  }),
+  user: one(users, {
+    fields: [hierarchyChanges.userId],
+    references: [users.id],
+  }),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -189,6 +251,8 @@ export type Contact = typeof contacts.$inferSelect & {
   children?: Contact[];
   workflowAssignments?: WorkflowAssignment[];
   activities?: ContactActivity[];
+  relationshipsFrom?: ContactRelationship[];
+  relationshipsTo?: ContactRelationship[];
 };
 export type InsertContact = z.infer<typeof insertContactSchema>;
 export type UpdateContact = z.infer<typeof updateContactSchema>;
@@ -196,6 +260,13 @@ export type WorkflowAssignment = typeof workflowAssignments.$inferSelect;
 export type ContactActivity = typeof contactActivities.$inferSelect;
 export type InsertWorkflowAssignment = z.infer<typeof insertWorkflowAssignmentSchema>;
 export type InsertContactActivity = z.infer<typeof insertContactActivitySchema>;
+export type ContactRelationship = typeof contactRelationships.$inferSelect & {
+  fromContact?: Contact;
+  toContact?: Contact;
+};
+export type InsertContactRelationship = typeof contactRelationships.$inferInsert;
+export type HierarchyChange = typeof hierarchyChanges.$inferSelect;
+export type InsertHierarchyChange = typeof hierarchyChanges.$inferInsert;
 
 export interface ContactStats {
   totalCompanies: number;

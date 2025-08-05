@@ -46,6 +46,11 @@ Preferred communication style: Simple, everyday language.
 - **Tree Visualization**: Expandable/collapsible tree view for exploring contact relationships
 - **CRUD Operations**: Full create, read, update, delete functionality with optimistic updates
 - **Statistics Dashboard**: Real-time counts and analytics for contact types
+- **Advanced Hierarchy Tree**: Interactive drag-and-drop tree with visual feedback and reorganization
+- **Relationship Management**: Multi-type relationships (reports to, works with, supervises, collaborates)
+- **Organization Chart**: Visual org chart with PDF export and team structure visualization
+- **Workflow Contact Selection**: Skills-based filtering and bulk assignment for workflow management
+- **Enhanced Contact Forms**: Multi-step forms with comprehensive contact data collection
 
 ## External Dependencies
 
@@ -62,6 +67,8 @@ Preferred communication style: Simple, everyday language.
 - **tailwindcss**: Utility-first CSS framework
 - **class-variance-authority**: Utility for managing component variants
 - **lucide-react**: Icon library for consistent iconography
+- **@dnd-kit/***: Drag and drop functionality for hierarchy reorganization
+- **react-organizational-chart**: Organization chart visualization component
 
 ### Development Tools
 - **vite**: Fast build tool and development server
