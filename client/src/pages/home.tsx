@@ -10,6 +10,8 @@ import OrgChartViewer from "@/components/org-chart-viewer";
 import WorkflowContactSelection from "@/components/workflow-contact-selection";
 import ContactFormModal from "@/components/contact-form-modal";
 import EnhancedContactForm from "@/components/enhanced-contact-form";
+import { AdvancedSearch } from "@/components/advanced-search";
+import { ContactAnalytics } from "@/components/contact-analytics";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,12 +28,15 @@ import {
   BarChart3,
   Settings,
   Eye,
+  Search,
+  TrendingUp,
 } from "lucide-react";
 
 export default function Home() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState("hierarchy");
+  const [activeTab, setActiveTab] = useState("search");
+  const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -142,31 +147,96 @@ export default function Home() {
 
         {/* Advanced Hierarchy Management Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="hierarchy" className="flex items-center space-x-2">
+          <TabsList className="grid w-full grid-cols-7">
+            <TabsTrigger value="search" className="flex items-center space-x-1">
+              <Search className="h-4 w-4" />
+              <span className="hidden sm:inline">Search</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center space-x-1">
+              <TrendingUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Analytics</span>
+            </TabsTrigger>
+            <TabsTrigger value="hierarchy" className="flex items-center space-x-1">
               <Network className="h-4 w-4" />
-              <span>Advanced Tree</span>
+              <span className="hidden sm:inline">Tree</span>
             </TabsTrigger>
-            <TabsTrigger value="relationships" className="flex items-center space-x-2">
+            <TabsTrigger value="relationships" className="flex items-center space-x-1">
               <Users className="h-4 w-4" />
-              <span>Relationships</span>
+              <span className="hidden sm:inline">Relations</span>
             </TabsTrigger>
-            <TabsTrigger value="orgchart" className="flex items-center space-x-2">
+            <TabsTrigger value="orgchart" className="flex items-center space-x-1">
               <BarChart3 className="h-4 w-4" />
-              <span>Org Chart</span>
+              <span className="hidden sm:inline">Org Chart</span>
             </TabsTrigger>
-            <TabsTrigger value="workflow" className="flex items-center space-x-2">
+            <TabsTrigger value="workflow" className="flex items-center space-x-1">
               <Briefcase className="h-4 w-4" />
-              <span>Workflow</span>
+              <span className="hidden sm:inline">Workflow</span>
             </TabsTrigger>
-            <TabsTrigger value="classic" className="flex items-center space-x-2">
+            <TabsTrigger value="classic" className="flex items-center space-x-1">
               <Eye className="h-4 w-4" />
-              <span>Classic View</span>
+              <span className="hidden sm:inline">Classic</span>
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="search" className="space-y-6">
+            <AdvancedSearch 
+              contacts={contacts} 
+              onResultsUpdate={setFilteredContacts}
+            />
+            {filteredContacts.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Search Results ({filteredContacts.length} contacts)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredContacts.slice(0, 12).map((contact) => (
+                      <div key={contact.id} className="p-4 border rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">{contact.name}</h4>
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            contact.type === 'company' ? 'bg-blue-100 text-blue-800' :
+                            contact.type === 'division' ? 'bg-orange-100 text-orange-800' :
+                            'bg-green-100 text-green-800'
+                          }`}>
+                            {contact.type}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">{contact.jobTitle || contact.email}</p>
+                        <p className="text-xs text-gray-500">{contact.department}</p>
+                        {contact.skills && contact.skills.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {contact.skills.slice(0, 3).map((skill) => (
+                              <span key={skill} className="px-2 py-1 text-xs bg-gray-100 rounded">
+                                {skill}
+                              </span>
+                            ))}
+                            {contact.skills.length > 3 && (
+                              <span className="px-2 py-1 text-xs bg-gray-100 rounded">
+                                +{contact.skills.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {filteredContacts.length > 12 && (
+                    <p className="text-center text-sm text-gray-500 mt-4">
+                      Showing first 12 results. Use filters to narrow down your search.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            <ContactAnalytics contacts={contacts} />
+          </TabsContent>
+
           <TabsContent value="hierarchy" className="space-y-6">
-            <AdvancedHierarchyTree contacts={contacts} />
+            <AdvancedHierarchyTree contacts={filteredContacts.length > 0 ? filteredContacts : contacts} />
           </TabsContent>
 
           <TabsContent value="relationships" className="space-y-6">
