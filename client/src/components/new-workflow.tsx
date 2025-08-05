@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   ArrowLeft,
   ArrowRight,
@@ -266,118 +267,292 @@ export function NewWorkflow() {
         </Tabs>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col">
-          {/* Setup Tab */}
-          <TabsContent value="setup" className="flex-1 overflow-hidden">
-            <div className="h-full overflow-y-auto p-6">
-              <div className="max-w-2xl mx-auto space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings size={20} />
-                    Workflow Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Workflow Name *
-                    </label>
-                    <Input
-                      value={workflow.name}
-                      onChange={(e) => setWorkflow(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Enter workflow name"
-                      className={`w-full ${!workflow.name.trim() ? 'border-red-300' : ''}`}
-                    />
-                    {!workflow.name.trim() && (
-                      <p className="text-red-500 text-xs mt-1">Workflow name is required</p>
-                    )}
+      {/* Main Content Area - Takes remaining height */}
+      <div className="flex-1 overflow-hidden flex flex-col relative">
+        {/* Setup Tab - Special handling for scrolling */}
+        {activeTab === 'setup' && (
+          <div className="flex-1 overflow-auto p-6 pb-24">
+            <div className="max-w-2xl mx-auto space-y-6">
+              <Card className="shadow-md">
+                <CardContent className="p-6">
+                  <div className="flex items-center mb-6">
+                    <div className="p-3 bg-blue-50 rounded-lg mr-3 flex items-center justify-center">
+                      <Settings size={24} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-bold text-gray-900">Workflow Information</h1>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Define the basic properties and settings for your new workflow.
+                        All fields marked with * are required.
+                      </p>
+                    </div>
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Description
-                    </label>
-                    <Textarea
-                      value={workflow.description || ''}
-                      onChange={(e) => setWorkflow(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Describe what this workflow does"
-                      rows={3}
-                      className="w-full"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Category
-                    </label>
-                    <Select 
-                      value={workflow.metadata?.category || 'General'}
-                      onValueChange={(value) => setWorkflow(prev => ({
-                        ...prev,
-                        metadata: { ...prev.metadata, category: value }
-                      }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="General">General</SelectItem>
-                        <SelectItem value="Client Management">Client Management</SelectItem>
-                        <SelectItem value="Editorial">Editorial</SelectItem>
-                        <SelectItem value="Design">Design</SelectItem>
-                        <SelectItem value="Quality Assurance">Quality Assurance</SelectItem>
-                        <SelectItem value="HR">Human Resources</SelectItem>
-                        <SelectItem value="Finance">Finance</SelectItem>
-                        <SelectItem value="Marketing">Marketing</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Version
-                    </label>
-                    <Input
-                      value={workflow.version}
-                      onChange={(e) => setWorkflow(prev => ({ ...prev, version: e.target.value }))}
-                      placeholder="1.0"
-                      className="w-full"
-                    />
+
+                  <div className="space-y-6">
+                    {/* Workflow Name */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Workflow Name *
+                      </label>
+                      <Input
+                        value={workflow.name}
+                        onChange={(e) => setWorkflow(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Enter workflow name"
+                        className={`w-full ${!workflow.name.trim() ? 'border-red-300' : ''}`}
+                      />
+                      {!workflow.name.trim() ? (
+                        <p className="text-red-500 text-xs mt-1">Workflow name is required</p>
+                      ) : (
+                        <p className="text-gray-500 text-xs mt-1">Give your workflow a descriptive name</p>
+                      )}
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Description
+                      </label>
+                      <Textarea
+                        value={workflow.description || ''}
+                        onChange={(e) => setWorkflow(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Describe what this workflow does, its purpose, and expected outcomes..."
+                        rows={4}
+                        className="w-full"
+                      />
+                      <p className="text-gray-500 text-xs mt-1">
+                        Provide a detailed description to help others understand this workflow
+                      </p>
+                    </div>
+
+                    {/* Category */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Category *
+                      </label>
+                      <Select 
+                        value={workflow.metadata?.category || 'General'}
+                        onValueChange={(value) => setWorkflow(prev => ({
+                          ...prev,
+                          metadata: { ...prev.metadata, category: value }
+                        }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="General">General</SelectItem>
+                          <SelectItem value="Client Management">Client Management</SelectItem>
+                          <SelectItem value="Editorial">Editorial</SelectItem>
+                          <SelectItem value="Design">Design</SelectItem>
+                          <SelectItem value="Quality Assurance">Quality Assurance</SelectItem>
+                          <SelectItem value="Technology">Technology</SelectItem>
+                          <SelectItem value="Publishing">Publishing</SelectItem>
+                          <SelectItem value="Marketing">Marketing</SelectItem>
+                          <SelectItem value="Finance">Finance</SelectItem>
+                          <SelectItem value="Human Resources">Human Resources</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-gray-500 text-xs mt-1">
+                        Select the category that best describes this workflow
+                      </p>
+                    </div>
+
+                    {/* Version */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Version
+                      </label>
+                      <Input
+                        value={workflow.version}
+                        onChange={(e) => setWorkflow(prev => ({ ...prev, version: e.target.value }))}
+                        placeholder="1.0"
+                        className="w-full"
+                      />
+                      <p className="text-gray-500 text-xs mt-1">
+                        Version number for this workflow (e.g., 1.0, 1.1, 2.0)
+                      </p>
+                    </div>
+
+                    {/* Advanced Settings Section */}
+                    <Separator className="my-6" />
+                    
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900 mb-4">Advanced Settings</h2>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Priority Level
+                          </label>
+                          <Select defaultValue="Medium">
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select priority" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Low">Low Priority</SelectItem>
+                              <SelectItem value="Medium">Medium Priority</SelectItem>
+                              <SelectItem value="High">High Priority</SelectItem>
+                              <SelectItem value="Critical">Critical Priority</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-gray-500 text-xs mt-1">
+                            Default priority for workflow instances
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Initial Status
+                          </label>
+                          <Select defaultValue="Draft">
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Draft">Draft</SelectItem>
+                              <SelectItem value="Active">Active</SelectItem>
+                              <SelectItem value="Testing">Testing</SelectItem>
+                              <SelectItem value="Inactive">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-gray-500 text-xs mt-1">
+                            Starting status for this workflow
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Owner/Creator
+                          </label>
+                          <Input
+                            defaultValue="Current User"
+                            className="w-full"
+                          />
+                          <p className="text-gray-500 text-xs mt-1">
+                            Person responsible for this workflow
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Department
+                          </label>
+                          <Input
+                            placeholder="e.g., Editorial, Design, QA"
+                            className="w-full"
+                          />
+                          <p className="text-gray-500 text-xs mt-1">
+                            Primary department using this workflow
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Workflow Configuration */}
+                    <Separator className="my-6" />
+                    
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900 mb-4">Workflow Configuration</h2>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Expected Duration
+                          </label>
+                          <Input
+                            placeholder="e.g., 2 weeks, 30 days"
+                            className="w-full"
+                          />
+                          <p className="text-gray-500 text-xs mt-1">
+                            Typical time to complete this workflow
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Tags
+                          </label>
+                          <Input
+                            placeholder="Enter tags separated by commas"
+                            className="w-full"
+                          />
+                          <p className="text-gray-500 text-xs mt-1">
+                            Tags to help categorize and find this workflow
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox id="auto-assign" defaultChecked />
+                            <label
+                              htmlFor="auto-assign"
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              Auto-assign tasks based on skills
+                            </label>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <Checkbox id="require-approval" />
+                            <label
+                              htmlFor="require-approval"
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              Require approval for task completion
+                            </label>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <Checkbox id="send-notifications" defaultChecked />
+                            <label
+                              htmlFor="send-notifications"
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              Send notifications for task assignments
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Call to Action */}
+                    <div className="mt-8 p-6 bg-blue-50 rounded-lg text-center">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        Ready to design your workflow?
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Click the button below to proceed to the visual workflow designer
+                        where you can add tasks, gateways, and connections.
+                      </p>
+                      <Button
+                        size="lg"
+                        onClick={handleNext}
+                        disabled={!formValid}
+                        className="px-6 py-3"
+                      >
+                        Continue to Designer →
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Getting Started</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 text-sm text-gray-600">
-                    <p>🎯 <strong>Define your workflow:</strong> Set up the basic information and objectives</p>
-                    <p>🔧 <strong>Design the process:</strong> Use the BPMN designer to create workflow steps</p>
-                    <p>👥 <strong>Assign contacts:</strong> Map tasks to team members based on skills</p>
-                    <p>▶️ <strong>Preview & Test:</strong> Validate the workflow before going live</p>
-                  </div>
-                </CardContent>
-              </Card>
-              </div>
+              {/* Getting Started Guide - Now shown as a side panel on larger screens */}
             </div>
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Designer Tab - Use existing WorkflowDesigner */}
-          <TabsContent value="designer" className="flex-1 overflow-hidden">
-            <div className="h-full">
-              <WorkflowDesigner />
-            </div>
-          </TabsContent>
+        {/* Designer Tab */}
+        {activeTab === 'designer' && (
+          <div className="flex-1 overflow-hidden">
+            <WorkflowDesigner />
+          </div>
+        )}
 
-          {/* Assignments Tab */}
-          <TabsContent value="assignments" className="flex-1 overflow-hidden">
-            <div className="h-full overflow-y-auto p-6">
-              <div className="max-w-4xl mx-auto space-y-6">
+        {/* Assignments Tab */}
+        {activeTab === 'assignments' && (
+          <div className="flex-1 overflow-auto p-6 pb-24">
+            <div className="max-w-4xl mx-auto space-y-6">
               <div>
                 <h2 className="text-xl font-semibold mb-2">Task Assignments</h2>
                 <p className="text-gray-600">Assign contacts to workflow tasks. Tasks will appear here once you add them in the designer.</p>
@@ -398,14 +573,14 @@ export function NewWorkflow() {
                   </Button>
                 </CardContent>
               </Card>
-              </div>
             </div>
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Execution Tab */}
-          <TabsContent value="execution" className="flex-1 overflow-hidden">
-            <div className="h-full overflow-y-auto p-6">
-              <div className="max-w-4xl mx-auto space-y-6">
+        {/* Execution Tab */}
+        {activeTab === 'execution' && (
+          <div className="flex-1 overflow-auto p-6 pb-24">
+            <div className="max-w-4xl mx-auto space-y-6">
               <div>
                 <h2 className="text-xl font-semibold mb-2">Execution Settings</h2>
                 <p className="text-gray-600">Configure how this workflow will execute and handle tasks.</p>
@@ -421,14 +596,14 @@ export function NewWorkflow() {
                   <Badge variant="outline">Coming Soon</Badge>
                 </CardContent>
               </Card>
-              </div>
             </div>
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Preview Tab */}
-          <TabsContent value="preview" className="flex-1 overflow-hidden">
-            <div className="h-full overflow-y-auto p-6">
-              <div className="max-w-4xl mx-auto space-y-6">
+        {/* Preview Tab */}
+        {activeTab === 'preview' && (
+          <div className="flex-1 overflow-auto p-6 pb-24">
+            <div className="max-w-4xl mx-auto space-y-6">
               <div>
                 <h2 className="text-xl font-semibold mb-2">Workflow Preview</h2>
                 <p className="text-gray-600">Review your workflow configuration before saving.</p>
@@ -485,13 +660,13 @@ export function NewWorkflow() {
                   </CardContent>
                 </Card>
               </div>
-              </div>
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
+      </div>
 
-        {/* Bottom Navigation */}
-        <div className="bg-white border-t border-gray-200 px-6 py-4 flex-shrink-0">
+        {/* Fixed Bottom Navigation Bar */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-4 shadow-lg z-50">
           <div className="flex items-center justify-between max-w-4xl mx-auto">
             <Button
               variant="outline"
@@ -502,8 +677,23 @@ export function NewWorkflow() {
               Previous
             </Button>
             
-            <div className="text-sm text-gray-500">
-              Step {getCurrentTabIndex() + 1} of {workflowTabs.length}
+            {/* Progress Info */}
+            <div className="flex items-center gap-4 flex-1 justify-center">
+              <span className="text-sm text-gray-500">
+                Step {getCurrentTabIndex() + 1} of {workflowTabs.length}
+              </span>
+              
+              {/* Progress Bar */}
+              <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-600 transition-all duration-300"
+                  style={{ width: `${getProgressPercentage()}%` }}
+                />
+              </div>
+              
+              <span className="text-sm font-medium text-blue-600">
+                {workflowTabs[getCurrentTabIndex()].label}
+              </span>
             </div>
             
             {getCurrentTabIndex() < workflowTabs.length - 1 ? (
@@ -522,6 +712,9 @@ export function NewWorkflow() {
             )}
           </div>
         </div>
+
+        {/* Spacer for fixed bottom bar */}
+        <div className="h-20 flex-shrink-0" />
       </div>
     </div>
   );
