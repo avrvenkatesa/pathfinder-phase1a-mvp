@@ -82,12 +82,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/contacts", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const contactData = insertContactSchema.parse({
-        ...req.body,
-        userId,
-      });
+      const contactData = insertContactSchema.parse(req.body);
       
-      const contact = await storage.createContact(contactData);
+      const contact = await storage.createContact(contactData, userId);
       res.status(201).json(contact);
     } catch (error) {
       if (error instanceof z.ZodError) {

@@ -18,7 +18,7 @@ export interface IStorage {
   // Contact operations
   getContacts(userId: string, filters?: ContactFilters): Promise<Contact[]>;
   getContactById(id: string, userId: string): Promise<Contact | undefined>;
-  createContact(contact: InsertContact): Promise<Contact>;
+  createContact(contact: InsertContact, userId: string): Promise<Contact>;
   updateContact(id: string, contact: UpdateContact, userId: string): Promise<Contact | undefined>;
   deleteContact(id: string, userId: string): Promise<boolean>;
   getContactHierarchy(userId: string): Promise<Contact[]>;
@@ -98,10 +98,10 @@ export class DatabaseStorage implements IStorage {
     return contact;
   }
 
-  async createContact(contact: InsertContact): Promise<Contact> {
+  async createContact(contact: InsertContact, userId: string): Promise<Contact> {
     const [newContact] = await db
       .insert(contacts)
-      .values([contact])
+      .values({ ...contact, userId })
       .returning();
     return newContact;
   }
