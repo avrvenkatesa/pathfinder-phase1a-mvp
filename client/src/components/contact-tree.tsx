@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest } from "@/lib/queryClient";
 import type { Contact } from "@shared/schema";
+import { Building, User, Mail, Phone, Eye, Edit, Trash2, ChevronRight, ChevronDown } from "lucide-react";
 
 interface ContactNodeProps {
   contact: Contact;
@@ -13,6 +16,7 @@ interface ContactNodeProps {
 
 function ContactNode({ contact, level }: ContactNodeProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -54,10 +58,19 @@ function ContactNode({ contact, level }: ContactNodeProps) {
     }
   };
 
+  const handleViewDetails = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLocation(`/contacts/${contact.id}`);
+  };
+
   const toggleExpanded = () => {
     if (contact.children && contact.children.length > 0) {
       setIsExpanded(!isExpanded);
     }
+  };
+
+  const handleContactClick = () => {
+    setLocation(`/contacts/${contact.id}`);
   };
 
   const getBgColor = () => {
@@ -106,14 +119,18 @@ function ContactNode({ contact, level }: ContactNodeProps) {
     <div className={`mb-4 ${marginLeftClass}`}>
       <div
         className={`flex items-center p-4 rounded-lg border transition-colors cursor-pointer ${getBgColor()}`}
-        onClick={toggleExpanded}
+        onClick={handleContactClick}
       >
         <div className="flex items-center flex-1">
           {hasChildren ? (
             <i
               className={`fas ${
                 isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'
-              } text-gray-400 mr-3 text-sm transition-transform`}
+              } text-gray-400 mr-3 text-sm transition-transform cursor-pointer hover:text-gray-600`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpanded();
+              }}
             />
           ) : (
             <div className="w-4 mr-3" />

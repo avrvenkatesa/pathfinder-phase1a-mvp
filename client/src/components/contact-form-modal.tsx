@@ -37,6 +37,10 @@ import { z } from "zod";
 const formSchema = insertContactSchema.extend({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["company", "division", "person"]),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -199,7 +203,7 @@ export default function ContactFormModal() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Parent</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select parent (optional)" />

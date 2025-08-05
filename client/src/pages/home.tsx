@@ -5,6 +5,7 @@ import Header from "@/components/header";
 import ContactFilters from "@/components/contact-filters";
 import ContactTree from "@/components/contact-tree";
 import ContactFormModal from "@/components/contact-form-modal";
+import EnhancedContactForm from "@/components/enhanced-contact-form";
 import { useQuery } from "@tanstack/react-query";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { ContactStats } from "@shared/schema";
@@ -58,7 +59,7 @@ export default function Home() {
                 <i className="fas fa-download mr-2"></i>
                 Export
               </button>
-              <ContactFormModal />
+              <EnhancedContactForm />
             </div>
           </div>
         </div>
