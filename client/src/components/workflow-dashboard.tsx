@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -132,8 +133,14 @@ function WorkflowsTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [, setLocation] = useLocation();
   
   const queryClient = useQueryClient();
+
+  const handleNewWorkflow = () => {
+    console.log('New Workflow button clicked');
+    setLocation('/workflows/new');
+  };
   
   // Mock query - replace with actual API call
   const { data: workflows = [], isLoading } = useQuery({
@@ -218,7 +225,7 @@ function WorkflowsTab() {
             <SelectItem value="Quality Assurance">Quality Assurance</SelectItem>
           </SelectContent>
         </Select>
-        <Button>
+        <Button onClick={handleNewWorkflow}>
           <Plus size={16} className="mr-1" />
           New Workflow
         </Button>
@@ -242,7 +249,12 @@ function WorkflowsTab() {
               <TableRow key={workflow.id}>
                 <TableCell>
                   <div>
-                    <div className="font-medium">{workflow.name}</div>
+                    <div 
+                      className="font-medium cursor-pointer hover:text-blue-600"
+                      onClick={() => setLocation(`/workflows/${workflow.id}`)}
+                    >
+                      {workflow.name}
+                    </div>
                     <div className="text-sm text-gray-500">{workflow.description || ''}</div>
                   </div>
                 </TableCell>
@@ -262,7 +274,7 @@ function WorkflowsTab() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setLocation(`/workflows/${workflow.id}`)}>
                         <Edit size={16} className="mr-2" />
                         Edit
                       </DropdownMenuItem>
@@ -587,11 +599,18 @@ function AnalyticsTab() {
 
 // Main dashboard component
 export function WorkflowDashboard() {
+  const [, setLocation] = useLocation();
+
+  const handleNewWorkflow = () => {
+    console.log('New Workflow button clicked (main)');
+    setLocation('/workflows/new');
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Workflow Manager</h1>
-        <Button>
+        <Button onClick={handleNewWorkflow}>
           <Plus size={16} className="mr-1" />
           New Workflow
         </Button>
