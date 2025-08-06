@@ -1048,11 +1048,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                     
                     {/* Contact Assignment Indicator */}
                     {element.properties.assignedContacts?.length > 0 && (
-                      <div className="absolute -top-2 -left-2 flex items-center gap-0.5">
+                      <div className="absolute -top-8 -left-2 flex flex-col gap-0.5">
                         {element.properties.assignedContacts.slice(0, 3).map((contactId: string, index: number) => (
                           <div key={contactId} className={`relative ${index > 0 ? '-ml-1' : ''}`}>
-                            <div className="w-6 h-6 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center text-xs text-white font-medium">
-                              {availableContacts.find(c => c.contactId === contactId)?.firstName?.[0] || 'U'}
+                            <div className="bg-blue-500 text-white px-2 py-0.5 rounded text-xs font-medium shadow-sm border border-white max-w-20 truncate">
+                              {(() => {
+                                const contact = availableContacts.find(c => (c as any).contactId === contactId || (c as any).id === contactId);
+                                return contact ? `${(contact as any).firstName || (contact as any).name || ''} ${(contact as any).lastName || ''}`.trim() : 'Unknown';
+                              })()}
                             </div>
                             <ContactAvailabilityIndicator
                               contactId={contactId}
@@ -1411,15 +1414,15 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                         <Label className="text-sm font-medium">Assigned Team ({selectedElement.properties.assignedContacts.length})</Label>
                         <div className="mt-2 space-y-2">
                           {selectedElement.properties.assignedContacts.map((contactId: string) => {
-                            const contact = availableContacts.find(c => c.contactId === contactId || c.id === contactId);
+                            const contact = availableContacts.find(c => (c as any).contactId === contactId || (c as any).id === contactId);
                             return contact ? (
                               <div key={contactId} className="flex items-center gap-3 p-2 border rounded-lg">
                                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                                  {(contact.firstName?.[0] || contact.name?.[0] || '?')}{(contact.lastName?.[0] || '')}
+                                  {((contact as any).firstName?.[0] || (contact as any).name?.[0] || '?')}{((contact as any).lastName?.[0] || '')}
                                 </div>
                                 <div className="flex-1">
-                                  <p className="font-medium text-sm">{contact.firstName || contact.name} {contact.lastName || ''}</p>
-                                  <p className="text-xs text-gray-600">{contact.title || contact.jobTitle} • {contact.department}</p>
+                                  <p className="font-medium text-sm">{(contact as any).firstName || (contact as any).name} {(contact as any).lastName || ''}</p>
+                                  <p className="text-xs text-gray-600">{(contact as any).title || (contact as any).jobTitle} • {(contact as any).department}</p>
                                 </div>
                                 <ContactAvailabilityIndicator
                                   contactId={contactId}
