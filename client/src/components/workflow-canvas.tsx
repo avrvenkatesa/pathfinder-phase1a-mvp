@@ -104,6 +104,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [showAddSkillModal, setShowAddSkillModal] = useState(false);
   const [draggedSkillIndex, setDraggedSkillIndex] = useState<number | null>(null);
+  const [showRecommendations, setShowRecommendations] = useState(true);
 
   // Handle skill removal
   const removeSkill = (elementId: string, index: number) => {
@@ -1604,6 +1605,36 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                           />
                         </DialogContent>
                       </Dialog>
+
+                      {/* Assignment Recommendations Section */}
+                      {selectedElement?.properties?.requiredSkills?.length > 0 && (
+                        <div className="mt-4 border-t pt-4">
+                          <button
+                            onClick={() => setShowRecommendations(!showRecommendations)}
+                            className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 hover:text-gray-900"
+                          >
+                            <span className="flex items-center gap-2">
+                              📊 Recommended Contacts
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                Auto-matching
+                              </span>
+                            </span>
+                            <span>{showRecommendations ? '▼' : '▶'}</span>
+                          </button>
+                          
+                          {showRecommendations && (
+                            <AssignmentRecommendations 
+                              requiredSkills={selectedElement.properties.requiredSkills}
+                              estimatedHours={selectedElement.properties.estimatedHours}
+                              department={selectedElement.properties.contactRequirements?.preferredDepartments?.[0]}
+                              onAssignContact={(contact) => {
+                                console.log('Assigning contact:', contact);
+                                // Add assignment logic here
+                              }}
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Display assigned contacts with real-time availability */}
@@ -1889,6 +1920,325 @@ const WeightSystemDisplay = ({ requiredSkills, onNormalizeWeights }: {
           Critical (8-10)
         </span>
       </div>
+    </div>
+  );
+};
+
+// Assignment Recommendations Component
+const AssignmentRecommendations = ({ 
+  requiredSkills, 
+  estimatedHours, 
+  department,
+  onAssignContact 
+}: {
+  requiredSkills: Array<{ name: string; level: string; weight: number }>;
+  estimatedHours?: number;
+  department?: string;
+  onAssignContact: (contact: any) => void;
+}) => {
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+
+  // Mock contacts data (replace with your actual contacts)
+  const mockContacts = [
+    {
+      id: 1,
+      name: 'John Smith',
+      title: 'Senior Developer',
+      department: 'Engineering',
+      avatar: 'JS',
+      skills: [
+        { name: 'JavaScript', level: 'expert' },
+        { name: 'React', level: 'intermediate' },
+        { name: 'Node.js', level: 'intermediate' }
+      ],
+      availability: 'available',
+      currentWorkload: 60,
+      maxCapacity: 100
+    },
+    {
+      id: 2,
+      name: 'Sarah Johnson',
+      title: 'Full Stack Engineer',
+      department: 'Engineering',
+      avatar: 'SJ',
+      skills: [
+        { name: 'JavaScript', level: 'intermediate' },
+        { name: 'MySQL', level: 'expert' },
+        { name: 'AWS', level: 'beginner' }
+      ],
+      availability: 'busy',
+      currentWorkload: 80,
+      maxCapacity: 100
+    },
+    {
+      id: 3,
+      name: 'Mike Chen',
+      title: 'Tech Lead',
+      department: 'Engineering',
+      avatar: 'MC',
+      skills: [
+        { name: 'JavaScript', level: 'expert' },
+        { name: 'HTML', level: 'expert' },
+        { name: 'MySQL', level: 'intermediate' }
+      ],
+      availability: 'available',
+      currentWorkload: 40,
+      maxCapacity: 100
+    },
+    {
+      id: 4,
+      name: 'Emily Davis',
+      title: 'Backend Developer',
+      department: 'Engineering',
+      avatar: 'ED',
+      skills: [
+        { name: 'Python', level: 'expert' },
+        { name: 'MySQL', level: 'expert' },
+        { name: 'AWS', level: 'intermediate' }
+      ],
+      availability: 'available',
+      currentWorkload: 30,
+      maxCapacity: 100
+    }
+  ];
+
+  // Calculate match score for each contact
+  const calculateMatchScore = (contact: any) => {
+    if (!requiredSkills || requiredSkills.length === 0) return 0;
+
+    const levelValues: Record<string, number> = {
+      beginner: 1,
+      intermediate: 2,
+      expert: 3,
+      advanced: 3 // Map 'advanced' to expert level
+    };
+
+    let totalWeight = requiredSkills.reduce((sum, skill) => sum + skill.weight, 0);
+    let achievedScore = 0;
+    let matchedSkills: string[] = [];
+    let missingSkills: string[] = [];
+
+    requiredSkills.forEach(reqSkill => {
+      const contactSkill = contact.skills.find(
+        (cs: any) => cs.name.toLowerCase() === reqSkill.name.toLowerCase()
+      );
+
+      if (contactSkill) {
+        const reqLevel = levelValues[reqSkill.level] || 2;
+        const hasLevel = levelValues[contactSkill.level] || 1;
+        
+        if (hasLevel >= reqLevel) {
+          achievedScore += reqSkill.weight;
+          matchedSkills.push(reqSkill.name);
+        } else if (hasLevel === reqLevel - 1) {
+          achievedScore += reqSkill.weight * 0.5;
+          matchedSkills.push(`${reqSkill.name} (partial)`);
+        } else {
+          missingSkills.push(reqSkill.name);
+        }
+      } else {
+        missingSkills.push(reqSkill.name);
+      }
+    });
+
+    const skillScore = totalWeight > 0 ? Math.round((achievedScore / totalWeight) * 100) : 0;
+    
+    // Factor in availability (25% weight)
+    const availabilityScore = 
+      contact.availability === 'available' ? 100 :
+      contact.availability === 'busy' ? 50 : 0;
+    
+    // Factor in workload (20% weight)
+    const workloadScore = Math.max(0, 100 - contact.currentWorkload);
+    
+    // Factor in department match (10% weight)
+    const deptScore = contact.department === department ? 100 : 50;
+    
+    // Calculate final score
+    const finalScore = Math.round(
+      skillScore * 0.45 +
+      availabilityScore * 0.25 +
+      workloadScore * 0.20 +
+      deptScore * 0.10
+    );
+
+    return {
+      ...contact,
+      matchScore: finalScore,
+      skillMatchScore: skillScore,
+      matchedSkills,
+      missingSkills,
+      recommendation: getRecommendationReason(finalScore, matchedSkills.length, contact.availability)
+    };
+  };
+
+  const getRecommendationReason = (score: number, matchedCount: number, availability: string) => {
+    if (score >= 80) return `Excellent match with ${matchedCount} matching skills`;
+    if (score >= 60) return `Good match, ${availability === 'available' ? 'available now' : 'currently busy'}`;
+    if (score >= 40) return `Partial match, may need support`;
+    return `Limited match, consider alternatives`;
+  };
+
+  // Generate recommendations when skills change
+  useEffect(() => {
+    if (requiredSkills && requiredSkills.length > 0) {
+      setLoading(true);
+      setTimeout(() => {
+        const scored = mockContacts
+          .map(calculateMatchScore)
+          .sort((a, b) => b.matchScore - a.matchScore)
+          .slice(0, 5);
+        setRecommendations(scored);
+        setLoading(false);
+      }, 500); // Simulate API delay
+    } else {
+      setRecommendations([]);
+    }
+  }, [requiredSkills, department]);
+
+  const getAvailabilityColor = (availability: string) => {
+    switch(availability) {
+      case 'available': return 'bg-green-500';
+      case 'busy': return 'bg-yellow-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-600 bg-green-50';
+    if (score >= 60) return 'text-yellow-600 bg-yellow-50';
+    return 'text-red-600 bg-red-50';
+  };
+
+  if (!requiredSkills || requiredSkills.length === 0) {
+    return null; // Don't show recommendations if no skills defined
+  }
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          📊 Recommended Contacts
+          {loading && (
+            <span className="text-xs text-gray-500">(Auto-matching...)</span>
+          )}
+        </h3>
+        {recommendations.length > 3 && (
+          <button
+            onClick={() => setShowAll(!showAll)}
+            className="text-xs text-blue-600 hover:text-blue-700"
+          >
+            {showAll ? 'Show Less' : `Show All (${recommendations.length})`}
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="animate-pulse">
+              <div className="h-20 bg-gray-100 rounded-lg"></div>
+            </div>
+          ))}
+        </div>
+      ) : recommendations.length > 0 ? (
+        <div className="space-y-2">
+          {recommendations.slice(0, showAll ? undefined : 3).map((contact, idx) => (
+            <div
+              key={contact.id}
+              className="p-3 bg-white border rounded-lg hover:shadow-md transition-shadow"
+            >
+              {/* Contact Header */}
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {/* Avatar */}
+                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold">
+                    {contact.avatar}
+                  </div>
+                  
+                  {/* Contact Info */}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{contact.name}</span>
+                      <div className={`w-2 h-2 rounded-full ${getAvailabilityColor(contact.availability)}`} 
+                           title={contact.availability} />
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      {contact.title} • {contact.department}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Match Score */}
+                <div className={`px-2 py-1 rounded-full text-xs font-semibold ${getScoreColor(contact.matchScore)}`}>
+                  {contact.matchScore}%
+                </div>
+              </div>
+
+              {/* Skills Match */}
+              <div className="mb-2">
+                <div className="flex flex-wrap gap-1">
+                  {contact.matchedSkills.slice(0, 3).map((skill: string, i: number) => (
+                    <span key={i} className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">
+                      ✓ {skill}
+                    </span>
+                  ))}
+                  {contact.missingSkills.length > 0 && (
+                    <span className="text-xs px-2 py-1 bg-gray-100 text-gray-500 rounded">
+                      Missing: {contact.missingSkills.slice(0, 2).join(', ')}
+                      {contact.missingSkills.length > 2 && ` +${contact.missingSkills.length - 2}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Workload Bar */}
+              <div className="mb-2">
+                <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                  <span>Workload</span>
+                  <span>{contact.currentWorkload}%</span>
+                </div>
+                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full ${
+                      contact.currentWorkload > 80 ? 'bg-red-500' :
+                      contact.currentWorkload > 60 ? 'bg-yellow-500' :
+                      'bg-green-500'
+                    }`}
+                    style={{ width: `${contact.currentWorkload}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Recommendation Reason */}
+              <div className="text-xs text-gray-600 italic mb-2">
+                💡 {contact.recommendation}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onAssignContact(contact)}
+                  className="flex-1 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                >
+                  Assign
+                </button>
+                <button
+                  className="px-3 py-1 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-50"
+                >
+                  View Profile
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="p-4 bg-gray-50 rounded-lg text-center text-sm text-gray-600">
+          No recommendations available. Add required skills to see matching contacts.
+        </div>
+      )}
     </div>
   );
 };
