@@ -119,7 +119,7 @@ export function useContacts(
 
   return {
     data,
-    contacts: data?.contacts || [],
+    contacts: Array.isArray(data) ? data : (data?.contacts || []),
     loading,
     error,
     refetch,
