@@ -30,7 +30,7 @@ export class ContactService {
   constructor(config?: Partial<ContactServiceConfig>) {
     this.config = {
       baseUrl: (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_API_URL) || '/api',
-      apiVersion: 'v1',
+      apiVersion: '', // Remove v1 to match server routes at /api/contacts
       timeout: 10000,
       retryAttempts: 3,
       cacheTimeout: 5 * 60 * 1000, // 5 minutes

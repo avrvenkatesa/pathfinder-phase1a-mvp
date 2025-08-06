@@ -19,7 +19,10 @@ const ContactSelector: React.FC<ContactSelectorProps> = ({
   requiredSkills = []
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const { contacts, loading } = useContacts();
+  const { contacts, loading, error } = useContacts();
+
+  // Debug logging
+  console.log('ContactSelector - contacts:', contacts, 'loading:', loading, 'error:', error);
 
   const selectedContacts = contacts.filter(c => value.includes(c.contactId));
 
@@ -75,7 +78,7 @@ const ContactSelector: React.FC<ContactSelectorProps> = ({
       {isOpen && (
         <div className="absolute z-20 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {loading ? (
-            <div className="p-4 text-center text-gray-500">Loading...</div>
+            <div className="p-4 text-center text-gray-500">Loading contacts...</div>
           ) : (
             contacts.map(contact => {
               const isSelected = value.includes(contact.contactId);
