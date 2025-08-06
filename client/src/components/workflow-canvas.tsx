@@ -2002,6 +2002,9 @@ const AssignmentRecommendations = ({
   const [loading, setLoading] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [assignedContacts, setAssignedContacts] = useState<Set<number>>(new Set());
+  const [selectedProfile, setSelectedProfile] = useState<any>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [expandedContact, setExpandedContact] = useState<number | null>(null);
 
   // Mock contacts data (replace with your actual contacts)
   const mockContacts = [
@@ -2162,6 +2165,12 @@ const AssignmentRecommendations = ({
     ));
   };
 
+  // Handle viewing profile
+  const handleViewProfile = (contact: any) => {
+    // Toggle expanded contact view
+    setExpandedContact(expandedContact === contact.id ? null : contact.id);
+  };
+
   // Generate recommendations when skills change
   useEffect(() => {
     if (requiredSkills && requiredSkills.length > 0) {
@@ -2316,11 +2325,116 @@ const AssignmentRecommendations = ({
                   {contact.isAssigned ? '✓ Assigned' : 'Assign'}
                 </button>
                 <button
-                  className="px-3 py-1 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-50"
+                  onClick={() => handleViewProfile(contact)}
+                  className="px-3 py-1 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-50 transition-colors"
                 >
                   View Profile
                 </button>
               </div>
+
+              {/* Expanded Profile View */}
+              {expandedContact === contact.id && (
+                <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-blue-900">Profile Details</h4>
+                    <button
+                      onClick={() => setExpandedContact(null)}
+                      className="text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {/* Contact Info */}
+                    <div>
+                      <h5 className="font-medium text-gray-700 mb-2">Contact Information</h5>
+                      <div className="space-y-1">
+                        <div><span className="text-gray-600">Name:</span> {contact.name}</div>
+                        <div><span className="text-gray-600">Title:</span> {contact.title}</div>
+                        <div><span className="text-gray-600">Department:</span> {contact.department}</div>
+                        <div><span className="text-gray-600">Availability:</span> 
+                          <span className={`ml-2 px-2 py-0.5 rounded text-xs ${
+                            contact.availability === 'available' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {contact.availability}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Skills */}
+                    <div>
+                      <h5 className="font-medium text-gray-700 mb-2">Skills & Expertise</h5>
+                      <div className="space-y-1">
+                        {contact.skills.map((skill: any, idx: number) => (
+                          <div key={idx} className="flex justify-between">
+                            <span>{skill.name}</span>
+                            <span className={`px-2 py-0.5 rounded text-xs ${
+                              skill.level === 'expert' ? 'bg-green-100 text-green-800' :
+                              skill.level === 'intermediate' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {skill.level}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Workload Details */}
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <h5 className="font-medium text-gray-700 mb-2">Workload & Capacity</h5>
+                    <div className="flex items-center gap-4 text-sm">
+                      <div>Current Workload: <span className="font-medium">{contact.currentWorkload}%</span></div>
+                      <div>Max Capacity: <span className="font-medium">{contact.maxCapacity}%</span></div>
+                      <div>Available Capacity: <span className="font-medium text-green-600">{contact.maxCapacity - contact.currentWorkload}%</span></div>
+                    </div>
+                  </div>
+
+                  {/* Skill Match Analysis */}
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <h5 className="font-medium text-gray-700 mb-2">Match Analysis</h5>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Overall Match:</span>
+                        <span className="ml-2 font-semibold text-blue-600">{contact.matchScore}%</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Skill Match:</span>
+                        <span className="ml-2 font-semibold text-blue-600">{contact.skillMatchScore}%</span>
+                      </div>
+                    </div>
+                    {contact.matchedSkills.length > 0 && (
+                      <div className="mt-2">
+                        <span className="text-gray-600">Matched Skills:</span>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {contact.matchedSkills.map((skill: string, idx: number) => (
+                            <span key={idx} className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs">
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {contact.missingSkills.length > 0 && (
+                      <div className="mt-2">
+                        <span className="text-gray-600">Missing Skills:</span>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {contact.missingSkills.map((skill: string, idx: number) => (
+                            <span key={idx} className="px-2 py-0.5 bg-red-100 text-red-800 rounded text-xs">
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
