@@ -213,13 +213,19 @@ export function EditorialAssignmentExamples() {
   ];
 
   const handleRunScenario = async (scenario: TaskScenario) => {
+    console.log('Running scenario:', scenario.id, scenario.taskRequirements);
     setActiveScenario(scenario.id);
-    await getRecommendations(scenario.taskRequirements);
+    try {
+      const result = await getRecommendations(scenario.taskRequirements);
+      console.log('Recommendations received:', result);
+    } catch (error) {
+      console.error('Error getting recommendations:', error);
+    }
   };
 
   const handleAssignContact = (contactId: string, recommendation: AssignmentRecommendation) => {
     console.log('Assigning contact:', contactId, recommendation);
-    alert(`✅ ${recommendation.contactName} has been assigned to the task!\n\nMatch Score: ${recommendation.score.toFixed(1)}/5\nSkill Match: ${recommendation.skillScore.toFixed(1)}/5`);
+    alert(`✅ ${recommendation.contactName} has been assigned to the task!\n\nMatch Score: ${typeof recommendation.score === 'number' ? recommendation.score.toFixed(1) : recommendation.score}/5`);
   };
 
   return (
@@ -318,6 +324,20 @@ export function EditorialAssignmentExamples() {
           </div>
 
           {/* Show recommendations for active scenario */}
+          {activeScenario && (
+            <div className="mt-8">
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h3 className="font-semibold text-blue-900">Debug Info:</h3>
+                <p className="text-sm text-blue-700">
+                  Active scenario: {activeScenario}<br/>
+                  Recommendations: {recommendations ? recommendations.length : 'null'}<br/>
+                  Loading: {isLoading ? 'true' : 'false'}<br/>
+                  Error: {error || 'none'}
+                </p>
+              </div>
+            </div>
+          )}
+          
           {activeScenario && recommendations && recommendations.length > 0 && (
             <div className="mt-8">
               <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">

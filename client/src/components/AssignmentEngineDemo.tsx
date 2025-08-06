@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import EditorialAssignmentExamples from './EditorialAssignmentExamples';
+import { SimpleAssignmentTest } from './SimpleAssignmentTest';
 import { 
   Brain, 
   Users, 
@@ -225,8 +226,12 @@ export function AssignmentEngineDemo() {
         )}
       </div>
 
-      <Tabs defaultValue="examples" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="test" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="test" className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4" />
+            Simple Test
+          </TabsTrigger>
           <TabsTrigger value="examples" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             S4 Editorial Examples
@@ -244,6 +249,11 @@ export function AssignmentEngineDemo() {
             Analytics
           </TabsTrigger>
         </TabsList>
+
+        {/* Simple Test */}
+        <TabsContent value="test" className="space-y-6">
+          <SimpleAssignmentTest />
+        </TabsContent>
 
         {/* S4 Editorial Examples */}
         <TabsContent value="examples" className="space-y-6">
