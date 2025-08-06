@@ -1448,6 +1448,29 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                           </div>
                         ))}
                       </div>
+
+                      {/* Weight Distribution Display */}
+                      {selectedElement?.properties?.requiredSkills?.length > 0 && (
+                        <WeightSystemDisplay 
+                          requiredSkills={selectedElement.properties.requiredSkills}
+                          onNormalizeWeights={(normalizedSkills) => {
+                            setCanvasState(prev => ({
+                              ...prev,
+                              elements: prev.elements.map(el => 
+                                el.id === selectedElement.id 
+                                  ? { 
+                                      ...el, 
+                                      properties: { 
+                                        ...el.properties, 
+                                        requiredSkills: normalizedSkills
+                                      }
+                                    }
+                                  : el
+                              )
+                            }));
+                          }}
+                        />
+                      )}
                       
                       {/* Add skill button */}
                       <Dialog open={showAddSkillModal} onOpenChange={setShowAddSkillModal}>
@@ -1677,6 +1700,104 @@ const SkillForm = ({ onSubmit, onCancel }: {
         </Button>
       </div>
     </form>
+  );
+};
+
+// Weight System Display Component
+const WeightSystemDisplay = ({ requiredSkills, onNormalizeWeights }: { 
+  requiredSkills: Array<{ name: string; level: string; weight: number }>;
+  onNormalizeWeights: (normalizedSkills: Array<{ name: string; level: string; weight: number }>) => void;
+}) => {
+  // Calculate total weight and percentages
+  const calculateWeightStats = () => {
+    if (!requiredSkills || requiredSkills.length === 0) return null;
+    
+    const totalWeight = requiredSkills.reduce((sum, skill) => sum + skill.weight, 0);
+    const skillsWithPercentage = requiredSkills.map(skill => ({
+      ...skill,
+      percentage: Math.round((skill.weight / totalWeight) * 100)
+    }));
+    
+    return { totalWeight, skillsWithPercentage };
+  };
+
+  // Helper function for weight colors
+  const getWeightColor = (weight: number) => {
+    if (weight >= 8) return 'bg-red-500';
+    if (weight >= 4) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+
+  // Function to normalize weights to 100
+  const normalizeWeights = () => {
+    const totalWeight = requiredSkills.reduce((sum, skill) => sum + skill.weight, 0);
+    const normalizedSkills = requiredSkills.map(skill => ({
+      ...skill,
+      weight: Math.round((skill.weight / totalWeight) * 100)
+    }));
+    onNormalizeWeights(normalizedSkills);
+  };
+
+  const stats = calculateWeightStats();
+  if (!stats) return null;
+  
+  return (
+    <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-gray-700">
+          Total Weight: {stats.totalWeight} points
+        </span>
+        <Button
+          onClick={normalizeWeights}
+          variant="outline"
+          size="sm"
+          className="text-xs px-2 py-1 h-6 bg-blue-100 text-blue-700 hover:bg-blue-200"
+        >
+          Normalize to 100%
+        </Button>
+      </div>
+      
+      {/* Weight Distribution Bar */}
+      <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden flex mb-2">
+        {stats.skillsWithPercentage.map((skill, idx) => (
+          <div
+            key={idx}
+            className={`h-full ${getWeightColor(skill.weight)}`}
+            style={{ width: `${skill.percentage}%` }}
+            title={`${skill.name}: ${skill.percentage}%`}
+          />
+        ))}
+      </div>
+      
+      {/* Skill Breakdown */}
+      <div className="space-y-1 mb-2">
+        {stats.skillsWithPercentage.map((skill, idx) => (
+          <div key={idx} className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded ${getWeightColor(skill.weight)}`}></div>
+              <span className="text-gray-700">{skill.name}</span>
+            </div>
+            <span className="text-gray-600 font-medium">{skill.percentage}%</span>
+          </div>
+        ))}
+      </div>
+      
+      {/* Weight Legend */}
+      <div className="flex justify-between text-xs text-gray-600 pt-2 border-t border-gray-300">
+        <span className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded bg-green-500"></div>
+          Nice-to-have (1-3)
+        </span>
+        <span className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded bg-yellow-500"></div>
+          Important (4-7)
+        </span>
+        <span className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded bg-red-500"></div>
+          Critical (8-10)
+        </span>
+      </div>
+    </div>
   );
 };
 
