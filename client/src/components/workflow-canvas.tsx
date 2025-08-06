@@ -103,6 +103,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
   const [isPanning, setIsPanning] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [showAddSkillModal, setShowAddSkillModal] = useState(false);
+  const [draggedSkillIndex, setDraggedSkillIndex] = useState<number | null>(null);
 
   // Handle skill removal
   const removeSkill = (elementId: string, index: number) => {
@@ -120,6 +121,70 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
           : el
       )
     }));
+  };
+
+  // Handle skill reordering via drag and drop
+  const handleSkillDragStart = (elementId: string, index: number) => {
+    setDraggedSkillIndex(index);
+  };
+
+  const handleSkillDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleSkillDrop = (elementId: string, dropIndex: number) => {
+    if (draggedSkillIndex === null) return;
+    
+    setCanvasState(prev => ({
+      ...prev,
+      elements: prev.elements.map(el => 
+        el.id === elementId 
+          ? { 
+              ...el, 
+              properties: { 
+                ...el.properties, 
+                requiredSkills: reorderArray(el.properties.requiredSkills || [], draggedSkillIndex, dropIndex)
+              }
+            }
+          : el
+      )
+    }));
+    setDraggedSkillIndex(null);
+  };
+
+  // Helper function to reorder array
+  const reorderArray = (arr: any[], fromIndex: number, toIndex: number) => {
+    const result = [...arr];
+    const [removed] = result.splice(fromIndex, 1);
+    result.splice(toIndex, 0, removed);
+    return result;
+  };
+
+  // Helper functions for skill display styling
+  const getProficiencyColor = (level: string) => {
+    switch (level?.toLowerCase()) {
+      case 'beginner': return 'bg-gray-100 text-gray-700';
+      case 'intermediate': return 'bg-blue-100 text-blue-700';
+      case 'advanced': return 'bg-purple-100 text-purple-700';
+      case 'expert': return 'bg-green-100 text-green-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  const getWeightBadgeColor = (weight: number) => {
+    if (weight >= 8) return 'bg-red-100 text-red-700';
+    if (weight >= 4) return 'bg-yellow-100 text-yellow-700';
+    return 'bg-green-100 text-green-700';
+  };
+
+  const getProficiencyStars = (level: string) => {
+    switch (level?.toLowerCase()) {
+      case 'beginner': return '⭐';
+      case 'intermediate': return '⭐⭐';
+      case 'advanced': return '⭐⭐⭐';
+      case 'expert': return '⭐⭐⭐⭐';
+      default: return '⭐';
+    }
   };
 
   // Handle keyboard events for Ctrl key and shortcuts
@@ -1434,19 +1499,46 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                         Required Skills
                       </Label>
                       
-                      {/* Existing skills list (if any) */}
+                      {/* Enhanced skills list with drag-and-drop */}
                       <div className="space-y-2 mb-2">
-                        {selectedElement?.properties?.requiredSkills?.map((skill: any, index: number) => (
-                          <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                            <span>{skill.name} - {skill.level} - Weight: {skill.weight}</span>
-                            <button 
-                              onClick={() => removeSkill(selectedElement.id, index)}
-                              className="text-red-500 hover:text-red-700"
+                        {selectedElement?.properties?.requiredSkills?.map((skill: any, index: number) => {
+                          const requiredSkills = selectedElement.properties.requiredSkills || [];
+                          const totalWeight = requiredSkills.reduce((sum: number, s: any) => sum + s.weight, 0);
+                          const percentage = totalWeight > 0 ? Math.round((skill.weight / totalWeight) * 100) : 0;
+                          
+                          return (
+                            <div
+                              key={index}
+                              draggable
+                              onDragStart={() => handleSkillDragStart(selectedElement.id, index)}
+                              onDragOver={handleSkillDragOver}
+                              onDrop={() => handleSkillDrop(selectedElement.id, index)}
+                              className="flex items-center justify-between p-2 bg-white border rounded-lg cursor-move hover:shadow-md transition-shadow"
                             >
-                              🗑️
-                            </button>
-                          </div>
-                        ))}
+                              {/* Drag Handle */}
+                              <span className="text-gray-400 mr-2">⋮⋮</span>
+                              
+                              {/* Skill Info */}
+                              <div className="flex-1 flex items-center gap-2">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${getProficiencyColor(skill.level)}`}>
+                                  {getProficiencyStars(skill.level)} {skill.level}
+                                </span>
+                                <span className="font-medium text-gray-800">{skill.name}</span>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${getWeightBadgeColor(skill.weight)}`}>
+                                  Weight: {skill.weight} ({percentage}%)
+                                </span>
+                              </div>
+                              
+                              {/* Delete Button */}
+                              <button
+                                onClick={() => removeSkill(selectedElement.id, index)}
+                                className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
 
                       {/* Weight Distribution Display */}
