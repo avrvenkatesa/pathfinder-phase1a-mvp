@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
   ZoomIn,
   ZoomOut,
@@ -101,6 +102,25 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
 
   const [isPanning, setIsPanning] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
+  const [showAddSkillModal, setShowAddSkillModal] = useState(false);
+
+  // Handle skill removal
+  const removeSkill = (elementId: string, index: number) => {
+    setCanvasState(prev => ({
+      ...prev,
+      elements: prev.elements.map(el => 
+        el.id === elementId 
+          ? { 
+              ...el, 
+              properties: { 
+                ...el.properties, 
+                requiredSkills: (el.properties.requiredSkills || []).filter((_: any, i: number) => i !== index)
+              }
+            }
+          : el
+      )
+    }));
+  };
 
   // Handle keyboard events for Ctrl key and shortcuts
   useEffect(() => {
@@ -1406,6 +1426,38 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                           />
                         </div>
                       </div>
+                    </div>
+
+                    {/* Required Skills Section */}
+                    <div className="mb-4">
+                      <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                        Required Skills
+                      </Label>
+                      
+                      {/* Existing skills list (if any) */}
+                      <div className="space-y-2 mb-2">
+                        {selectedElement?.properties?.requiredSkills?.map((skill: any, index: number) => (
+                          <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                            <span>{skill.name} - {skill.level} - Weight: {skill.weight}</span>
+                            <button 
+                              onClick={() => removeSkill(selectedElement.id, index)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Add skill button */}
+                      <Button
+                        onClick={() => setShowAddSkillModal(true)}
+                        className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center gap-2"
+                        variant="outline"
+                      >
+                        <span>➕</span>
+                        <span>Add Skill</span>
+                      </Button>
                     </div>
 
                     {/* Display assigned contacts with real-time availability */}
