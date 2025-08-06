@@ -58,10 +58,11 @@ export function SimpleAssignmentTest() {
       });
 
       if (bestMatch) {
-        setResult(`✅ Best match found: ${bestMatch.firstName} ${bestMatch.lastName} (${bestMatch.jobTitle})
+        const contact = bestMatch as any;
+        setResult(`✅ Best match found: ${contact.firstName} ${contact.lastName} (${contact.jobTitle})
 Score: ${bestScore}/6
-Skills: ${bestMatch.skills?.join(', ')}
-Department: ${bestMatch.department}`);
+Skills: ${contact.skills?.join(', ')}
+Department: ${contact.department}`);
       } else {
         setResult('No suitable match found for proofreading task');
       }
@@ -85,11 +86,14 @@ Department: ${bestMatch.department}`);
         <div>
           <h4 className="font-medium mb-2">Editorial Team Found:</h4>
           <div className="flex flex-wrap gap-2">
-            {editorialContacts.map(contact => (
-              <Badge key={contact.id} variant="outline">
-                {contact.firstName} {contact.lastName} - {contact.jobTitle}
-              </Badge>
-            ))}
+            {editorialContacts.map(contact => {
+              const c = contact as any;
+              return (
+                <Badge key={contact.id} variant="outline">
+                  {c.firstName} {c.lastName} - {c.jobTitle}
+                </Badge>
+              );
+            })}
           </div>
           {editorialContacts.length === 0 && (
             <p className="text-sm text-gray-500">No Editorial department contacts found</p>

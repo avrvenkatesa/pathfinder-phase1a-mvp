@@ -18,7 +18,8 @@ import {
   Plus,
   Trash2,
   Lightbulb,
-  Activity
+  Activity,
+  CheckCircle
 } from 'lucide-react';
 import AssignmentRecommendations from './AssignmentRecommendations';
 import { useAssignmentEngine } from '@/hooks/useAssignmentEngine';
