@@ -48,6 +48,16 @@ export default function Header() {
               >
                 Workflows
               </Link>
+              <Link 
+                href="/assignment-engine" 
+                className={`px-1 pb-4 text-sm font-medium ${
+                  location.startsWith('/assignment-engine') 
+                    ? 'text-primary border-b-2 border-primary' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Assignment Engine
+              </Link>
               <a href="#" className="text-gray-500 hover:text-gray-700 px-1 pb-4 text-sm font-medium">
                 Analytics
               </a>
