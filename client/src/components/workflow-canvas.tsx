@@ -1606,6 +1606,52 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                         </DialogContent>
                       </Dialog>
 
+                      {/* Assigned Contacts Display */}
+                      {selectedElement?.properties?.assignedContacts?.length > 0 && (
+                        <div className="mt-4 border-t pt-4">
+                          <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                            Assigned Contacts ({selectedElement.properties.assignedContacts.length})
+                          </Label>
+                          <div className="space-y-2 mb-3">
+                            {selectedElement.properties.assignedContacts.map((contact: any, index: number) => (
+                              <div key={index} className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-green-200 flex items-center justify-center text-xs font-semibold">
+                                    {contact.name.split(' ').map((n: string) => n[0]).join('')}
+                                  </div>
+                                  <div>
+                                    <span className="text-sm font-medium text-gray-800">{contact.name}</span>
+                                    <div className="text-xs text-gray-600">{contact.title} • {contact.matchScore}% match</div>
+                                  </div>
+                                </div>
+                                <button 
+                                  onClick={() => {
+                                    // Remove assigned contact
+                                    setCanvasState(prev => ({
+                                      ...prev,
+                                      elements: prev.elements.map(el => 
+                                        el.id === selectedElement.id 
+                                          ? { 
+                                              ...el, 
+                                              properties: { 
+                                                ...el.properties, 
+                                                assignedContacts: (el.properties.assignedContacts || []).filter((_: any, i: number) => i !== index)
+                                              }
+                                            }
+                                          : el
+                                      )
+                                    }));
+                                  }}
+                                  className="text-gray-400 hover:text-red-500"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Assignment Recommendations Section */}
                       {selectedElement?.properties?.requiredSkills?.length > 0 && (
                         <div className="mt-4 border-t pt-4">
@@ -1628,8 +1674,31 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                               estimatedHours={selectedElement.properties.estimatedHours}
                               department={selectedElement.properties.contactRequirements?.preferredDepartments?.[0]}
                               onAssignContact={(contact) => {
-                                console.log('Assigning contact:', contact);
-                                // Add assignment logic here
+                                // Update the workflow element with assigned contact
+                                setCanvasState(prev => ({
+                                  ...prev,
+                                  elements: prev.elements.map(el => 
+                                    el.id === selectedElement.id 
+                                      ? { 
+                                          ...el, 
+                                          properties: { 
+                                            ...el.properties, 
+                                            assignedContacts: [
+                                              ...(el.properties.assignedContacts || []),
+                                              {
+                                                id: contact.id,
+                                                name: contact.name,
+                                                title: contact.title,
+                                                department: contact.department,
+                                                matchScore: contact.matchScore,
+                                                assignedAt: new Date().toISOString()
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      : el
+                                  )
+                                }));
                               }}
                             />
                           )}
@@ -1939,6 +2008,7 @@ const AssignmentRecommendations = ({
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [assignedContacts, setAssignedContacts] = useState<Set<number>>(new Set());
 
   // Mock contacts data (replace with your actual contacts)
   const mockContacts = [
@@ -2081,6 +2151,24 @@ const AssignmentRecommendations = ({
     return `Limited match, consider alternatives`;
   };
 
+  // Handle contact assignment
+  const handleAssignContact = (contact: any) => {
+    // Call the parent handler
+    if (onAssignContact) {
+      onAssignContact(contact);
+    }
+    
+    // Update local assigned contacts set
+    setAssignedContacts(prev => new Set([...prev, contact.id]));
+    
+    // Update recommendations to show assignment status
+    setRecommendations(prev => prev.map(rec => 
+      rec.id === contact.id 
+        ? { ...rec, isAssigned: true }
+        : rec
+    ));
+  };
+
   // Generate recommendations when skills change
   useEffect(() => {
     if (requiredSkills && requiredSkills.length > 0) {
@@ -2089,14 +2177,18 @@ const AssignmentRecommendations = ({
         const scored = mockContacts
           .map(calculateMatchScore)
           .sort((a, b) => b.matchScore - a.matchScore)
-          .slice(0, 5);
+          .slice(0, 5)
+          .map(contact => ({
+            ...contact,
+            isAssigned: assignedContacts.has(contact.id)
+          }));
         setRecommendations(scored);
         setLoading(false);
       }, 500); // Simulate API delay
     } else {
       setRecommendations([]);
     }
-  }, [requiredSkills, department]);
+  }, [requiredSkills, department, assignedContacts]);
 
   const getAvailabilityColor = (availability: string) => {
     switch(availability) {
@@ -2220,10 +2312,15 @@ const AssignmentRecommendations = ({
               {/* Action Buttons */}
               <div className="flex gap-2">
                 <button
-                  onClick={() => onAssignContact(contact)}
-                  className="flex-1 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                  onClick={() => handleAssignContact(contact)}
+                  disabled={contact.isAssigned}
+                  className={`flex-1 px-3 py-1 text-xs rounded transition-colors ${
+                    contact.isAssigned 
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }`}
                 >
-                  Assign
+                  {contact.isAssigned ? '✓ Assigned' : 'Assign'}
                 </button>
                 <button
                   className="px-3 py-1 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-50"
