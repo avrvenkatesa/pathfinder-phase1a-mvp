@@ -1450,14 +1450,45 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                       </div>
                       
                       {/* Add skill button */}
-                      <Button
-                        onClick={() => setShowAddSkillModal(true)}
-                        className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center gap-2"
-                        variant="outline"
-                      >
-                        <span>➕</span>
-                        <span>Add Skill</span>
-                      </Button>
+                      <Dialog open={showAddSkillModal} onOpenChange={setShowAddSkillModal}>
+                        <DialogTrigger asChild>
+                          <Button
+                            className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center gap-2"
+                            variant="outline"
+                          >
+                            <span>➕</span>
+                            <span>Add Skill</span>
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                          <DialogHeader>
+                            <DialogTitle>Add Required Skill</DialogTitle>
+                          </DialogHeader>
+                          <SkillForm 
+                            onSubmit={(skill) => {
+                              const selectedId = canvasState.selectedElements[0];
+                              if (selectedId) {
+                                setCanvasState(prev => ({
+                                  ...prev,
+                                  elements: prev.elements.map(el => 
+                                    el.id === selectedId 
+                                      ? { 
+                                          ...el, 
+                                          properties: { 
+                                            ...el.properties, 
+                                            requiredSkills: [...(el.properties.requiredSkills || []), skill]
+                                          }
+                                        }
+                                      : el
+                                  )
+                                }));
+                                setShowAddSkillModal(false);
+                              }
+                            }}
+                            onCancel={() => setShowAddSkillModal(false)}
+                          />
+                        </DialogContent>
+                      </Dialog>
                     </div>
 
                     {/* Display assigned contacts with real-time availability */}
@@ -1555,6 +1586,97 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
         </CardContent>
       </Card>
     </div>
+  );
+};
+
+// SkillForm component for the modal
+const SkillForm = ({ onSubmit, onCancel }: { 
+  onSubmit: (skill: { name: string; level: string; weight: number }) => void;
+  onCancel: () => void;
+}) => {
+  const [skillName, setSkillName] = useState('');
+  const [skillLevel, setSkillLevel] = useState('Intermediate');
+  const [skillWeight, setSkillWeight] = useState(1);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (skillName.trim()) {
+      onSubmit({
+        name: skillName.trim(),
+        level: skillLevel,
+        weight: skillWeight
+      });
+      // Reset form
+      setSkillName('');
+      setSkillLevel('Intermediate');
+      setSkillWeight(1);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="skill-name" className="text-sm font-medium">
+          Skill Name
+        </Label>
+        <Input
+          id="skill-name"
+          value={skillName}
+          onChange={(e) => setSkillName(e.target.value)}
+          placeholder="e.g., JavaScript, Leadership, Design..."
+          className="mt-1"
+          required
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="skill-level" className="text-sm font-medium">
+          Required Level
+        </Label>
+        <Select value={skillLevel} onValueChange={setSkillLevel}>
+          <SelectTrigger className="mt-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Beginner">Beginner</SelectItem>
+            <SelectItem value="Intermediate">Intermediate</SelectItem>
+            <SelectItem value="Advanced">Advanced</SelectItem>
+            <SelectItem value="Expert">Expert</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="skill-weight" className="text-sm font-medium">
+          Weight (1-10)
+        </Label>
+        <Input
+          id="skill-weight"
+          type="number"
+          min="1"
+          max="10"
+          value={skillWeight}
+          onChange={(e) => setSkillWeight(parseInt(e.target.value) || 1)}
+          className="mt-1"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Higher values indicate more critical skills
+        </p>
+      </div>
+
+      <div className="flex justify-end space-x-2 pt-4">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+        <Button type="submit">
+          Add Skill
+        </Button>
+      </div>
+    </form>
   );
 };
 
