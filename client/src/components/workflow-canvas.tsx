@@ -1135,18 +1135,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                     {/* Contact Assignment Indicator */}
                     {element.properties.assignedContacts?.length > 0 && (
                       <div className="absolute -top-8 -left-2 flex flex-col gap-0.5">
-                        {element.properties.assignedContacts.slice(0, 3).map((contactId: string, index: number) => (
-                          <div key={contactId} className={`relative ${index > 0 ? '-ml-1' : ''}`}>
+                        {element.properties.assignedContacts.slice(0, 3).map((contact: any, index: number) => (
+                          <div key={contact.id || index} className={`relative ${index > 0 ? '-ml-1' : ''}`}>
                             <div className="bg-blue-500 text-white px-2 py-0.5 rounded text-xs font-medium shadow-sm border border-white max-w-20 truncate">
-                              {(() => {
-                                const contact = availableContacts.find(c => (c as any).contactId === contactId || (c as any).id === contactId);
-                                return contact ? `${(contact as any).firstName || (contact as any).name || ''} ${(contact as any).lastName || ''}`.trim() : 'Unknown';
-                              })()}
+                              {contact.name || 'Unknown'}
                             </div>
-                            <ContactAvailabilityIndicator
-                              contactId={contactId}
-                              showDetails={false}
-                            />
                           </div>
                         ))}
                         {element.properties.assignedContacts.length > 3 && (
