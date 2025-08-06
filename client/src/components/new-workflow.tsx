@@ -24,6 +24,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { WorkflowDesigner } from '@/components/workflow-designer';
+import WorkflowCanvas from '@/components/workflow-canvas';
 import type { WorkflowDefinition } from '@shared/schema';
 
 // Create a blank workflow template
@@ -545,7 +546,7 @@ export function NewWorkflow() {
         {/* Designer Tab */}
         {activeTab === 'designer' && (
           <div className="flex-1 overflow-hidden">
-            <WorkflowDesigner />
+            <WorkflowCanvas workflowData={workflow} />
           </div>
         )}
 
