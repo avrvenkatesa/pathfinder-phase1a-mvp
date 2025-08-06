@@ -28,6 +28,11 @@ import {
   MoreHorizontal,
   CheckSquare
 } from 'lucide-react';
+import ContactSelector from './ContactSelector';
+import ContactAvailabilityIndicator from './ContactAvailabilityIndicator';
+import ContactErrorBoundary from './ContactErrorBoundary';
+import { Contact } from '@/types/contact';
+import { useContacts } from '@/hooks/useContacts';
 
 // BPMN Element Types
 interface BPMNElement {
@@ -66,6 +71,9 @@ interface WorkflowCanvasProps {
 const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+  // Contact management
+  const { contacts: availableContacts } = useContacts();
   
   const [canvasState, setCanvasState] = useState<CanvasState>({
     elements: [],
@@ -410,10 +418,17 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
       properties: {
         color: elementTemplate.color,
         assignedTo: '',
+        assignedContacts: [], // Array of contact IDs
         description: '',
         priority: 'Medium',
         estimatedTime: '',
-        skills: []
+        skills: [],
+        contactRequirements: {
+          minSkillLevel: 'Intermediate',
+          requiredSkills: [],
+          maxWorkload: 80,
+          preferredDepartments: []
+        }
       },
       connections: []
     };
@@ -480,6 +495,29 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
       selectedElements: []
     }));
   };
+
+  // Handle contact assignment for elements
+  const handleContactAssignment = useCallback((elementId: string, contacts: Contact[]) => {
+    // Update element properties with contact IDs
+    const contactIds = contacts.map(c => c.contactId);
+    setCanvasState(prev => ({
+      ...prev,
+      elements: prev.elements.map(el => 
+        el.id === elementId 
+          ? { 
+              ...el, 
+              properties: { 
+                ...el.properties, 
+                assignedContacts: contactIds,
+                assignedTo: contacts.length > 0 
+                  ? contacts.map(c => `${c.firstName} ${c.lastName}`).join(', ')
+                  : ''
+              }
+            }
+          : el
+      )
+    }));
+  }, []);
 
   // Handle select all
   const handleSelectAll = () => {
@@ -1008,6 +1046,28 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                       {element.name}
                     </span>
                     
+                    {/* Contact Assignment Indicator */}
+                    {element.properties.assignedContacts?.length > 0 && (
+                      <div className="absolute -top-2 -left-2 flex items-center gap-0.5">
+                        {element.properties.assignedContacts.slice(0, 3).map((contactId, index) => (
+                          <div key={contactId} className={`relative ${index > 0 ? '-ml-1' : ''}`}>
+                            <div className="w-6 h-6 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center text-xs text-white font-medium">
+                              {availableContacts.find(c => c.contactId === contactId)?.firstName?.[0] || 'U'}
+                            </div>
+                            <ContactAvailabilityIndicator
+                              contactId={contactId}
+                              showDetails={false}
+                            />
+                          </div>
+                        ))}
+                        {element.properties.assignedContacts.length > 3 && (
+                          <div className="w-6 h-6 bg-muted border-2 border-white rounded-full flex items-center justify-center text-xs font-medium -ml-1">
+                            +{element.properties.assignedContacts.length - 3}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     {/* Selection Indicators - Corner dots and badge */}
                     {isSelected && (
                       <>
@@ -1269,20 +1329,109 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="assigned-to">Assigned To</Label>
-                    <Input
-                      id="assigned-to"
-                      placeholder="Select contact (integration coming)"
-                      value={selectedElement.properties.assignedTo || ''}
-                      onChange={(e) => updateElementProperty(selectedElement.id, 'assignedTo', e.target.value)}
-                      disabled
-                      className="mt-1"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Contact assignment coming in Phase 2
-                    </p>
-                  </div>
+                  <ContactErrorBoundary>
+                    <div>
+                      <Label htmlFor="assigned-contacts">Assigned Contacts</Label>
+                      <ContactSelector
+                        value={selectedElement.properties.assignedContacts || []}
+                        onChange={(contactIds) => {
+                          // Find the contacts by their IDs and call the assignment handler
+                          const selectedContacts = availableContacts.filter(c => contactIds.includes(c.contactId));
+                          handleContactAssignment(selectedElement.id, selectedContacts);
+                        }}
+                        multiple={true}
+                        maxSelections={5}
+                        requiredSkills={selectedElement.properties.skills || []}
+                      />
+                    </div>
+
+                    {/* Contact Requirements */}
+                    <div>
+                      <Label>Contact Requirements</Label>
+                      <div className="mt-2 space-y-3">
+                        <div>
+                          <Label htmlFor="min-skill-level" className="text-sm">Minimum Skill Level</Label>
+                          <Select
+                            value={selectedElement.properties.contactRequirements?.minSkillLevel || 'Intermediate'}
+                            onValueChange={(value) => updateElementProperty(selectedElement.id, 'contactRequirements', {
+                              ...selectedElement.properties.contactRequirements,
+                              minSkillLevel: value
+                            })}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Beginner">Beginner</SelectItem>
+                              <SelectItem value="Intermediate">Intermediate</SelectItem>
+                              <SelectItem value="Advanced">Advanced</SelectItem>
+                              <SelectItem value="Expert">Expert</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label htmlFor="max-workload" className="text-sm">Max Workload (%)</Label>
+                          <Input
+                            id="max-workload"
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={selectedElement.properties.contactRequirements?.maxWorkload || 80}
+                            onChange={(e) => updateElementProperty(selectedElement.id, 'contactRequirements', {
+                              ...selectedElement.properties.contactRequirements,
+                              maxWorkload: parseInt(e.target.value) || 80
+                            })}
+                            className="mt-1"
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="preferred-departments" className="text-sm">Preferred Departments</Label>
+                          <Input
+                            id="preferred-departments"
+                            placeholder="Engineering, Design, Marketing..."
+                            value={selectedElement.properties.contactRequirements?.preferredDepartments?.join(', ') || ''}
+                            onChange={(e) => {
+                              const departments = e.target.value.split(',').map(d => d.trim()).filter(Boolean);
+                              updateElementProperty(selectedElement.id, 'contactRequirements', {
+                                ...selectedElement.properties.contactRequirements,
+                                preferredDepartments: departments
+                              });
+                            }}
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Display assigned contacts with real-time availability */}
+                    {selectedElement.properties.assignedContacts?.length > 0 && (
+                      <div>
+                        <Label className="text-sm font-medium">Assigned Team ({selectedElement.properties.assignedContacts.length})</Label>
+                        <div className="mt-2 space-y-2">
+                          {selectedElement.properties.assignedContacts.map((contactId) => {
+                            const contact = availableContacts.find(c => c.contactId === contactId);
+                            return contact ? (
+                              <div key={contactId} className="flex items-center gap-3 p-2 border rounded-lg">
+                                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                                  {contact.firstName[0]}{contact.lastName[0]}
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-medium text-sm">{contact.firstName} {contact.lastName}</p>
+                                  <p className="text-xs text-gray-600">{contact.title} • {contact.department}</p>
+                                </div>
+                                <ContactAvailabilityIndicator
+                                  contactId={contactId}
+                                  showDetails={true}
+                                />
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </ContactErrorBoundary>
                 </>
               )}
 
