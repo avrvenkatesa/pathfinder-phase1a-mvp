@@ -35,7 +35,7 @@ interface TaskScenario {
 }
 
 export function EditorialAssignmentExamples() {
-  const { getRecommendations, recommendations, isLoading } = useAssignmentEngine();
+  const { getRecommendations, recommendations, isLoading, error } = useAssignmentEngine();
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
 
   // Real task scenarios for S4 Editorial department
