@@ -1411,15 +1411,15 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                         <Label className="text-sm font-medium">Assigned Team ({selectedElement.properties.assignedContacts.length})</Label>
                         <div className="mt-2 space-y-2">
                           {selectedElement.properties.assignedContacts.map((contactId: string) => {
-                            const contact = availableContacts.find(c => c.contactId === contactId);
+                            const contact = availableContacts.find(c => c.contactId === contactId || c.id === contactId);
                             return contact ? (
                               <div key={contactId} className="flex items-center gap-3 p-2 border rounded-lg">
                                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                                  {contact.firstName[0]}{contact.lastName[0]}
+                                  {(contact.firstName?.[0] || contact.name?.[0] || '?')}{(contact.lastName?.[0] || '')}
                                 </div>
                                 <div className="flex-1">
-                                  <p className="font-medium text-sm">{contact.firstName} {contact.lastName}</p>
-                                  <p className="text-xs text-gray-600">{contact.title} • {contact.department}</p>
+                                  <p className="font-medium text-sm">{contact.firstName || contact.name} {contact.lastName || ''}</p>
+                                  <p className="text-xs text-gray-600">{contact.title || contact.jobTitle} • {contact.department}</p>
                                 </div>
                                 <ContactAvailabilityIndicator
                                   contactId={contactId}

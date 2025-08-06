@@ -119,7 +119,16 @@ export function useContacts(
 
   return {
     data,
-    contacts: Array.isArray(data) ? data : (data?.contacts || []),
+    contacts: Array.isArray(data) ? data.map(contact => ({
+      ...contact,
+      contactId: contact.id || contact.contactId,
+      id: contact.id || contact.contactId,
+      firstName: contact.firstName || '',
+      lastName: contact.lastName || '',
+      name: contact.name || `${contact.firstName || ''} ${contact.lastName || ''}`.trim(),
+      title: contact.jobTitle || contact.title || '',
+      jobTitle: contact.jobTitle || contact.title || ''
+    })) : (data?.contacts || []),
     loading,
     error,
     refetch,
