@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAssignmentEngine } from '@/hooks/useAssignmentEngine';
 import AssignmentRecommendations from './AssignmentRecommendations';
+import { AssignmentOutputGuide } from './AssignmentOutputGuide';
 import {
   TaskRequirements,
   RequiredSkill,
@@ -218,7 +219,7 @@ export function EditorialAssignmentExamples() {
 
   const handleAssignContact = (contactId: string, recommendation: AssignmentRecommendation) => {
     console.log('Assigning contact:', contactId, recommendation);
-    alert(`✅ ${recommendation.contactName} has been assigned to the task!\n\nMatch Score: ${recommendation.overallScore.toFixed(1)}/5\nSkill Match: ${recommendation.skillMatchScore.toFixed(1)}/5`);
+    alert(`✅ ${recommendation.contactName} has been assigned to the task!\n\nMatch Score: ${recommendation.score.toFixed(1)}/5\nSkill Match: ${recommendation.skillScore.toFixed(1)}/5`);
   };
 
   return (
@@ -239,6 +240,9 @@ export function EditorialAssignmentExamples() {
         </TabsList>
 
         <TabsContent value="scenarios" className="space-y-6">
+          {/* Output Guide */}
+          <AssignmentOutputGuide />
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {taskScenarios.map((scenario) => (
               <Card key={scenario.id} className="hover:shadow-lg transition-shadow">
@@ -326,12 +330,14 @@ export function EditorialAssignmentExamples() {
                 </p>
               </div>
               
-              <AssignmentRecommendations
-                taskRequirements={taskScenarios.find(s => s.id === activeScenario)?.taskRequirements!}
-                onAssignContact={handleAssignContact}
-                showBulkActions={false}
-                maxRecommendations={3}
-              />
+              {taskScenarios.find(s => s.id === activeScenario)?.taskRequirements && (
+                <AssignmentRecommendations
+                  taskRequirements={taskScenarios.find(s => s.id === activeScenario)!.taskRequirements}
+                  onAssignContact={handleAssignContact}
+                  showBulkActions={false}
+                  maxRecommendations={3}
+                />
+              )}
             </div>
           )}
         </TabsContent>
