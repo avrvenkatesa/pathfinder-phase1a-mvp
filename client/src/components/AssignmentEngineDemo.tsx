@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EditorialAssignmentExamples from './EditorialAssignmentExamples';
 import { 
   Brain, 
   Users, 
@@ -224,11 +225,15 @@ export function AssignmentEngineDemo() {
         )}
       </div>
 
-      <Tabs defaultValue="demo" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="examples" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="examples" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            S4 Editorial Examples
+          </TabsTrigger>
           <TabsTrigger value="demo" className="flex items-center gap-2">
             <Target className="h-4 w-4" />
-            Task Assignment Demo
+            Custom Demo
           </TabsTrigger>
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
@@ -240,7 +245,12 @@ export function AssignmentEngineDemo() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Task Assignment Demo */}
+        {/* S4 Editorial Examples */}
+        <TabsContent value="examples" className="space-y-6">
+          <EditorialAssignmentExamples />
+        </TabsContent>
+
+        {/* Custom Task Assignment Demo */}
         <TabsContent value="demo" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Task Requirements Configuration */}
