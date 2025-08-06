@@ -395,20 +395,7 @@ export function EditorialAssignmentExamples() {
             ))}
           </div>
 
-          {/* Show recommendations for active scenario */}
-          {activeScenario && (
-            <div className="mt-8">
-              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 className="font-semibold text-blue-900">Debug Info:</h3>
-                <p className="text-sm text-blue-700">
-                  Active scenario: {activeScenario}<br/>
-                  Recommendations: {(recommendations ? recommendations.length : 0) + (localRecommendations ? localRecommendations.length : 0)}<br/>
-                  Loading: {isLoading ? 'true' : 'false'}<br/>
-                  Error: {error || 'none'}
-                </p>
-              </div>
-            </div>
-          )}
+
           
           {activeScenario && ((recommendations && recommendations.length > 0) || (localRecommendations && localRecommendations.length > 0)) && (
             <div className="mt-8">
