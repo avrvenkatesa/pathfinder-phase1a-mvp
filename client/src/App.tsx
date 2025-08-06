@@ -11,6 +11,8 @@ import ContactDetail from "@/pages/contact-detail";
 import WorkflowPage from "@/pages/workflow";
 import { WorkflowDashboard } from "@/components/workflow-dashboard";
 import { NewWorkflow } from "@/components/new-workflow";
+import ContactTest from "@/pages/ContactTest";
+import TestContactIntegration from "@/pages/TestContactIntegration";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -26,6 +28,8 @@ function Router() {
           <Route path="/workflows" component={WorkflowDashboard} />
           <Route path="/workflows/new" component={NewWorkflow} />
           <Route path="/workflows/:id" component={WorkflowPage} />
+          <Route path="/contact-test" component={ContactTest} />
+          <Route path="/test-contacts" component={TestContactIntegration} />
         </>
       )}
       <Route component={NotFound} />

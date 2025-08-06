@@ -1049,7 +1049,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                     {/* Contact Assignment Indicator */}
                     {element.properties.assignedContacts?.length > 0 && (
                       <div className="absolute -top-2 -left-2 flex items-center gap-0.5">
-                        {element.properties.assignedContacts.slice(0, 3).map((contactId, index) => (
+                        {element.properties.assignedContacts.slice(0, 3).map((contactId: string, index: number) => (
                           <div key={contactId} className={`relative ${index > 0 ? '-ml-1' : ''}`}>
                             <div className="w-6 h-6 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center text-xs text-white font-medium">
                               {availableContacts.find(c => c.contactId === contactId)?.firstName?.[0] || 'U'}
@@ -1410,7 +1410,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                       <div>
                         <Label className="text-sm font-medium">Assigned Team ({selectedElement.properties.assignedContacts.length})</Label>
                         <div className="mt-2 space-y-2">
-                          {selectedElement.properties.assignedContacts.map((contactId) => {
+                          {selectedElement.properties.assignedContacts.map((contactId: string) => {
                             const contact = availableContacts.find(c => c.contactId === contactId);
                             return contact ? (
                               <div key={contactId} className="flex items-center gap-3 p-2 border rounded-lg">

@@ -6,7 +6,7 @@ import {
   ContactSearchResult,
   ContactAvailabilityUpdate,
 } from '@/types/contact';
-import { contactService } from '@/services/contact.service';
+import { contactService } from '@/services/contact-service-factory';
 import { contactWebSocketService, WebSocketState } from '@/services/contact-websocket.service';
 
 export interface UseContactsOptions {
@@ -394,5 +394,43 @@ export function useWorkflowContacts(filters?: ContactSearchParams) {
     loading,
     error,
     refetch: fetchWorkflowContacts
+  };
+}
+
+// Hook to monitor service connection status
+export function useContactServiceStatus() {
+  const [status, setStatus] = useState<'api' | 'mock' | 'unknown'>('unknown');
+  const [isChecking, setIsChecking] = useState(false);
+
+  const checkStatus = useCallback(async () => {
+    setIsChecking(true);
+    try {
+      await (contactService as any).forceApiCheck?.();
+      const newStatus = (contactService as any).getConnectionStatus?.() || 'unknown';
+      setStatus(newStatus);
+    } catch (error) {
+      console.error('Failed to check service status:', error);
+      setStatus('unknown');
+    } finally {
+      setIsChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Check status on mount
+    checkStatus();
+    
+    // Set up periodic status checks every 30 seconds
+    const interval = setInterval(checkStatus, 30000);
+    
+    return () => clearInterval(interval);
+  }, [checkStatus]);
+
+  return {
+    status,
+    isChecking,
+    isUsingMock: status === 'mock',
+    isUsingApi: status === 'api',
+    refresh: checkStatus
   };
 }

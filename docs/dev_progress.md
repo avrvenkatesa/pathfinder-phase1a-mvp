@@ -210,23 +210,24 @@ The workflow designer is now fully functional and ready for use. Users can acces
   1. Complete BPMN Element Library with 16 element types across 5 categories:
     - Events (Start, End, Intermediate)
     - Tasks (User, System, Manual, Service, Script, Business Rule)
-    - Gateways (Exclusive, Parallel, Inclusive)
+    - Gateways (Exc
+     lusive, Parallel, Inclusive)
     - Data Objects (Data Object, Data Store)
     - Swimlanes (Pool, Lane)
-  2. Working Drag-and-Drop functionality:
+  3. Working Drag-and-Drop functionality:
     - Drag elements from the palette
     - Drop onto canvas with visual feedback
     - Snap-to-grid positioning (20px grid)
     - Element selection and deletion
-  3. Canvas Features:
+  4. Canvas Features:
     - Zoom controls (25% to 400%)
     - Grid toggle
     - Empty state instructions
     - Visual element rendering with colors and icons
-  4. Properties Panel with:
+  5. Properties Panel with:
     - Element name editing
     - Description field
     - Ta properties (priority,sk-specific estimated time, skills)
     - Position display
     - Placeholder for contact assignment
-  5. Responsive Design using shadcn/ui components for consistency with the rest of the application
+  6. Responsive Design using shadcn/ui components for consistency with the rest of the application
