@@ -53,6 +53,8 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced Contact Forms**: Multi-step forms with comprehensive contact data collection
 - **Export Capabilities**: Multiple formats (CSV, Excel, PDF, vCard) with custom field selection
 - **Performance Optimization**: Debounced search, contact caching, and efficient filtering
+- **Skills-Based Assignment Engine**: Intelligent matching system with skill taxonomy, workload balancing, and ML-ready scoring
+- **Department Integration**: Dynamic department dropdown tied to company hierarchy for improved data consistency
 
 ## External Dependencies
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import AssignmentRecommendations from './AssignmentRecommendations';
 import { useAssignmentEngine } from '@/hooks/useAssignmentEngine';
+import { useQuery } from '@tanstack/react-query';
+import type { Contact } from '@shared/schema';
 import {
   TaskRequirements,
   RequiredSkill,
@@ -81,6 +83,63 @@ export function AssignmentEngineDemo() {
   });
 
   const [showRecommendations, setShowRecommendations] = useState(false);
+
+  // Fetch contacts to get company and department data
+  const { data: contacts = [] } = useQuery<Contact[]>({
+    queryKey: ["/api/contacts"],
+    retry: false,
+  });
+
+  // Extract companies and their departments from contacts
+  const companiesAndDepartments = useMemo(() => {
+    const companies = new Map<string, Set<string>>();
+    
+    contacts.forEach(contact => {
+      if (contact.type === 'company') {
+        if (!companies.has(contact.name)) {
+          companies.set(contact.name, new Set());
+        }
+      } else if (contact.type === 'person' && contact.department) {
+        // Find the company this person belongs to by traversing up the hierarchy
+        let currentContact = contact;
+        let company = null;
+        
+        // Simple approach: find the root company
+        const findCompany = (contactId: string): string | null => {
+          const c = contacts.find(c => c.id === contactId);
+          if (!c) return null;
+          if (c.type === 'company') return c.name;
+          if (c.parentId) return findCompany(c.parentId);
+          return null;
+        };
+        
+        if (contact.parentId) {
+          company = findCompany(contact.parentId);
+        }
+        
+        if (company) {
+          if (!companies.has(company)) {
+            companies.set(company, new Set());
+          }
+          companies.get(company)!.add(contact.department);
+        }
+      }
+    });
+    
+    return Array.from(companies.entries()).map(([company, departments]) => ({
+      company,
+      departments: Array.from(departments)
+    }));
+  }, [contacts]);
+
+  // Get all unique departments across all companies
+  const allDepartments = useMemo(() => {
+    const depts = new Set<string>();
+    companiesAndDepartments.forEach(({ departments }) => {
+      departments.forEach(dept => depts.add(dept));
+    });
+    return Array.from(depts).sort();
+  }, [companiesAndDepartments]);
 
   const handleAddSkill = () => {
     if (newSkill.skillName.trim()) {
@@ -232,15 +291,42 @@ export function AssignmentEngineDemo() {
 
                 <div>
                   <Label htmlFor="department">Department</Label>
-                  <Input
-                    id="department"
+                  <Select
                     value={taskRequirements.department || ''}
-                    onChange={(e) => setTaskRequirements(prev => ({
+                    onValueChange={(value) => setTaskRequirements(prev => ({
                       ...prev,
-                      department: e.target.value
+                      department: value
                     }))}
-                    placeholder="e.g., Engineering, Marketing"
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allDepartments.length > 0 ? (
+                        allDepartments.map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="Engineering" disabled>
+                          No departments found - Engineering (demo)
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* Show company breakdown */}
+                  {companiesAndDepartments.length > 0 && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      <p className="font-medium mb-1">Available departments by company:</p>
+                      {companiesAndDepartments.map(({ company, departments }) => (
+                        <div key={company} className="mb-1">
+                          <span className="font-medium text-blue-600">{company}:</span> {departments.join(', ')}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <Separator />
