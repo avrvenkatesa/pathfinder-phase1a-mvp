@@ -1666,6 +1666,13 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                               requiredSkills={selectedElement.properties.requiredSkills}
                               estimatedHours={selectedElement.properties.estimatedHours}
                               department={selectedElement.properties.contactRequirements?.preferredDepartments?.[0]}
+                              selectedElement={selectedElement}
+                              setElements={(updater) => {
+                                setCanvasState(prev => ({
+                                  ...prev,
+                                  elements: updater(prev.elements)
+                                }));
+                              }}
                               onAssignContact={(contact) => {
                                 // Update the workflow element with assigned contact
                                 setCanvasState(prev => ({
@@ -1991,12 +1998,16 @@ const AssignmentRecommendations = ({
   requiredSkills, 
   estimatedHours, 
   department,
-  onAssignContact 
+  onAssignContact,
+  selectedElement,
+  setElements 
 }: {
   requiredSkills: Array<{ name: string; level: string; weight: number }>;
   estimatedHours?: number;
   department?: string;
   onAssignContact: (contact: any) => void;
+  selectedElement?: any;
+  setElements?: (updater: (prev: any[]) => any[]) => void;
 }) => {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2169,6 +2180,45 @@ const AssignmentRecommendations = ({
 
     // Show success notification
     showNotification(`✓ ${contact.name} assigned successfully!`);
+  };
+
+  // Handle contact unassignment
+  const handleUnassignContact = (contact: any) => {
+    // Remove from the workflow element's assigned contacts
+    if (selectedElement && setElements) {
+      setElements((prevElements: any[]) => 
+        prevElements.map(el => 
+          el.id === selectedElement.id 
+            ? {
+                ...el,
+                properties: {
+                  ...el.properties,
+                  assignedContacts: (el.properties.assignedContacts || []).filter(
+                    (assignedContact: any) => assignedContact.id !== contact.id
+                  )
+                }
+              }
+            : el
+        )
+      );
+    }
+    
+    // Update local assigned contacts set
+    setAssignedContacts(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(contact.id);
+      return newSet;
+    });
+    
+    // Update recommendations to show unassigned status
+    setRecommendations(prev => prev.map(rec => 
+      rec.id === contact.id 
+        ? { ...rec, isAssigned: false }
+        : rec
+    ));
+
+    // Show success notification
+    showNotification(`${contact.name} unassigned successfully!`);
   };
 
   // Handle viewing profile
@@ -2355,17 +2405,21 @@ const AssignmentRecommendations = ({
 
               {/* Action Buttons */}
               <div className="flex gap-2">
-                <button
-                  onClick={() => handleAssignContact(contact)}
-                  disabled={contact.isAssigned}
-                  className={`flex-1 px-3 py-1 text-xs rounded transition-colors ${
-                    contact.isAssigned 
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                      : 'bg-blue-500 text-white hover:bg-blue-600'
-                  }`}
-                >
-                  {contact.isAssigned ? '✓ Assigned' : 'Assign'}
-                </button>
+                {contact.isAssigned ? (
+                  <button
+                    onClick={() => handleUnassignContact(contact)}
+                    className="flex-1 px-3 py-1 text-xs rounded transition-colors bg-red-500 text-white hover:bg-red-600"
+                  >
+                    Unassign
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleAssignContact(contact)}
+                    className="flex-1 px-3 py-1 text-xs rounded transition-colors bg-blue-500 text-white hover:bg-blue-600"
+                  >
+                    Assign
+                  </button>
+                )}
                 <button
                   onClick={() => handleViewProfile(contact)}
                   className="px-3 py-1 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-50 transition-colors"
@@ -2595,17 +2649,21 @@ const AssignmentRecommendations = ({
 
                     {/* Action Buttons */}
                     <div className="flex gap-2 mt-3">
-                      <button
-                        onClick={() => handleAssignContact(contact)}
-                        disabled={contact.isAssigned}
-                        className={`flex-1 px-2 py-1 text-xs rounded ${
-                          contact.isAssigned 
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                            : 'bg-blue-500 text-white hover:bg-blue-600'
-                        }`}
-                      >
-                        {contact.isAssigned ? '✓ Assigned' : 'Assign'}
-                      </button>
+                      {contact.isAssigned ? (
+                        <button
+                          onClick={() => handleUnassignContact(contact)}
+                          className="flex-1 px-2 py-1 text-xs rounded bg-red-500 text-white hover:bg-red-600"
+                        >
+                          Unassign
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleAssignContact(contact)}
+                          className="flex-1 px-2 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600"
+                        >
+                          Assign
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setCompareList(prev => prev.filter(c => c.id !== contact.id));
