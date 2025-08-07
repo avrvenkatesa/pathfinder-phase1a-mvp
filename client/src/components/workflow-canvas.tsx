@@ -35,7 +35,8 @@ import ContactErrorBoundary from './ContactErrorBoundary';
 import { Contact } from '@/types/contact';
 import { useContacts } from '@/hooks/useContacts';
 import SkillsGapAnalysis from './SkillsGapAnalysis';
-import { WorkflowConnector, ConnectionCreator, Connection } from './WorkflowConnector';
+import { WorkflowConnector, Connection } from './WorkflowConnector';
+import { ConnectionCreator } from './WorkflowConnector';
 
 // BPMN Element Types
 interface BPMNElement {
@@ -170,7 +171,31 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
     return result;
   };
 
-  // Connection Management Functions
+  // BPMN Connection Management Functions
+  const handleBpmnConnectionCreate = (connection: Omit<Connection, 'id'>) => {
+    const newConnection: Connection = {
+      id: Date.now().toString(),
+      sourceId: connection.sourceId,
+      targetId: connection.targetId,
+      sourceAnchor: connection.sourceAnchor,
+      targetAnchor: connection.targetAnchor,
+      type: connection.type || 'sequence',
+      label: connection.label
+    };
+    
+    setBpmnConnections(prev => [...prev, newConnection]);
+  };
+
+  const handleBpmnConnectionSelect = (connectionId: string) => {
+    setSelectedBpmnConnection(connectionId);
+  };
+
+  const handleBpmnConnectionDelete = (connectionId: string) => {
+    setBpmnConnections(prev => prev.filter(conn => conn.id !== connectionId));
+    setSelectedBpmnConnection(null);
+  };
+
+  // Legacy Connection Management Functions
   const handleConnectionCreate = (connection: Omit<Connection, 'id'>) => {
     const newConnection = {
       id: Date.now().toString(),
@@ -199,25 +224,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
       connections: prev.connections.filter(conn => conn.id !== connectionId)
     }));
     setSelectedConnectionId(null);
-  };
-
-  // BPMN Connector handlers
-  const handleBpmnConnectionCreate = (connection: Omit<Connection, 'id'>) => {
-    const newConnection: Connection = {
-      ...connection,
-      id: `conn-${Date.now()}`
-    };
-    setBpmnConnections(prev => [...prev, newConnection]);
-  };
-
-  const handleBpmnConnectionSelect = (connectionId: string) => {
-    setSelectedBpmnConnection(connectionId);
-    setCanvasState(prev => ({ ...prev, selectedElements: [] })); // Deselect elements when selecting connection
-  };
-
-  const handleBpmnConnectionDelete = (connectionId: string) => {
-    setBpmnConnections(prev => prev.filter(c => c.id !== connectionId));
-    setSelectedBpmnConnection(null);
   };
 
   // Helper functions for skill display styling
