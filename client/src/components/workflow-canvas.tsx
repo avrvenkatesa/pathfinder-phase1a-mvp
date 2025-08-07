@@ -110,6 +110,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
   const [draggedSkillIndex, setDraggedSkillIndex] = useState<number | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(true);
   const [editingSkill, setEditingSkill] = useState<{ index: number; skill: any } | null>(null);
+  
+  // BPMN Connector state
+  const [bpmnConnections, setBpmnConnections] = useState<Connection[]>([]);
+  const [selectedBpmnConnection, setSelectedBpmnConnection] = useState<string | null>(null);
 
   // Handle skill removal
   const removeSkill = (elementId: string, index: number) => {
@@ -195,6 +199,25 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
       connections: prev.connections.filter(conn => conn.id !== connectionId)
     }));
     setSelectedConnectionId(null);
+  };
+
+  // BPMN Connector handlers
+  const handleBpmnConnectionCreate = (connection: Omit<Connection, 'id'>) => {
+    const newConnection: Connection = {
+      ...connection,
+      id: `conn-${Date.now()}`
+    };
+    setBpmnConnections(prev => [...prev, newConnection]);
+  };
+
+  const handleBpmnConnectionSelect = (connectionId: string) => {
+    setSelectedBpmnConnection(connectionId);
+    setCanvasState(prev => ({ ...prev, selectedElements: [] })); // Deselect elements when selecting connection
+  };
+
+  const handleBpmnConnectionDelete = (connectionId: string) => {
+    setBpmnConnections(prev => prev.filter(c => c.id !== connectionId));
+    setSelectedBpmnConnection(null);
   };
 
   // Helper functions for skill display styling
