@@ -1580,9 +1580,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                               name: `${contact.firstName} ${contact.lastName}`,
                               title: contact.title,
                               department: contact.department,
-                              skills: contact.skills.map(skill => ({
-                                name: skill.name,
-                                level: skill.level.toLowerCase()
+                              skills: (contact.skills || []).map(skill => ({
+                                name: skill.name || '',
+                                level: (skill.level || 'beginner').toLowerCase()
                               })),
                               availability: contact.availability,
                               currentWorkload: contact.workload?.currentWorkload || 0
