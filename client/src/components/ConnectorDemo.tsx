@@ -47,7 +47,7 @@ const ConnectorDemo: React.FC = () => {
       <h3 className="text-lg font-semibold mb-4">BPMN Connectors Demo</h3>
       <p className="text-sm text-gray-600 mb-4">
         {isConnectionMode 
-          ? "Hover over elements to see blue anchor points. Click anchors to create connections. Click connections to select/delete them."
+          ? "Hover over elements to see blue anchor points. Click and drag from one anchor point to another to create connections. Click connections to select/delete them."
           : "Click 'Enable Connection Mode' to start creating connections between elements."
         }
       </p>
@@ -149,7 +149,8 @@ const ConnectorDemo: React.FC = () => {
       <div className="mt-4 text-sm text-gray-600">
         <p><strong>Features:</strong></p>
         <ul className="list-disc list-inside space-y-1">
-          <li>Visual anchor points on hover for connection creation</li>
+          <li>Drag and drop connection creation between anchor points</li>
+          <li>Visual anchor points with hover effects and preview lines</li>
           <li>Smooth bezier curves for professional workflow appearance</li>
           <li>Click to select connections with visual feedback</li>
           <li>Delete button appears on selected connections</li>

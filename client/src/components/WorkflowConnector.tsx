@@ -177,35 +177,83 @@ export const ConnectionCreator: React.FC<{
   elements: any[];
   onConnectionCreate: (connection: Omit<Connection, 'id'>) => void;
 }> = ({ elements, onConnectionCreate }) => {
-  const [isCreating, setIsCreating] = useState(false);
-  const [sourceElementId, setSourceElementId] = useState<string | null>(null);
-  const [previewLine, setPreviewLine] = useState<any>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{
+    elementId: string;
+    anchor: 'top' | 'right' | 'bottom' | 'left';
+    x: number;
+    y: number;
+  } | null>(null);
+  const [currentMousePos, setCurrentMousePos] = useState({ x: 0, y: 0 });
   const [hoveredElement, setHoveredElement] = useState<string | null>(null);
+  const [hoveredAnchor, setHoveredAnchor] = useState<{
+    elementId: string;
+    anchor: 'top' | 'right' | 'bottom' | 'left';
+  } | null>(null);
 
-  const handleElementClick = (elementId: string, anchor: string) => {
-    if (!isCreating) {
-      // Start connection
-      setSourceElementId(elementId);
-      setIsCreating(true);
-    } else {
-      // Complete connection
-      if (sourceElementId && sourceElementId !== elementId) {
-        onConnectionCreate({
-          sourceId: sourceElementId,
-          targetId: elementId,
-          sourceAnchor: 'right' as any,
-          targetAnchor: 'left' as any,
-          type: 'sequence'
-        });
-      }
-      setIsCreating(false);
-      setSourceElementId(null);
-      setPreviewLine(null);
+  const getAnchorPosition = (element: any, anchor: 'top' | 'right' | 'bottom' | 'left') => {
+    switch (anchor) {
+      case 'top':
+        return { x: element.x + element.width / 2, y: element.y };
+      case 'right':
+        return { x: element.x + element.width, y: element.y + element.height / 2 };
+      case 'bottom':
+        return { x: element.x + element.width / 2, y: element.y + element.height };
+      case 'left':
+        return { x: element.x, y: element.y + element.height / 2 };
+      default:
+        return { x: element.x, y: element.y };
     }
   };
 
+  const handleMouseDown = (elementId: string, anchor: 'top' | 'right' | 'bottom' | 'left', event: React.MouseEvent) => {
+    event.preventDefault();
+    const element = elements.find(el => el.id === elementId);
+    if (!element) return;
+
+    const anchorPos = getAnchorPosition(element, anchor);
+    setDragStart({
+      elementId,
+      anchor,
+      x: anchorPos.x,
+      y: anchorPos.y
+    });
+    setIsDragging(true);
+    setCurrentMousePos({ x: anchorPos.x, y: anchorPos.y });
+  };
+
+  const handleMouseMove = (event: React.MouseEvent<SVGGElement>) => {
+    if (!isDragging || !dragStart) return;
+    
+    const rect = (event.currentTarget as SVGGElement).getBoundingClientRect();
+    setCurrentMousePos({
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    });
+  };
+
+  const handleMouseUp = (event: React.MouseEvent<SVGGElement>) => {
+    if (!isDragging || !dragStart) return;
+
+    // Check if we're over a valid target anchor
+    if (hoveredAnchor && hoveredAnchor.elementId !== dragStart.elementId) {
+      onConnectionCreate({
+        sourceId: dragStart.elementId,
+        targetId: hoveredAnchor.elementId,
+        sourceAnchor: dragStart.anchor,
+        targetAnchor: hoveredAnchor.anchor,
+        type: 'sequence'
+      });
+    }
+
+    // Reset drag state
+    setIsDragging(false);
+    setDragStart(null);
+    setHoveredAnchor(null);
+  };
+
   return (
-    <>
+    <g onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}>
       {/* Invisible hover areas for each element */}
       {elements.map(element => (
         <rect
@@ -222,70 +270,72 @@ export const ConnectionCreator: React.FC<{
 
       {/* Connection anchors on elements */}
       {elements.map(element => {
-        const showAnchors = isCreating || hoveredElement === element.id;
+        const showAnchors = hoveredElement === element.id || isDragging;
+        const anchors: ('top' | 'right' | 'bottom' | 'left')[] = ['top', 'right', 'bottom', 'left'];
+        
         return (
           <g key={element.id}>
-            {/* Top anchor */}
-            <circle
-              cx={element.x + element.width / 2}
-              cy={element.y}
-              r="5"
-              fill="#3b82f6"
-              opacity={showAnchors ? 1 : 0}
-              className="transition-opacity duration-200"
-              style={{ cursor: 'crosshair', pointerEvents: showAnchors ? 'auto' : 'none' }}
-              onClick={() => handleElementClick(element.id, 'top')}
-            />
-            {/* Right anchor */}
-            <circle
-              cx={element.x + element.width}
-              cy={element.y + element.height / 2}
-              r="5"
-              fill="#3b82f6"
-              opacity={showAnchors ? 1 : 0}
-              className="transition-opacity duration-200"
-              style={{ cursor: 'crosshair', pointerEvents: showAnchors ? 'auto' : 'none' }}
-              onClick={() => handleElementClick(element.id, 'right')}
-            />
-            {/* Bottom anchor */}
-            <circle
-              cx={element.x + element.width / 2}
-              cy={element.y + element.height}
-              r="5"
-              fill="#3b82f6"
-              opacity={showAnchors ? 1 : 0}
-              className="transition-opacity duration-200"
-              style={{ cursor: 'crosshair', pointerEvents: showAnchors ? 'auto' : 'none' }}
-              onClick={() => handleElementClick(element.id, 'bottom')}
-            />
-            {/* Left anchor */}
-            <circle
-              cx={element.x}
-              cy={element.y + element.height / 2}
-              r="5"
-              fill="#3b82f6"
-              opacity={showAnchors ? 1 : 0}
-              className="transition-opacity duration-200"
-              style={{ cursor: 'crosshair', pointerEvents: showAnchors ? 'auto' : 'none' }}
-              onClick={() => handleElementClick(element.id, 'left')}
-            />
+            {anchors.map(anchor => {
+              const pos = getAnchorPosition(element, anchor);
+              const isHovered = hoveredAnchor?.elementId === element.id && hoveredAnchor?.anchor === anchor;
+              
+              return (
+                <circle
+                  key={anchor}
+                  cx={pos.x}
+                  cy={pos.y}
+                  r="6"
+                  fill={isHovered ? "#1d4ed8" : "#3b82f6"}
+                  stroke={isHovered ? "#ffffff" : "none"}
+                  strokeWidth="2"
+                  opacity={showAnchors ? 1 : 0}
+                  className="transition-all duration-200"
+                  style={{ 
+                    cursor: 'crosshair', 
+                    pointerEvents: showAnchors ? 'auto' : 'none' 
+                  }}
+                  onMouseDown={(e) => handleMouseDown(element.id, anchor, e)}
+                  onMouseEnter={() => setHoveredAnchor({ elementId: element.id, anchor })}
+                  onMouseLeave={() => setHoveredAnchor(null)}
+                />
+              );
+            })}
           </g>
         );
       })}
       
-      {/* Preview line while creating */}
-      {isCreating && previewLine && (
+      {/* Preview line while dragging */}
+      {isDragging && dragStart && (
         <line
-          x1={previewLine.x1}
-          y1={previewLine.y1}
-          x2={previewLine.x2}
-          y2={previewLine.y2}
+          x1={dragStart.x}
+          y1={dragStart.y}
+          x2={currentMousePos.x}
+          y2={currentMousePos.y}
           stroke="#3b82f6"
           strokeWidth="2"
           strokeDasharray="5,5"
-          opacity="0.5"
+          opacity="0.7"
+          markerEnd="url(#arrowhead)"
         />
       )}
-    </>
+
+      {/* Arrow marker definition */}
+      <defs>
+        <marker
+          id="arrowhead"
+          markerWidth="10"
+          markerHeight="7"
+          refX="9"
+          refY="3.5"
+          orient="auto"
+        >
+          <polygon
+            points="0 0, 10 3.5, 0 7"
+            fill="#3b82f6"
+            opacity="0.7"
+          />
+        </marker>
+      </defs>
+    </g>
   );
 };
