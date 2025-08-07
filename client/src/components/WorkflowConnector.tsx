@@ -180,6 +180,7 @@ export const ConnectionCreator: React.FC<{
   const [isCreating, setIsCreating] = useState(false);
   const [sourceElementId, setSourceElementId] = useState<string | null>(null);
   const [previewLine, setPreviewLine] = useState<any>(null);
+  const [hoveredElement, setHoveredElement] = useState<string | null>(null);
 
   const handleElementClick = (elementId: string, anchor: string) => {
     if (!isCreating) {
@@ -205,55 +206,72 @@ export const ConnectionCreator: React.FC<{
 
   return (
     <>
-      {/* Connection anchors on elements */}
+      {/* Invisible hover areas for each element */}
       {elements.map(element => (
-        <g key={element.id}>
-          {/* Top anchor */}
-          <circle
-            cx={element.x + element.width / 2}
-            cy={element.y}
-            r="5"
-            fill="#3b82f6"
-            opacity={isCreating ? 1 : 0}
-            className="transition-opacity hover:opacity-100"
-            style={{ cursor: 'crosshair' }}
-            onClick={() => handleElementClick(element.id, 'top')}
-          />
-          {/* Right anchor */}
-          <circle
-            cx={element.x + element.width}
-            cy={element.y + element.height / 2}
-            r="5"
-            fill="#3b82f6"
-            opacity={isCreating ? 1 : 0}
-            className="transition-opacity hover:opacity-100"
-            style={{ cursor: 'crosshair' }}
-            onClick={() => handleElementClick(element.id, 'right')}
-          />
-          {/* Bottom anchor */}
-          <circle
-            cx={element.x + element.width / 2}
-            cy={element.y + element.height}
-            r="5"
-            fill="#3b82f6"
-            opacity={isCreating ? 1 : 0}
-            className="transition-opacity hover:opacity-100"
-            style={{ cursor: 'crosshair' }}
-            onClick={() => handleElementClick(element.id, 'bottom')}
-          />
-          {/* Left anchor */}
-          <circle
-            cx={element.x}
-            cy={element.y + element.height / 2}
-            r="5"
-            fill="#3b82f6"
-            opacity={isCreating ? 1 : 0}
-            className="transition-opacity hover:opacity-100"
-            style={{ cursor: 'crosshair' }}
-            onClick={() => handleElementClick(element.id, 'left')}
-          />
-        </g>
+        <rect
+          key={`hover-${element.id}`}
+          x={element.x - 10}
+          y={element.y - 10}
+          width={element.width + 20}
+          height={element.height + 20}
+          fill="transparent"
+          onMouseEnter={() => setHoveredElement(element.id)}
+          onMouseLeave={() => setHoveredElement(null)}
+        />
       ))}
+
+      {/* Connection anchors on elements */}
+      {elements.map(element => {
+        const showAnchors = isCreating || hoveredElement === element.id;
+        return (
+          <g key={element.id}>
+            {/* Top anchor */}
+            <circle
+              cx={element.x + element.width / 2}
+              cy={element.y}
+              r="5"
+              fill="#3b82f6"
+              opacity={showAnchors ? 1 : 0}
+              className="transition-opacity duration-200"
+              style={{ cursor: 'crosshair', pointerEvents: showAnchors ? 'auto' : 'none' }}
+              onClick={() => handleElementClick(element.id, 'top')}
+            />
+            {/* Right anchor */}
+            <circle
+              cx={element.x + element.width}
+              cy={element.y + element.height / 2}
+              r="5"
+              fill="#3b82f6"
+              opacity={showAnchors ? 1 : 0}
+              className="transition-opacity duration-200"
+              style={{ cursor: 'crosshair', pointerEvents: showAnchors ? 'auto' : 'none' }}
+              onClick={() => handleElementClick(element.id, 'right')}
+            />
+            {/* Bottom anchor */}
+            <circle
+              cx={element.x + element.width / 2}
+              cy={element.y + element.height}
+              r="5"
+              fill="#3b82f6"
+              opacity={showAnchors ? 1 : 0}
+              className="transition-opacity duration-200"
+              style={{ cursor: 'crosshair', pointerEvents: showAnchors ? 'auto' : 'none' }}
+              onClick={() => handleElementClick(element.id, 'bottom')}
+            />
+            {/* Left anchor */}
+            <circle
+              cx={element.x}
+              cy={element.y + element.height / 2}
+              r="5"
+              fill="#3b82f6"
+              opacity={showAnchors ? 1 : 0}
+              className="transition-opacity duration-200"
+              style={{ cursor: 'crosshair', pointerEvents: showAnchors ? 'auto' : 'none' }}
+              onClick={() => handleElementClick(element.id, 'left')}
+            />
+          </g>
+        );
+      })}
       
       {/* Preview line while creating */}
       {isCreating && previewLine && (

@@ -16,6 +16,7 @@ const ConnectorDemo: React.FC = () => {
   ]);
   
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [isConnectionMode, setIsConnectionMode] = useState(false);
 
   // Demo elements
   const elements = [
@@ -45,8 +46,10 @@ const ConnectorDemo: React.FC = () => {
     <Card className="p-6">
       <h3 className="text-lg font-semibold mb-4">BPMN Connectors Demo</h3>
       <p className="text-sm text-gray-600 mb-4">
-        Click on blue anchor points to create connections between elements. 
-        Click existing connections to select and delete them.
+        {isConnectionMode 
+          ? "Hover over elements to see blue anchor points. Click anchors to create connections. Click connections to select/delete them."
+          : "Click 'Enable Connection Mode' to start creating connections between elements."
+        }
       </p>
       
       <div className="relative bg-gray-50 border rounded-lg" style={{ width: 700, height: 400 }}>
@@ -92,15 +95,24 @@ const ConnectorDemo: React.FC = () => {
             );
           })}
           
-          {/* Connection Creator */}
-          <ConnectionCreator
-            elements={elements}
-            onConnectionCreate={handleConnectionCreate}
-          />
+          {/* Connection Creator - only active in connection mode */}
+          {isConnectionMode && (
+            <ConnectionCreator
+              elements={elements}
+              onConnectionCreate={handleConnectionCreate}
+            />
+          )}
         </svg>
       </div>
 
       <div className="mt-4 flex gap-2">
+        <Button
+          onClick={() => setIsConnectionMode(!isConnectionMode)}
+          variant={isConnectionMode ? "default" : "outline"}
+          className={isConnectionMode ? "bg-blue-500 text-white hover:bg-blue-600" : ""}
+        >
+          {isConnectionMode ? "Exit Connection Mode" : "Enable Connection Mode"}
+        </Button>
         <Button
           onClick={() => {
             setConnections([
