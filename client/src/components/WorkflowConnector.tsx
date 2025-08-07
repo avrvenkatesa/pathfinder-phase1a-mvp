@@ -1,0 +1,273 @@
+import React, { useState, useRef, useEffect } from 'react';
+
+export interface Connection {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  sourceAnchor: 'top' | 'right' | 'bottom' | 'left';
+  targetAnchor: 'top' | 'right' | 'bottom' | 'left';
+  type: 'sequence' | 'conditional' | 'default' | 'message';
+  label?: string;
+  condition?: string;
+  selected?: boolean;
+}
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface ConnectorProps {
+  connection: Connection;
+  sourceElement: any;
+  targetElement: any;
+  onSelect: (connectionId: string) => void;
+  onDelete: (connectionId: string) => void;
+  isSelected: boolean;
+}
+
+export const WorkflowConnector: React.FC<ConnectorProps> = ({
+  connection,
+  sourceElement,
+  targetElement,
+  onSelect,
+  onDelete,
+  isSelected
+}) => {
+  const getAnchorPoint = (element: any, anchor: string): Point => {
+    const { x, y, width, height } = element;
+    
+    switch (anchor) {
+      case 'top':
+        return { x: x + width / 2, y };
+      case 'right':
+        return { x: x + width, y: y + height / 2 };
+      case 'bottom':
+        return { x: x + width / 2, y: y + height };
+      case 'left':
+        return { x, y: y + height / 2 };
+      default:
+        return { x: x + width / 2, y: y + height / 2 };
+    }
+  };
+
+  const createPath = (start: Point, end: Point): string => {
+    // Simple bezier curve for smooth connections
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    
+    // Calculate control points for bezier curve
+    const cx1 = start.x + dx * 0.5;
+    const cy1 = start.y;
+    const cx2 = end.x - dx * 0.5;
+    const cy2 = end.y;
+    
+    // For straight lines when elements are aligned
+    if (Math.abs(dx) < 20 || Math.abs(dy) < 20) {
+      return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+    }
+    
+    // Curved path for better visibility
+    return `M ${start.x} ${start.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${end.x} ${end.y}`;
+  };
+
+  const startPoint = getAnchorPoint(sourceElement, connection.sourceAnchor);
+  const endPoint = getAnchorPoint(targetElement, connection.targetAnchor);
+  const pathData = createPath(startPoint, endPoint);
+
+  // Calculate arrow rotation
+  const angle = Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x);
+  const arrowTransform = `translate(${endPoint.x}, ${endPoint.y}) rotate(${angle * 180 / Math.PI})`;
+
+  const getStrokeDasharray = () => {
+    switch (connection.type) {
+      case 'conditional':
+        return '5,5';
+      case 'message':
+        return '10,5';
+      default:
+        return 'none';
+    }
+  };
+
+  return (
+    <g className="connector-group">
+      {/* Invisible wider path for easier selection */}
+      <path
+        d={pathData}
+        stroke="transparent"
+        strokeWidth="20"
+        fill="none"
+        style={{ cursor: 'pointer' }}
+        onClick={() => onSelect(connection.id)}
+      />
+      
+      {/* Visible connection line */}
+      <path
+        d={pathData}
+        stroke={isSelected ? '#3b82f6' : '#6b7280'}
+        strokeWidth={isSelected ? 2.5 : 2}
+        strokeDasharray={getStrokeDasharray()}
+        fill="none"
+        className="transition-all duration-200"
+      />
+      
+      {/* Arrow head */}
+      <g transform={arrowTransform}>
+        <path
+          d="M 0 0 L -10 -5 L -10 5 Z"
+          fill={isSelected ? '#3b82f6' : '#6b7280'}
+        />
+      </g>
+      
+      {/* Connection label */}
+      {connection.label && (
+        <g>
+          <rect
+            x={startPoint.x + (endPoint.x - startPoint.x) / 2 - 30}
+            y={startPoint.y + (endPoint.y - startPoint.y) / 2 - 10}
+            width="60"
+            height="20"
+            fill="white"
+            stroke={isSelected ? '#3b82f6' : '#6b7280'}
+            rx="3"
+          />
+          <text
+            x={startPoint.x + (endPoint.x - startPoint.x) / 2}
+            y={startPoint.y + (endPoint.y - startPoint.y) / 2 + 4}
+            textAnchor="middle"
+            fontSize="12"
+            fill="#374151"
+          >
+            {connection.label}
+          </text>
+        </g>
+      )}
+      
+      {/* Delete button when selected */}
+      {isSelected && (
+        <g
+          transform={`translate(${startPoint.x + (endPoint.x - startPoint.x) / 2}, ${
+            startPoint.y + (endPoint.y - startPoint.y) / 2 - 30
+          })`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(connection.id);
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          <circle r="10" fill="#ef4444" />
+          <text
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill="white"
+            fontSize="14"
+            fontWeight="bold"
+          >
+            ×
+          </text>
+        </g>
+      )}
+    </g>
+  );
+};
+
+// Connection Creation Handler Component
+export const ConnectionCreator: React.FC<{
+  elements: any[];
+  onConnectionCreate: (connection: Omit<Connection, 'id'>) => void;
+}> = ({ elements, onConnectionCreate }) => {
+  const [isCreating, setIsCreating] = useState(false);
+  const [sourceElementId, setSourceElementId] = useState<string | null>(null);
+  const [previewLine, setPreviewLine] = useState<any>(null);
+
+  const handleElementClick = (elementId: string, anchor: string) => {
+    if (!isCreating) {
+      // Start connection
+      setSourceElementId(elementId);
+      setIsCreating(true);
+    } else {
+      // Complete connection
+      if (sourceElementId && sourceElementId !== elementId) {
+        onConnectionCreate({
+          sourceId: sourceElementId,
+          targetId: elementId,
+          sourceAnchor: 'right' as any,
+          targetAnchor: 'left' as any,
+          type: 'sequence'
+        });
+      }
+      setIsCreating(false);
+      setSourceElementId(null);
+      setPreviewLine(null);
+    }
+  };
+
+  return (
+    <>
+      {/* Connection anchors on elements */}
+      {elements.map(element => (
+        <g key={element.id}>
+          {/* Top anchor */}
+          <circle
+            cx={element.x + element.width / 2}
+            cy={element.y}
+            r="5"
+            fill="#3b82f6"
+            opacity={isCreating ? 1 : 0}
+            className="transition-opacity hover:opacity-100"
+            style={{ cursor: 'crosshair' }}
+            onClick={() => handleElementClick(element.id, 'top')}
+          />
+          {/* Right anchor */}
+          <circle
+            cx={element.x + element.width}
+            cy={element.y + element.height / 2}
+            r="5"
+            fill="#3b82f6"
+            opacity={isCreating ? 1 : 0}
+            className="transition-opacity hover:opacity-100"
+            style={{ cursor: 'crosshair' }}
+            onClick={() => handleElementClick(element.id, 'right')}
+          />
+          {/* Bottom anchor */}
+          <circle
+            cx={element.x + element.width / 2}
+            cy={element.y + element.height}
+            r="5"
+            fill="#3b82f6"
+            opacity={isCreating ? 1 : 0}
+            className="transition-opacity hover:opacity-100"
+            style={{ cursor: 'crosshair' }}
+            onClick={() => handleElementClick(element.id, 'bottom')}
+          />
+          {/* Left anchor */}
+          <circle
+            cx={element.x}
+            cy={element.y + element.height / 2}
+            r="5"
+            fill="#3b82f6"
+            opacity={isCreating ? 1 : 0}
+            className="transition-opacity hover:opacity-100"
+            style={{ cursor: 'crosshair' }}
+            onClick={() => handleElementClick(element.id, 'left')}
+          />
+        </g>
+      ))}
+      
+      {/* Preview line while creating */}
+      {isCreating && previewLine && (
+        <line
+          x1={previewLine.x1}
+          y1={previewLine.y1}
+          x2={previewLine.x2}
+          y2={previewLine.y2}
+          stroke="#3b82f6"
+          strokeWidth="2"
+          strokeDasharray="5,5"
+          opacity="0.5"
+        />
+      )}
+    </>
+  );
+};

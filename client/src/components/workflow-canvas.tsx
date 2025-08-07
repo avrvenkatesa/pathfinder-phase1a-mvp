@@ -35,6 +35,7 @@ import ContactErrorBoundary from './ContactErrorBoundary';
 import { Contact } from '@/types/contact';
 import { useContacts } from '@/hooks/useContacts';
 import SkillsGapAnalysis from './SkillsGapAnalysis';
+import { WorkflowConnector, ConnectionCreator, Connection } from './WorkflowConnector';
 
 // BPMN Element Types
 interface BPMNElement {
@@ -102,6 +103,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
   });
 
   const [isPanning, setIsPanning] = useState(false);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [isConnectionMode, setIsConnectionMode] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [showAddSkillModal, setShowAddSkillModal] = useState(false);
   const [draggedSkillIndex, setDraggedSkillIndex] = useState<number | null>(null);
@@ -161,6 +164,37 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
     const [removed] = result.splice(fromIndex, 1);
     result.splice(toIndex, 0, removed);
     return result;
+  };
+
+  // Connection Management Functions
+  const handleConnectionCreate = (connection: Omit<Connection, 'id'>) => {
+    const newConnection = {
+      id: Date.now().toString(),
+      from: connection.sourceId,
+      to: connection.targetId,
+      type: 'sequence' as const
+    };
+    
+    setCanvasState(prev => ({
+      ...prev,
+      connections: [...prev.connections, newConnection]
+    }));
+  };
+
+  const handleConnectionSelect = (connectionId: string) => {
+    setSelectedConnectionId(connectionId);
+    setCanvasState(prev => ({
+      ...prev,
+      selectedElements: [] // Clear element selection when selecting connection
+    }));
+  };
+
+  const handleConnectionDelete = (connectionId: string) => {
+    setCanvasState(prev => ({
+      ...prev,
+      connections: prev.connections.filter(conn => conn.id !== connectionId)
+    }));
+    setSelectedConnectionId(null);
   };
 
   // Helper functions for skill display styling
