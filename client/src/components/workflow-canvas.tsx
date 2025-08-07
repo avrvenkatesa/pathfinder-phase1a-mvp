@@ -38,6 +38,7 @@ import SkillsGapAnalysis from './SkillsGapAnalysis';
 import { WorkflowConnector, Connection } from './WorkflowConnector';
 import { ConnectionCreator } from './WorkflowConnector';
 import { BpmnCanvasConnector } from './BpmnCanvasConnector';
+import { ConnectButton } from './ConnectButton';
 
 // BPMN Element Types
 interface BPMNElement {
@@ -964,6 +965,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
             >
               <Grid3x3 size={16} />
             </Button>
+            <ConnectButton
+              isConnectionMode={isConnectionMode}
+              onToggle={() => setIsConnectionMode(!isConnectionMode)}
+            />
             <Button
               size="sm"
               variant={isPanning ? "default" : "ghost"}
