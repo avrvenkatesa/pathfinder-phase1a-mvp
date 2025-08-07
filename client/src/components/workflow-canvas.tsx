@@ -2007,6 +2007,7 @@ const AssignmentRecommendations = ({
   const [expandedContact, setExpandedContact] = useState<number | null>(null);
   const [compareList, setCompareList] = useState<any[]>([]);
   const [showCompareModal, setShowCompareModal] = useState(false);
+  const [notification, setNotification] = useState({ show: false, message: '' });
 
   // Mock contacts data (replace with your actual contacts)
   const mockContacts = [
@@ -2165,6 +2166,9 @@ const AssignmentRecommendations = ({
         ? { ...rec, isAssigned: true }
         : rec
     ));
+
+    // Show success notification
+    showNotification(`✓ ${contact.name} assigned successfully!`);
   };
 
   // Handle viewing profile
@@ -2173,13 +2177,29 @@ const AssignmentRecommendations = ({
     setExpandedContact(expandedContact === contact.id ? null : contact.id);
   };
 
+  // Helper function for notifications
+  const showNotification = (message: string) => {
+    setNotification({ show: true, message });
+    setTimeout(() => {
+      setNotification({ show: false, message: '' });
+    }, 3000);
+  };
+
   // Handle compare toggle
   const handleCompareToggle = (contact: any) => {
+    const isAdding = !compareList.find(c => c.id === contact.id);
     setCompareList(prev => 
       prev.find(c => c.id === contact.id)
         ? prev.filter(c => c.id !== contact.id)
         : [...prev, contact]
     );
+    
+    // Show notification
+    if (isAdding) {
+      showNotification(`${contact.name} added to comparison`);
+    } else {
+      showNotification(`${contact.name} removed from comparison`);
+    }
   };
 
   // Generate recommendations when skills change
@@ -2587,7 +2607,10 @@ const AssignmentRecommendations = ({
                         {contact.isAssigned ? '✓ Assigned' : 'Assign'}
                       </button>
                       <button
-                        onClick={() => setCompareList(prev => prev.filter(c => c.id !== contact.id))}
+                        onClick={() => {
+                          setCompareList(prev => prev.filter(c => c.id !== contact.id));
+                          showNotification(`${contact.name} removed from comparison`);
+                        }}
                         className="px-2 py-1 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-50"
                       >
                         Remove
@@ -2599,7 +2622,10 @@ const AssignmentRecommendations = ({
 
               <div className="mt-4 flex justify-end">
                 <button
-                  onClick={() => setCompareList([])}
+                  onClick={() => {
+                    setCompareList([]);
+                    showNotification('All contacts cleared from comparison');
+                  }}
                   className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 mr-3"
                 >
                   Clear All
@@ -2615,6 +2641,20 @@ const AssignmentRecommendations = ({
           </div>
         </div>
       )}
+
+      {/* Notification Component */}
+      <Notification {...notification} />
+    </div>
+  );
+};
+
+// Simple notification component
+const Notification = ({ message, show }: { message: string; show: boolean }) => {
+  if (!show) return null;
+  
+  return (
+    <div className="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-slide-in">
+      {message}
     </div>
   );
 };
