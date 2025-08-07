@@ -521,22 +521,29 @@ async function createWorkflows(client) {
 
   await client.query(workflows);
 
-  // Create workflow stages
-  const stages = `
-    INSERT INTO workflow_stages (workflow_id, name, type, sequence_order, estimated_hours, required_skills)
-    SELECT 
-      w.id,
-      stage->>'name',
-      stage->>'type',
-      row_number() OVER (PARTITION BY w.id ORDER BY ordinality),
-      (stage->>'hours')::INTEGER,
-      stage->'skills'
-    FROM workflows w,
-    LATERAL jsonb_array_elements(w.stages) WITH ORDINALITY AS stage
-    ON CONFLICT DO NOTHING;
-  `;
+  // Create workflow stages - simplified version without complex JSONB operations
+  const workflowsData = await client.query('SELECT id, name, stages FROM workflows');
 
-  await client.query(stages);
+  for (const workflow of workflowsData.rows) {
+    if (workflow.stages && Array.isArray(workflow.stages)) {
+      for (let i = 0; i < workflow.stages.length; i++) {
+        const stage = workflow.stages[i];
+        await client.query(
+          `INSERT INTO workflow_stages (workflow_id, name, type, sequence_order, estimated_hours, required_skills)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT DO NOTHING`,
+          [
+            workflow.id,
+            stage.name,
+            stage.type,
+            i + 1,
+            stage.hours || 0,
+            JSON.stringify(stage.skills || [])
+          ]
+        );
+      }
+    }
+  }
 }
 
 async function createTestUsers(client) {
