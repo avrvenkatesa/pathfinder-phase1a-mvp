@@ -37,6 +37,7 @@ import { useContacts } from '@/hooks/useContacts';
 import SkillsGapAnalysis from './SkillsGapAnalysis';
 import { WorkflowConnector, Connection } from './WorkflowConnector';
 import { ConnectionCreator } from './WorkflowConnector';
+import { BpmnCanvasConnector } from './BpmnCanvasConnector';
 
 // BPMN Element Types
 interface BPMNElement {
