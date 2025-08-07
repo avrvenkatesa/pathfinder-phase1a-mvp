@@ -34,6 +34,7 @@ import ContactAvailabilityIndicator from './ContactAvailabilityIndicator';
 import ContactErrorBoundary from './ContactErrorBoundary';
 import { Contact } from '@/types/contact';
 import { useContacts } from '@/hooks/useContacts';
+import SkillsGapAnalysis from './SkillsGapAnalysis';
 
 // BPMN Element Types
 interface BPMNElement {
@@ -1567,6 +1568,57 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                             }));
                           }}
                         />
+                      )}
+
+                      {/* Skills Gap Analysis Section */}
+                      {selectedElement?.properties?.requiredSkills?.length > 0 && (
+                        <div className="mt-4">
+                          <SkillsGapAnalysis
+                            requiredSkills={selectedElement.properties.requiredSkills || []}
+                            availableContacts={(availableContacts || []).map(contact => ({
+                              id: contact.contactId,
+                              name: `${contact.firstName} ${contact.lastName}`,
+                              title: contact.title,
+                              department: contact.department,
+                              skills: contact.skills.map(skill => ({
+                                name: skill.name,
+                                level: skill.level.toLowerCase()
+                              })),
+                              availability: contact.availability,
+                              currentWorkload: contact.workload?.currentWorkload || 0
+                            }))}
+                            onSuggestionClick={(suggestion, skillName) => {
+                              // Handle suggestion clicks
+                              if (suggestion.type === 'lower_requirement') {
+                                // Extract the new level from the suggestion description
+                                const levelMatch = suggestion.description.match(/to (\w+)/);
+                                if (levelMatch) {
+                                  const newLevel = levelMatch[1].toLowerCase();
+                                  // Update the skill requirement
+                                  setCanvasState(prev => ({
+                                    ...prev,
+                                    elements: prev.elements.map(el => 
+                                      el.id === selectedElement.id 
+                                        ? { 
+                                            ...el, 
+                                            properties: { 
+                                              ...el.properties, 
+                                              requiredSkills: (el.properties.requiredSkills || []).map((skill: any) => 
+                                                skill.name === skillName ? { ...skill, level: newLevel } : skill
+                                              )
+                                            }
+                                          }
+                                        : el
+                                    )
+                                  }));
+                                  console.log(`Updated ${skillName} requirement to ${newLevel} level`);
+                                }
+                              } else {
+                                console.log(`Applied suggestion: ${suggestion.description} for ${skillName}`);
+                              }
+                            }}
+                          />
+                        </div>
                       )}
                       
                       {/* Add skill button */}
