@@ -105,6 +105,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
   const [showAddSkillModal, setShowAddSkillModal] = useState(false);
   const [draggedSkillIndex, setDraggedSkillIndex] = useState<number | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(true);
+  const [editingSkill, setEditingSkill] = useState<{ index: number; skill: any } | null>(null);
 
   // Handle skill removal
   const removeSkill = (elementId: string, index: number) => {
@@ -1523,13 +1524,23 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                                 </span>
                               </div>
                               
-                              {/* Delete Button */}
-                              <button
-                                onClick={() => removeSkill(selectedElement.id, index)}
-                                className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
-                              >
-                                🗑️
-                              </button>
+                              {/* Action Buttons */}
+                              <div className="ml-2 flex items-center gap-1">
+                                <button
+                                  onClick={() => setEditingSkill({ index, skill })}
+                                  className="text-gray-400 hover:text-blue-500 transition-colors p-1"
+                                  title="Edit skill"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  onClick={() => removeSkill(selectedElement.id, index)}
+                                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                  title="Remove skill"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -1596,6 +1607,45 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                             }}
                             onCancel={() => setShowAddSkillModal(false)}
                           />
+                        </DialogContent>
+                      </Dialog>
+
+                      {/* Edit Skill Modal */}
+                      <Dialog open={editingSkill !== null} onOpenChange={(open) => !open && setEditingSkill(null)}>
+                        <DialogContent className="sm:max-w-[425px]">
+                          <DialogHeader>
+                            <DialogTitle>Edit Skill</DialogTitle>
+                          </DialogHeader>
+                          {editingSkill && (
+                            <EditSkillForm 
+                              skill={editingSkill.skill}
+                              onSave={(updatedSkill) => {
+                                const selectedId = canvasState.selectedElements[0];
+                                if (selectedId) {
+                                  setCanvasState(prev => ({
+                                    ...prev,
+                                    elements: prev.elements.map(el => 
+                                      el.id === selectedId 
+                                        ? { 
+                                            ...el, 
+                                            properties: { 
+                                              ...el.properties, 
+                                              requiredSkills: (el.properties.requiredSkills || []).map((skill: any, i: number) => 
+                                                i === editingSkill.index ? updatedSkill : skill
+                                              )
+                                            }
+                                          }
+                                        : el
+                                    )
+                                  }));
+                                  setEditingSkill(null);
+                                  // Show success notification (you could add a notification system here)
+                                  console.log('Skill updated successfully');
+                                }
+                              }}
+                              onCancel={() => setEditingSkill(null)}
+                            />
+                          )}
                         </DialogContent>
                       </Dialog>
 
@@ -1889,6 +1939,101 @@ const SkillForm = ({ onSubmit, onCancel }: {
         </Button>
         <Button type="submit">
           Add Skill
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+// EditSkillForm component for editing existing skills
+const EditSkillForm = ({ 
+  skill, 
+  onSave, 
+  onCancel 
+}: { 
+  skill: { name: string; level: string; weight: number };
+  onSave: (skill: { name: string; level: string; weight: number }) => void;
+  onCancel: () => void;
+}) => {
+  const [skillName, setSkillName] = useState(skill.name);
+  const [skillLevel, setSkillLevel] = useState(skill.level);
+  const [skillWeight, setSkillWeight] = useState(skill.weight);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (skillName.trim()) {
+      onSave({
+        name: skillName.trim(),
+        level: skillLevel,
+        weight: skillWeight
+      });
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="edit-skill-name" className="text-sm font-medium">
+          Skill Name
+        </Label>
+        <Input
+          id="edit-skill-name"
+          value={skillName}
+          onChange={(e) => setSkillName(e.target.value)}
+          placeholder="e.g., JavaScript, Leadership, Design..."
+          className="mt-1"
+          required
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="edit-skill-level" className="text-sm font-medium">
+          Required Level
+        </Label>
+        <Select value={skillLevel} onValueChange={setSkillLevel}>
+          <SelectTrigger className="mt-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="beginner">Beginner</SelectItem>
+            <SelectItem value="intermediate">Intermediate</SelectItem>
+            <SelectItem value="advanced">Advanced</SelectItem>
+            <SelectItem value="expert">Expert</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="edit-skill-weight" className="text-sm font-medium">
+          Weight (1-10)
+        </Label>
+        <Input
+          id="edit-skill-weight"
+          type="number"
+          min="1"
+          max="10"
+          value={skillWeight}
+          onChange={(e) => setSkillWeight(parseInt(e.target.value) || 1)}
+          className="mt-1"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Higher weights indicate more important skills
+        </p>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-4">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          className="bg-blue-500 text-white hover:bg-blue-600"
+        >
+          Save Changes
         </Button>
       </div>
     </form>
