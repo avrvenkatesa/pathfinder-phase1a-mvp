@@ -34,11 +34,26 @@ export default defineConfig({
       deny: ["**/.*"],
     },
     proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
+      "/api/auth": {
+        target: "http://localhost:3003", // Auth service
         changeOrigin: true,
-        secure: false
-      }
-    }
+        secure: false,
+      },
+      "/api/contact": {
+        target: "http://localhost:3001", // Contact service
+        changeOrigin: true,
+        secure: false,
+      },
+      "/api/workflow": {
+        target: "http://localhost:3002", // Workflow service
+        changeOrigin: true,
+        secure: false,
+      },
+      "/api": {
+        target: "http://localhost:3000", // API Gateway fallback
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 });
