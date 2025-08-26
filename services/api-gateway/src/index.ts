@@ -34,6 +34,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Request logging middleware
 app.use((req, res, next) => {
+  console.log(`🔍 REQUEST INTERCEPTED: ${req.method} ${req.originalUrl}`);
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
@@ -43,7 +44,7 @@ app.use((req, res, next) => {
 });
 
 // Setup rate limiting
-setupRateLimiting(app);
+// setupRateLimiting(app);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -57,15 +58,28 @@ app.get('/health', (req, res) => {
 });
 
 // Setup health checks aggregation
-setupHealthChecks(app);
+// setupHealthChecks(app);
 
 // Setup API documentation
-setupDocs(app);
+// setupDocs(app);
 
 // Setup service proxies
+console.log('About to setup proxies...');
 setupProxies(app);
+console.log('Proxies setup completed.');
 
-// Global error handling middleware
+// 404 handler - MUST come AFTER all route/proxy registrations
+app.use('*', (req, res) => {
+  console.log(`🚫 404: No route found for ${req.method} ${req.originalUrl}`);
+  res.status(404).json({
+    success: false,
+    error: 'NOT_FOUND',
+    message: `Route ${req.method} ${req.originalUrl} not found`,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Global error handling middleware - MUST be the last middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('API Gateway Error:', {
     error: err.message,
@@ -82,16 +96,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     success: false,
     error: 'API_GATEWAY_ERROR',
     message,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'NOT_FOUND',
-    message: `Route ${req.method} ${req.originalUrl} not found`,
     timestamp: new Date().toISOString(),
   });
 });

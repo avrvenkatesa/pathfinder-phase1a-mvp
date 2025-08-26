@@ -22,18 +22,29 @@ const services = {
 };
 
 export function setupProxies(app: express.Express) {
+  console.log('Setting up proxy middleware...');
+  
   // Auth service proxy - no auth middleware for auth routes
+  console.log(`Setting up proxy for ${services.auth.pathPrefix} -> ${services.auth.target}`);
+  
   app.use(
     services.auth.pathPrefix,
     createProxyMiddleware({
       target: services.auth.target,
       changeOrigin: true,
-      pathRewrite: (path, req) => {
-        // Forward the original path
-        return path;
+      logLevel: 'debug',
+      pathRewrite: {
+        // Keep the full path including /api/auth
+        ['^' + services.auth.pathPrefix]: services.auth.pathPrefix,
+      },
+      onProxyReq: (proxyReq, req, res) => {
+        console.log(`[AUTH PROXY] ${req.method} ${req.originalUrl} -> ${services.auth.target}${req.url}`);
+      },
+      onProxyRes: (proxyRes, req, res) => {
+        console.log(`[AUTH PROXY RESPONSE] ${proxyRes.statusCode} for ${req.method} ${req.originalUrl}`);
       },
       onError: (err, req, res) => {
-        console.error(`Auth Service Proxy Error:`, err.message);
+        console.error(`[AUTH PROXY ERROR] ${req.method} ${req.originalUrl}:`, err.message);
         (res as express.Response).status(503).json({
           success: false,
           error: 'SERVICE_UNAVAILABLE',
@@ -41,24 +52,23 @@ export function setupProxies(app: express.Express) {
           service: 'auth-service',
         });
       },
-      onProxyReq: (proxyReq, req, res) => {
-        console.log(`Proxying to Auth Service: ${req.method} ${req.url}`);
-      },
     })
   );
 
   // Contact service proxy - with auth middleware
+  console.log(`Setting up proxy for ${services.contact.pathPrefix} -> ${services.contact.target}`);
   app.use(
     services.contact.pathPrefix,
     authMiddleware,
     createProxyMiddleware({
       target: services.contact.target,
       changeOrigin: true,
-      pathRewrite: (path, req) => {
-        return path;
+      pathRewrite: {
+        // Keep the full path including /api/contacts
+        ['^' + services.contact.pathPrefix]: services.contact.pathPrefix,
       },
       onError: (err, req, res) => {
-        console.error(`Contact Service Proxy Error:`, err.message);
+        console.error(`[CONTACT PROXY ERROR] ${req.method} ${req.originalUrl}:`, err.message);
         (res as express.Response).status(503).json({
           success: false,
           error: 'SERVICE_UNAVAILABLE',
@@ -72,23 +82,25 @@ export function setupProxies(app: express.Express) {
         if (userId) {
           proxyReq.setHeader('x-user-id', userId);
         }
-        console.log(`Proxying to Contact Service: ${req.method} ${req.url}`);
+        console.log(`[CONTACT PROXY] ${req.method} ${req.originalUrl} -> ${services.contact.target}${req.url}`);
       },
     })
   );
 
   // Workflow service proxy - with auth middleware
+  console.log(`Setting up proxy for ${services.workflow.pathPrefix} -> ${services.workflow.target}`);
   app.use(
     services.workflow.pathPrefix,
     authMiddleware,
     createProxyMiddleware({
       target: services.workflow.target,
       changeOrigin: true,
-      pathRewrite: (path, req) => {
-        return path;
+      pathRewrite: {
+        // Keep the full path including /api/workflows
+        ['^' + services.workflow.pathPrefix]: services.workflow.pathPrefix,
       },
       onError: (err, req, res) => {
-        console.error(`Workflow Service Proxy Error:`, err.message);
+        console.error(`[WORKFLOW PROXY ERROR] ${req.method} ${req.originalUrl}:`, err.message);
         (res as express.Response).status(503).json({
           success: false,
           error: 'SERVICE_UNAVAILABLE',
@@ -102,23 +114,25 @@ export function setupProxies(app: express.Express) {
         if (userId) {
           proxyReq.setHeader('x-user-id', userId);
         }
-        console.log(`Proxying to Workflow Service: ${req.method} ${req.url}`);
+        console.log(`[WORKFLOW PROXY] ${req.method} ${req.originalUrl} -> ${services.workflow.target}${req.url}`);
       },
     })
   );
 
   // Workflow templates proxy - with auth middleware
+  console.log(`Setting up proxy for ${services.workflowTemplates.pathPrefix} -> ${services.workflowTemplates.target}`);
   app.use(
     services.workflowTemplates.pathPrefix,
     authMiddleware,
     createProxyMiddleware({
       target: services.workflowTemplates.target,
       changeOrigin: true,
-      pathRewrite: (path, req) => {
-        return path;
+      pathRewrite: {
+        // Keep the full path including /api/workflow-templates
+        ['^' + services.workflowTemplates.pathPrefix]: services.workflowTemplates.pathPrefix,
       },
       onError: (err, req, res) => {
-        console.error(`Workflow Templates Proxy Error:`, err.message);
+        console.error(`[WORKFLOW TEMPLATES PROXY ERROR] ${req.method} ${req.originalUrl}:`, err.message);
         (res as express.Response).status(503).json({
           success: false,
           error: 'SERVICE_UNAVAILABLE',
@@ -132,7 +146,7 @@ export function setupProxies(app: express.Express) {
         if (userId) {
           proxyReq.setHeader('x-user-id', userId);
         }
-        console.log(`Proxying to Workflow Templates: ${req.method} ${req.url}`);
+        console.log(`[WORKFLOW TEMPLATES PROXY] ${req.method} ${req.originalUrl} -> ${services.workflowTemplates.target}${req.url}`);
       },
     })
   );
