@@ -11,7 +11,7 @@ import { storage } from './storage';
 dotenv.config();
 
 const app = express();
-const PORT = parseInt(process.env.AUTH_SERVICE_PORT || '3004');
+const PORT = parseInt(process.env.AUTH_SERVICE_PORT || '3003');
 const HOST = process.env.HOST || '0.0.0.0';
 
 // Enhanced security middleware
