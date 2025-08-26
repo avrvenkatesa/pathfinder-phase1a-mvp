@@ -16,46 +16,61 @@ import { z } from "zod";
 // Session storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const sessions = pgTable("sessions", {
-    sid: varchar("sid").primaryKey(),
-    sess: jsonb("sess").notNull(),
-    expire: timestamp("expire").notNull(),
-  });
+  sid: varchar("sid").primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire").notNull(),
+});
 
 // User storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
-export const users = pgTable("users", {
-  id: varchar("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  email: varchar("email").notNull(),
-  password: varchar("password"), // Optional for OAuth users
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  role: userRoleEnum("role").default("user"),
-  isActive: boolean("is_active").default(true),
-  profileImageUrl: varchar("profile_image_url"),
-  // MFA fields
-  mfaEnabled: boolean("mfa_enabled").default(false),
-  mfaSecret: varchar("mfa_secret"), // TOTP secret
-  backupCodes: text("backup_codes").array().default([]), // Encrypted backup codes
-  // Security fields
-  failedLoginAttempts: varchar("failed_login_attempts").default("0"),
-  lockedUntil: timestamp("locked_until"),
-  lastLoginAt: timestamp("last_login_at"),
-  passwordResetToken: varchar("password_reset_token"),
-  passwordResetExpires: timestamp("password_reset_expires"),
-  emailVerified: boolean("email_verified").default(false),
-  emailVerificationToken: varchar("email_verification_token"),
-  // Timestamps
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    emailIdx: index("users_email_idx").on(table.email),
-    passwordResetTokenIdx: index("users_password_reset_token_idx").on(table.passwordResetToken),
-    emailVerificationTokenIdx: index("users_email_verification_token_idx").on(table.emailVerificationToken),
-  };
-});
+
+export const userRoleEnum = pgEnum("user_role", [
+  "admin",
+  "manager",
+  "user",
+  "viewer",
+]);
+export const users = pgTable(
+  "users",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    email: varchar("email").notNull(),
+    password: varchar("password"), // Optional for OAuth users
+    firstName: varchar("first_name"),
+    lastName: varchar("last_name"),
+    role: userRoleEnum("role").default("user"),
+    isActive: boolean("is_active").default(true),
+    profileImageUrl: varchar("profile_image_url"),
+    // MFA fields
+    mfaEnabled: boolean("mfa_enabled").default(false),
+    mfaSecret: varchar("mfa_secret"), // TOTP secret
+    backupCodes: text("backup_codes").array().default([]), // Encrypted backup codes
+    // Security fields
+    failedLoginAttempts: varchar("failed_login_attempts").default("0"),
+    lockedUntil: timestamp("locked_until"),
+    lastLoginAt: timestamp("last_login_at"),
+    passwordResetToken: varchar("password_reset_token"),
+    passwordResetExpires: timestamp("password_reset_expires"),
+    emailVerified: boolean("email_verified").default(false),
+    emailVerificationToken: varchar("email_verification_token"),
+    // Timestamps
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => {
+    return {
+      emailIdx: index("users_email_idx").on(table.email),
+      passwordResetTokenIdx: index("users_password_reset_token_idx").on(
+        table.passwordResetToken,
+      ),
+      emailVerificationTokenIdx: index("users_email_verification_token_idx").on(
+        table.emailVerificationToken,
+      ),
+    };
+  },
+);
 
 // Contact type enum
 export const contactTypeEnum = pgEnum("contact_type", [
@@ -82,12 +97,12 @@ export const rolePreferenceEnum = pgEnum("role_preference", [
 ]);
 
 // User role enum for RBAC
-export const userRoleEnum = pgEnum("user_role", [
-  "admin",
-  "manager",
-  "user",
-  "viewer",
-]);
+//export const userRoleEnum = pgEnum("user_role", [
+//  "admin",
+//  "manager",
+//  "user",
+//  "viewer",
+//]);
 
 // OAuth provider enum
 export const oauthProviderEnum = pgEnum("oauth_provider", [
@@ -366,51 +381,64 @@ export const insertContactRelationshipSchema = createInsertSchema(
 });
 
 // OAuth accounts table for linking external accounts
-export const oauthAccounts = pgTable("oauth_accounts", {
-  id: varchar("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
-  provider: oauthProviderEnum("provider").notNull(),
-  providerAccountId: varchar("provider_account_id").notNull(),
-  accessToken: text("access_token"),
-  refreshToken: text("refresh_token"),
-  expiresAt: timestamp("expires_at"),
-  tokenType: varchar("token_type"),
-  scope: varchar("scope"),
-  idToken: text("id_token"),
-  sessionState: varchar("session_state"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    providerAccountIdx: index("oauth_accounts_provider_account_idx").on(table.provider, table.providerAccountId),
-    userIdIdx: index("oauth_accounts_user_id_idx").on(table.userId),
-  };
-});
+export const oauthAccounts = pgTable(
+  "oauth_accounts",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id").notNull(),
+    provider: oauthProviderEnum("provider").notNull(),
+    providerAccountId: varchar("provider_account_id").notNull(),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    expiresAt: timestamp("expires_at"),
+    tokenType: varchar("token_type"),
+    scope: varchar("scope"),
+    idToken: text("id_token"),
+    sessionState: varchar("session_state"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => {
+    return {
+      providerAccountIdx: index("oauth_accounts_provider_account_idx").on(
+        table.provider,
+        table.providerAccountId,
+      ),
+      userIdIdx: index("oauth_accounts_user_id_idx").on(table.userId),
+    };
+  },
+);
 
 // User sessions table for tracking active sessions
-export const userSessions = pgTable("user_sessions", {
-  id: varchar("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
-  sessionToken: varchar("session_token").notNull(),
-  refreshToken: varchar("refresh_token"),
-  deviceInfo: varchar("device_info"),
-  ipAddress: varchar("ip_address"),
-  userAgent: text("user_agent"),
-  isActive: boolean("is_active").default(true),
-  expiresAt: timestamp("expires_at").notNull(),
-  lastAccessedAt: timestamp("last_accessed_at").defaultNow(),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => {
-  return {
-    sessionTokenIdx: index("user_sessions_session_token_idx").on(table.sessionToken),
-    userIdIdx: index("user_sessions_user_id_idx").on(table.userId),
-    expiresAtIdx: index("user_sessions_expires_at_idx").on(table.expiresAt),
-  };
-});
+export const userSessions = pgTable(
+  "user_sessions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id").notNull(),
+    sessionToken: varchar("session_token").notNull(),
+    refreshToken: varchar("refresh_token"),
+    deviceInfo: varchar("device_info"),
+    ipAddress: varchar("ip_address"),
+    userAgent: text("user_agent"),
+    isActive: boolean("is_active").default(true),
+    expiresAt: timestamp("expires_at").notNull(),
+    lastAccessedAt: timestamp("last_accessed_at").defaultNow(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => {
+    return {
+      sessionTokenIdx: index("user_sessions_session_token_idx").on(
+        table.sessionToken,
+      ),
+      userIdIdx: index("user_sessions_user_id_idx").on(table.userId),
+      expiresAtIdx: index("user_sessions_expires_at_idx").on(table.expiresAt),
+    };
+  },
+);
 
 // Roles table for RBAC
 export const roles = pgTable("roles", {
@@ -427,27 +455,31 @@ export const roles = pgTable("roles", {
 });
 
 // Audit logs for security events
-export const auditLogs = pgTable("audit_logs", {
-  id: varchar("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: varchar("user_id"),
-  action: varchar("action").notNull(), // login, logout, password_change, etc.
-  resource: varchar("resource"), // user, contact, workflow, etc.
-  resourceId: varchar("resource_id"),
-  details: jsonb("details").default({}),
-  ipAddress: varchar("ip_address"),
-  userAgent: text("user_agent"),
-  success: boolean("success").default(true),
-  errorMessage: text("error_message"),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => {
-  return {
-    userIdIdx: index("audit_logs_user_id_idx").on(table.userId),
-    actionIdx: index("audit_logs_action_idx").on(table.action),
-    createdAtIdx: index("audit_logs_created_at_idx").on(table.createdAt),
-  };
-});
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id"),
+    action: varchar("action").notNull(), // login, logout, password_change, etc.
+    resource: varchar("resource"), // user, contact, workflow, etc.
+    resourceId: varchar("resource_id"),
+    details: jsonb("details").default({}),
+    ipAddress: varchar("ip_address"),
+    userAgent: text("user_agent"),
+    success: boolean("success").default(true),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => {
+    return {
+      userIdIdx: index("audit_logs_user_id_idx").on(table.userId),
+      actionIdx: index("audit_logs_action_idx").on(table.action),
+      createdAtIdx: index("audit_logs_created_at_idx").on(table.createdAt),
+    };
+  },
+);
 
 // Relations for new tables
 export const oauthAccountsRelations = relations(oauthAccounts, ({ one }) => ({
