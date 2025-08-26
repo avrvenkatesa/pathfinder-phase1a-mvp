@@ -19,6 +19,10 @@ const services = {
     target: `http://localhost:${process.env.WORKFLOW_SERVICE_PORT || 3002}`,
     pathPrefix: '/api/workflow-templates',
   },
+  workflowInstances: {
+    target: `http://localhost:${process.env.WORKFLOW_SERVICE_PORT || 3002}`,
+    pathPrefix: '/api/workflow-instances',
+  },
 };
 
 export function setupProxies(app: express.Express) {
@@ -137,9 +141,40 @@ export function setupProxies(app: express.Express) {
     })
   );
 
+  // Workflow instances proxy - with auth middleware
+  app.use(
+    services.workflowInstances.pathPrefix,
+    authMiddleware,
+    createProxyMiddleware({
+      target: services.workflowInstances.target,
+      changeOrigin: true,
+      pathRewrite: (path, req) => {
+        return path;
+      },
+      onError: (err, req, res) => {
+        console.error(`Workflow Instances Proxy Error:`, err.message);
+        (res as express.Response).status(503).json({
+          success: false,
+          error: 'SERVICE_UNAVAILABLE',
+          message: 'Workflow instances service is currently unavailable',
+          service: 'workflow-service',
+        });
+      },
+      onProxyReq: (proxyReq, req, res) => {
+        // Add user ID header for workflow service
+        const userId = (req as any).userId;
+        if (userId) {
+          proxyReq.setHeader('x-user-id', userId);
+        }
+        console.log(`Proxying to Workflow Instances: ${req.method} ${req.url}`);
+      },
+    })
+  );
+
   console.log('✅ Service proxies configured:');
   console.log(`   Auth Service: ${services.auth.pathPrefix} -> ${services.auth.target}`);
   console.log(`   Contact Service: ${services.contact.pathPrefix} -> ${services.contact.target}`);
   console.log(`   Workflow Service: ${services.workflow.pathPrefix} -> ${services.workflow.target}`);
   console.log(`   Workflow Templates: ${services.workflowTemplates.pathPrefix} -> ${services.workflowTemplates.target}`);
+  console.log(`   Workflow Instances: ${services.workflowInstances.pathPrefix} -> ${services.workflowInstances.target}`);
 }

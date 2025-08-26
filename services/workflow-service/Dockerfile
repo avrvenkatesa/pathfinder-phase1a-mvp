@@ -1,41 +1,26 @@
-FROM node:20-alpine AS base
+FROM node:20-alpine
 
-# Install dependencies only when needed
-FROM base AS deps
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package*.json ./
+
+# Install dependencies
 RUN npm ci --only=production
 
-# Development image
-FROM base AS dev
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci
-COPY . .
-EXPOSE 3002
-CMD ["npm", "run", "dev"]
-
-# Production image
-FROM base AS production
-WORKDIR /app
-
-ENV NODE_ENV production
-
-# Copy dependencies
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Copy source code
+COPY src/ ./src/
+COPY tsconfig.json ./
 
 # Build the application
 RUN npm run build
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nodejs
-
-USER nodejs
-
+# Expose port
 EXPOSE 3002
 
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3002/health || exit 1
+
+# Start the service
 CMD ["npm", "start"]

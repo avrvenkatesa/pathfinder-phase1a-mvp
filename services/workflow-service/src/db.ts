@@ -1,7 +1,26 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "../../../shared/types/schema";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL environment variable is required");
-}
+// Database connection
+const connectionString =
+  process.env.DATABASE_URL ||
+  "postgresql://user:password@localhost:5432/pathfinder";
 
-export const db = drizzle(process.env.DATABASE_URL!);
+const client = postgres(connectionString, {
+  max: 20,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
+
+export const db = drizzle(client, { schema });
+
+// Test database connection
+client`SELECT 1`
+  .then(() => {
+    console.log("✅ Workflow Service connected to database");
+  })
+  .catch((err) => {
+    console.error("❌ Workflow Service database connection failed:", err);
+    process.exit(1);
+  });
