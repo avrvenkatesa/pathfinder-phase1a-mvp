@@ -226,7 +226,7 @@ export default function OrgChartViewer({ contacts, className }: OrgChartViewerPr
 
   // Get unique departments for filter
   const departments = useMemo(() => {
-    const depts = new Set(contacts.map(c => c.department).filter(Boolean));
+    const depts = new Set(contacts.map(c => c.department).filter((dept): dept is string => Boolean(dept)));
     return Array.from(depts).sort();
   }, [contacts]);
 

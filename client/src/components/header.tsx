@@ -1,8 +1,11 @@
 import { useAuth } from "@/hooks/useAuth";
+import { Link, useLocation } from "wouter";
 import type { User } from "@shared/schema";
+import s4Logo from "@assets/S4 Carlisle Logo_revised PNG_1754493654108.avif";
 
 export default function Header() {
   const { user } = useAuth();
+  const [location] = useLocation();
 
   const handleLogout = () => {
     window.location.href = "/api/logout";
@@ -22,13 +25,44 @@ export default function Header() {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
             <div className="flex-shrink-0 flex items-center">
-              <i className="fas fa-route text-primary text-2xl mr-3"></i>
+              <img 
+                src={s4Logo} 
+                alt="S4 Carlisle Logo" 
+                className="h-8 w-auto mr-3"
+              />
               <h1 className="text-xl font-semibold text-gray-900">PathFinder</h1>
             </div>
             <nav className="ml-10 flex space-x-8">
-              <a href="#" className="text-primary border-b-2 border-primary px-1 pb-4 text-sm font-medium">
+              <Link 
+                href="/" 
+                className={`px-1 pb-4 text-sm font-medium ${
+                  location === '/' 
+                    ? 'text-primary border-b-2 border-primary' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
                 Contacts
-              </a>
+              </Link>
+              <Link 
+                href="/workflows" 
+                className={`px-1 pb-4 text-sm font-medium ${
+                  location.startsWith('/workflows') 
+                    ? 'text-primary border-b-2 border-primary' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Workflows
+              </Link>
+              <Link 
+                href="/assignment-engine" 
+                className={`px-1 pb-4 text-sm font-medium ${
+                  location.startsWith('/assignment-engine') 
+                    ? 'text-primary border-b-2 border-primary' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Assignment Engine
+              </Link>
               <a href="#" className="text-gray-500 hover:text-gray-700 px-1 pb-4 text-sm font-medium">
                 Analytics
               </a>

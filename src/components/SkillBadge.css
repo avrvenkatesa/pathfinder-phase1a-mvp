@@ -1,0 +1,560 @@
+/* Skill Badge Component Styles */
+
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+}
+
+.skill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 20px;
+  border: 1px solid;
+  font-size: 14px;
+  font-weight: 500;
+  position: relative;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  user-select: none;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.skill-badge:focus {
+  outline: 2px solid #3498db;
+  outline-offset: 2px;
+}
+
+.skill-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Level-specific styles */
+.skill-badge.level-beginner {
+  background-color: #f0f9ff; /* bg-green-100 equivalent */
+  color: #166534; /* text-green-800 equivalent */
+  border-color: #bbf7d0; /* border-green-300 equivalent */
+}
+
+.skill-badge.level-beginner:hover {
+  background-color: #dcfce7;
+  border-color: #86efac;
+}
+
+.skill-badge.level-intermediate {
+  background-color: #fffbeb; /* bg-yellow-100 equivalent */
+  color: #92400e; /* text-yellow-800 equivalent */
+  border-color: #fcd34d; /* border-yellow-300 equivalent */
+}
+
+.skill-badge.level-intermediate:hover {
+  background-color: #fef3c7;
+  border-color: #fbbf24;
+}
+
+.skill-badge.level-advanced {
+  background-color: #f3e8ff; /* bg-purple-100 equivalent */
+  color: #581c87; /* text-purple-800 equivalent */
+  border-color: #c084fc; /* border-purple-300 equivalent */
+}
+
+.skill-badge.level-advanced:hover {
+  background-color: #ede9fe;
+  border-color: #a855f7;
+}
+
+.skill-badge.level-expert {
+  background-color: #fdf4ff; /* bg-fuchsia-100 equivalent */
+  color: #86198f; /* text-fuchsia-800 equivalent */
+  border-color: #f0abfc; /* border-fuchsia-300 equivalent */
+}
+
+.skill-badge.level-expert:hover {
+  background-color: #fae8ff;
+  border-color: #e879f9;
+}
+
+/* Weight category overlays */
+.skill-badge.critical {
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
+}
+
+.skill-badge.critical:hover {
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3), 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.skill-badge.important {
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.2);
+}
+
+.skill-badge.important:hover {
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3), 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Compact mode */
+.skill-badge.compact {
+  padding: 4px 8px;
+  font-size: 12px;
+  gap: 4px;
+  border-radius: 12px;
+}
+
+.skill-badge.compact .level-text,
+.skill-badge.compact .skill-weight {
+  display: none;
+}
+
+.skill-badge.compact .skill-actions {
+  gap: 2px;
+}
+
+/* Animation state */
+.skill-badge.animating {
+  animation: levelChange 0.3s ease-in-out;
+}
+
+@keyframes levelChange {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Drag handle */
+.drag-handle {
+  display: flex;
+  align-items: center;
+  color: #9ca3af;
+  cursor: grab;
+  padding: 2px;
+  margin-left: -4px;
+}
+
+.drag-handle:hover {
+  color: #6b7280;
+}
+
+.skill-badge:active .drag-handle {
+  cursor: grabbing;
+}
+
+.drag-dots {
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Level icon */
+.level-icon {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  line-height: 1;
+  min-width: 20px;
+}
+
+.skill-badge.compact .level-icon {
+  font-size: 14px;
+  min-width: 16px;
+}
+
+/* Skill name */
+.skill-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.skill-badge.compact .skill-name {
+  max-width: 100px;
+  font-size: 11px;
+}
+
+/* Level text */
+.level-text {
+  font-size: 12px;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+/* Skill weight */
+.skill-weight {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.weight-label {
+  font-weight: normal;
+}
+
+.weight-value {
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.3);
+  padding: 1px 6px;
+  border-radius: 8px;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* Skill actions */
+.skill-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.edit-btn,
+.delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+}
+
+.edit-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.skill-badge.compact .edit-btn,
+.skill-badge.compact .delete-btn {
+  font-size: 10px;
+  min-width: 16px;
+  height: 16px;
+}
+
+/* Hover overlay */
+.hover-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.2));
+  border-radius: inherit;
+  pointer-events: none;
+  animation: shimmer 0.5s ease-in-out;
+}
+
+@keyframes shimmer {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* Tooltip */
+.skill-tooltip {
+  background: #1f2937;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: tooltipFadeIn 0.2s ease-out;
+  max-width: 250px;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-90%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-100%);
+  }
+}
+
+.tooltip-content {
+  position: relative;
+  z-index: 1;
+}
+
+.tooltip-arrow {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #1f2937;
+}
+
+/* Progression Indicator */
+.progression-indicator {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.progression-line {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.progression-step {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.step-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  color: white;
+  background: #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.progression-step.active .step-icon {
+  background: currentColor;
+  transform: scale(1.1);
+}
+
+.progression-step.current .step-icon {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  transform: scale(1.2);
+}
+
+.step-connector {
+  width: 12px;
+  height: 2px;
+  background: #e5e7eb;
+  margin: 0 2px;
+  transition: all 0.3s ease;
+}
+
+.step-connector.active {
+  background: currentColor;
+}
+
+.progression-compact {
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  color: currentColor;
+  opacity: 0.7;
+  margin-left: 4px;
+}
+
+.current-step {
+  font-weight: bold;
+}
+
+.total-steps {
+  opacity: 0.6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .skill-badge {
+    font-size: 12px;
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .skill-name {
+    max-width: 120px;
+  }
+
+  .level-icon {
+    font-size: 14px;
+    min-width: 18px;
+  }
+
+  .skill-weight {
+    font-size: 11px;
+  }
+
+  .progression-indicator {
+    display: none; /* Hide progression on mobile */
+  }
+}
+
+@media (max-width: 480px) {
+  .skill-badge {
+    font-size: 11px;
+    padding: 4px 8px;
+    gap: 4px;
+  }
+
+  .skill-name {
+    max-width: 100px;
+  }
+
+  .level-text {
+    display: none; /* Hide level text on very small screens */
+  }
+
+  .skill-weight {
+    font-size: 10px;
+  }
+
+  .weight-label {
+    display: none; /* Hide weight label, show only value */
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .skill-badge {
+    border-width: 2px;
+  }
+
+  .skill-badge.level-beginner {
+    background-color: #ffffff;
+    color: #000000;
+    border-color: #22c55e;
+  }
+
+  .skill-badge.level-intermediate {
+    background-color: #ffffff;
+    color: #000000;
+    border-color: #eab308;
+  }
+
+  .skill-badge.level-advanced {
+    background-color: #ffffff;
+    color: #000000;
+    border-color: #a855f7;
+  }
+
+  .skill-badge.level-expert {
+    background-color: #ffffff;
+    color: #000000;
+    border-color: #e879f9;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .skill-badge,
+  .hover-overlay,
+  .step-icon,
+  .step-connector {
+    transition: none;
+  }
+
+  .skill-badge.animating {
+    animation: none;
+  }
+
+  .hover-overlay {
+    animation: none;
+  }
+
+  .skill-tooltip {
+    animation: none;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .skill-badge.level-beginner {
+    background-color: rgba(34, 197, 94, 0.2);
+    color: #bbf7d0;
+    border-color: rgba(34, 197, 94, 0.4);
+  }
+
+  .skill-badge.level-intermediate {
+    background-color: rgba(234, 179, 8, 0.2);
+    color: #fef3c7;
+    border-color: rgba(234, 179, 8, 0.4);
+  }
+
+  .skill-badge.level-advanced {
+    background-color: rgba(168, 85, 247, 0.2);
+    color: #e9d5ff;
+    border-color: rgba(168, 85, 247, 0.4);
+  }
+
+  .skill-badge.level-expert {
+    background-color: rgba(232, 121, 249, 0.2);
+    color: #fae8ff;
+    border-color: rgba(232, 121, 249, 0.4);
+  }
+
+  .weight-value {
+    background: rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Focus visible for keyboard navigation */
+.skill-badge:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.edit-btn:focus-visible,
+.delete-btn:focus-visible {
+  outline: 1px solid #3b82f6;
+  outline-offset: 1px;
+}
+
+/* Print styles */
+@media print {
+  .skill-badge {
+    background: white !important;
+    color: black !important;
+    border: 1px solid black !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  .skill-actions {
+    display: none;
+  }
+
+  .hover-overlay {
+    display: none;
+  }
+
+  .progression-indicator {
+    display: none;
+  }
+}

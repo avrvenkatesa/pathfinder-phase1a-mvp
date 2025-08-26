@@ -129,8 +129,8 @@ export default function WorkflowContactSelection({
     });
     
     return {
-      availableSkills: [...skills].sort(),
-      availableDepartments: [...departments].sort(),
+      availableSkills: Array.from(skills).sort(),
+      availableDepartments: Array.from(departments).sort(),
     };
   }, [contacts]);
 
@@ -325,7 +325,7 @@ export default function WorkflowContactSelection({
     const availableContacts = scoredAndFilteredContacts
       .filter(contact => contact.availabilityStatus === status)
       .map(contact => contact.id);
-    setSelectedContacts(prev => [...new Set([...prev, ...availableContacts])]);
+    setSelectedContacts(prev => Array.from(new Set([...prev, ...availableContacts])));
   };
 
   const onSubmit = (data: WorkflowAssignmentFormData) => {

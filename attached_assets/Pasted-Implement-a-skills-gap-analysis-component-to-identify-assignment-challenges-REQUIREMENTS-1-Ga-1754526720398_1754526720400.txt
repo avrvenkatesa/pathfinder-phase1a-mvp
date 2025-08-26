@@ -1,0 +1,78 @@
+Implement a skills gap analysis component to identify assignment challenges:
+
+REQUIREMENTS:
+1. Gap Analysis Panel (SkillsGapAnalysis.tsx):
+   - Position: As an alert/callout box above recommendations panel
+   - Analyzes required skills vs available contacts
+   - Shows warnings for hard-to-fill requirements
+   - Auto-updates when skills requirements change
+
+2. Gap Detection:
+   Identify and display:
+   - Missing Skills: Required skills no contacts have
+   - Insufficient Levels: Skills where no one meets proficiency level
+   - Scarce Skills: Skills only 1-2 contacts have  
+   - Oversubscribed Skills: High-demand skills across multiple tasks
+
+3. Visual Alerts:
+   Create alert levels with appropriate styling:
+   - 🔴 Critical Gap (red alert): No contacts have required critical skill (weight 8-10)
+   - 🟡 Moderate Gap (yellow warning): Limited contacts or lower proficiency available
+   - 🟢 Good Coverage (green info): Multiple qualified contacts available
+   - Use color-coded alert boxes with icons
+
+4. Alert Component Structure:
+   <SkillGapAlert
+     type="critical|warning|info"
+     skill="API Development"
+     requiredLevel="intermediate"
+     gap={{
+       availableContacts: 0,
+       closestMatch: { name: "John", level: "beginner" },
+       suggestion: "Consider training or external hiring"
+     }}
+   />
+
+5. Actionable Suggestions:
+   For each gap, provide specific options:
+   - Lower proficiency requirement (with impact analysis)
+   - Split task among multiple people
+   - Provide training time (estimate duration)
+   - Hire contractor/freelancer
+   - Postpone task until resources available
+   - Each suggestion should be clickable/actionable
+
+6. Bulk Analysis View:
+   - Show gaps across all workflow tasks (if multiple)
+   - Identify systematic skill shortages
+   - Export gap report functionality
+   - Priority ranking of gaps by criticality
+
+COMPONENT STRUCTURE:
+```javascript
+const SkillsGapAnalysis = ({ 
+  requiredSkills,     // Array of required skills with levels and weights
+  availableContacts,  // Array of all contacts with their skills
+  onSuggestionClick  // Handler for suggestion actions
+}) => {
+  // Analyze gaps
+  const gaps = analyzeSkillGaps(requiredSkills, availableContacts);
+  
+  // Categorize by severity
+  const criticalGaps = gaps.filter(g => g.severity === 'critical');
+  const moderateGaps = gaps.filter(g => g.severity === 'moderate');
+  const minorGaps = gaps.filter(g => g.severity === 'minor');
+  
+  return (
+    <div className="skills-gap-analysis">
+      {criticalGaps.length > 0 && (
+        <CriticalGapAlert gaps={criticalGaps} />
+      )}
+      {moderateGaps.length > 0 && (
+        <ModerateGapAlert gaps={moderateGaps} />
+      )}
+      <GapSummary total={gaps.length} />
+      <ExportButton gaps={gaps} />
+    </div>
+  );
+};

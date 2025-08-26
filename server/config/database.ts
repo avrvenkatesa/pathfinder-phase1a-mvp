@@ -39,10 +39,6 @@ export const createDatabasePool = (config: DatabaseConfig) => {
     max: config.poolSize,
     connectionTimeoutMillis: config.connectionTimeoutMillis,
     idleTimeoutMillis: config.idleTimeoutMillis,
-    // Add connection health check
-    validate: (client: any) => {
-      return client.query('SELECT 1').then(() => true).catch(() => false);
-    },
   });
 
   // Handle pool errors
@@ -102,7 +98,7 @@ export const createDatabase = () => {
     }
   });
 
-  return { db: monitoredDb, pool };
+  return { db, pool };
 };
 
 // Export singleton instance

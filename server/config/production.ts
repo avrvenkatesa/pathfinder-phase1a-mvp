@@ -8,20 +8,20 @@ config();
 const envSchema = z.object({
   // Server Configuration
   NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
-  PORT: z.string().transform(Number).pipe(z.number().int().min(1).max(65535)).default(5000),
+  PORT: z.string().transform(Number).pipe(z.number().int().min(1).max(65535)).default('5000'),
   HOST: z.string().default('0.0.0.0'),
   
   // Database Configuration
   DATABASE_URL: z.string().url(),
-  DB_POOL_SIZE: z.string().transform(Number).pipe(z.number().int().min(1).max(100)).default(20),
-  DB_CONNECTION_TIMEOUT: z.string().transform(Number).pipe(z.number().int().min(1000)).default(5000),
-  DB_IDLE_TIMEOUT: z.string().transform(Number).pipe(z.number().int().min(10000)).default(30000),
-  DB_MAX_LIFETIME: z.string().transform(Number).pipe(z.number().int().min(300)).default(1800),
+  DB_POOL_SIZE: z.string().transform(Number).pipe(z.number().int().min(1).max(100)).default('20'),
+  DB_CONNECTION_TIMEOUT: z.string().transform(Number).pipe(z.number().int().min(1000)).default('5000'),
+  DB_IDLE_TIMEOUT: z.string().transform(Number).pipe(z.number().int().min(10000)).default('30000'),
+  DB_MAX_LIFETIME: z.string().transform(Number).pipe(z.number().int().min(300)).default('1800'),
 
   // Redis Configuration (for production caching)
   REDIS_URL: z.string().url().optional(),
   REDIS_PASSWORD: z.string().optional(),
-  REDIS_TTL_DEFAULT: z.string().transform(Number).pipe(z.number().int().min(60)).default(300),
+  REDIS_TTL_DEFAULT: z.string().transform(Number).pipe(z.number().int().min(60)).default('300'),
 
   // Security Configuration
   SESSION_SECRET: z.string().min(32),
