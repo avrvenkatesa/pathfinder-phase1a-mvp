@@ -1,11 +1,18 @@
 import * as client from "openid-client";
 import { Strategy, type VerifyFunction } from "openid-client/passport";
+import { Strategy as LocalStrategy } from "passport-local";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { Strategy as MicrosoftStrategy } from "passport-microsoft";
+import { Strategy as JwtStrategy, ExtractJwt } from "passport-jwt";
 import passport from "passport";
 import session from "express-session";
+import speakeasy from "speakeasy";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
+import { PasswordUtils, AuditUtils, LockoutUtils } from "../../../shared/utils/auth-utils";
+import type { User } from "../../../shared/types/schema";
 
 if (!process.env.REPLIT_DOMAINS) {
   throw new Error("Environment variable REPLIT_DOMAINS not provided");
@@ -63,6 +70,388 @@ async function upsertUser(claims: any) {
   });
 }
 
+// Configure passport for user serialization
+passport.serializeUser((user: any, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id: string, done) => {
+  try {
+    const user = await storage.getUserById(id);
+    done(null, user);
+  } catch (error) {
+    done(error, null);
+  }
+});
+
+// Local Strategy (Email/Password)
+passport.use(new LocalStrategy({
+  usernameField: 'email',
+  passwordField: 'password',
+  passReqToCallback: true,
+}, async (req, email: string, password: string, done) => {
+  try {
+    const user = await storage.getUserByEmail(email);
+    
+    if (!user) {
+      // Audit failed login attempt
+      await storage.createAuditLog(AuditUtils.createAuditLog({
+        action: 'login_failed',
+        resource: 'user',
+        details: { email, reason: 'user_not_found' },
+        ipAddress: AuditUtils.getClientIP(req),
+        userAgent: req.get('User-Agent'),
+        success: false,
+        errorMessage: 'User not found',
+      }));
+      
+      return done(null, false, { message: 'Invalid email or password' });
+    }
+
+    // Check if account is locked
+    if (LockoutUtils.isAccountLocked(user.lockedUntil)) {
+      const remainingTime = LockoutUtils.getRemainingLockoutTime(user.lockedUntil!);
+      const minutesRemaining = Math.ceil(remainingTime / (1000 * 60));
+      
+      await storage.createAuditLog(AuditUtils.createAuditLog({
+        userId: user.id,
+        action: 'login_blocked',
+        resource: 'user',
+        details: { email, reason: 'account_locked', remainingMinutes: minutesRemaining },
+        ipAddress: AuditUtils.getClientIP(req),
+        userAgent: req.get('User-Agent'),
+        success: false,
+        errorMessage: 'Account locked',
+      }));
+      
+      return done(null, false, { 
+        message: `Account locked. Try again in ${minutesRemaining} minute(s).` 
+      });
+    }
+
+    // Check if account is active
+    if (!user.isActive) {
+      await storage.createAuditLog(AuditUtils.createAuditLog({
+        userId: user.id,
+        action: 'login_blocked',
+        resource: 'user',
+        details: { email, reason: 'account_inactive' },
+        ipAddress: AuditUtils.getClientIP(req),
+        userAgent: req.get('User-Agent'),
+        success: false,
+        errorMessage: 'Account inactive',
+      }));
+      
+      return done(null, false, { message: 'Account is inactive' });
+    }
+
+    // Verify password
+    if (!user.password || !(await PasswordUtils.verify(password, user.password))) {
+      // Increment failed login attempts
+      const failedAttempts = parseInt(user.failedLoginAttempts || '0') + 1;
+      const shouldLock = LockoutUtils.shouldLockAccount(failedAttempts);
+      
+      await storage.updateUser(user.id, {
+        failedLoginAttempts: failedAttempts.toString(),
+        lockedUntil: shouldLock ? LockoutUtils.calculateLockoutExpiry() : null,
+      });
+
+      await storage.createAuditLog(AuditUtils.createAuditLog({
+        userId: user.id,
+        action: 'login_failed',
+        resource: 'user',
+        details: { 
+          email, 
+          reason: 'invalid_password', 
+          failedAttempts, 
+          accountLocked: shouldLock 
+        },
+        ipAddress: AuditUtils.getClientIP(req),
+        userAgent: req.get('User-Agent'),
+        success: false,
+        errorMessage: 'Invalid password',
+      }));
+      
+      const message = shouldLock 
+        ? 'Too many failed attempts. Account has been locked for 30 minutes.'
+        : 'Invalid email or password';
+      
+      return done(null, false, { message });
+    }
+
+    // Check if MFA is enabled
+    if (user.mfaEnabled) {
+      const mfaCode = req.body.mfaCode;
+      
+      if (!mfaCode) {
+        return done(null, false, { message: 'MFA code required', requiresMfa: true, userId: user.id });
+      }
+
+      // Verify MFA code
+      const verified = speakeasy.totp.verify({
+        secret: user.mfaSecret!,
+        encoding: 'base32',
+        token: mfaCode,
+        window: 2, // Allow 2 time steps before and after
+      });
+
+      if (!verified) {
+        // Check if it's a backup code
+        const backupCodeValid = await storage.verifyAndUseBackupCode(user.id, mfaCode);
+        
+        if (!backupCodeValid) {
+          await storage.createAuditLog(AuditUtils.createAuditLog({
+            userId: user.id,
+            action: 'mfa_failed',
+            resource: 'user',
+            details: { email, reason: 'invalid_mfa_code' },
+            ipAddress: AuditUtils.getClientIP(req),
+            userAgent: req.get('User-Agent'),
+            success: false,
+            errorMessage: 'Invalid MFA code',
+          }));
+          
+          return done(null, false, { message: 'Invalid MFA code' });
+        }
+
+        await storage.createAuditLog(AuditUtils.createAuditLog({
+          userId: user.id,
+          action: 'backup_code_used',
+          resource: 'user',
+          details: { email },
+          ipAddress: AuditUtils.getClientIP(req),
+          userAgent: req.get('User-Agent'),
+          success: true,
+        }));
+      }
+    }
+
+    // Successful login - reset failed attempts and update last login
+    await storage.updateUser(user.id, {
+      failedLoginAttempts: '0',
+      lockedUntil: null,
+      lastLoginAt: new Date(),
+    });
+
+    await storage.createAuditLog(AuditUtils.createAuditLog({
+      userId: user.id,
+      action: 'login_success',
+      resource: 'user',
+      details: { email, mfaUsed: user.mfaEnabled },
+      ipAddress: AuditUtils.getClientIP(req),
+      userAgent: req.get('User-Agent'),
+      success: true,
+    }));
+
+    return done(null, user);
+  } catch (error) {
+    console.error('Login error:', error);
+    return done(error);
+  }
+}));
+
+// Google OAuth Strategy
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: '/api/auth/google/callback',
+  }, async (accessToken, refreshToken, profile, done) => {
+    try {
+      // Check if user exists by Google ID
+      let oauthAccount = await storage.getOAuthAccount('google', profile.id);
+      let user: User;
+
+      if (oauthAccount) {
+        user = await storage.getUserById(oauthAccount.userId);
+        
+        // Update OAuth account tokens
+        await storage.updateOAuthAccount(oauthAccount.id, {
+          accessToken,
+          refreshToken,
+          expiresAt: accessToken ? new Date(Date.now() + 3600000) : null, // 1 hour
+        });
+      } else {
+        // Check if user exists by email
+        const email = profile.emails?.[0]?.value;
+        if (!email) {
+          return done(new Error('No email provided by Google'));
+        }
+
+        let existingUser = await storage.getUserByEmail(email);
+
+        if (existingUser) {
+          // Link Google account to existing user
+          user = existingUser;
+          await storage.createOAuthAccount({
+            userId: user.id,
+            provider: 'google',
+            providerAccountId: profile.id,
+            accessToken,
+            refreshToken,
+            expiresAt: accessToken ? new Date(Date.now() + 3600000) : null,
+          });
+        } else {
+          // Create new user
+          user = await storage.createUser({
+            email,
+            firstName: profile.name?.givenName || '',
+            lastName: profile.name?.familyName || '',
+            profileImageUrl: profile.photos?.[0]?.value,
+            emailVerified: true, // Google emails are pre-verified
+            role: 'user',
+          });
+
+          // Create OAuth account
+          await storage.createOAuthAccount({
+            userId: user.id,
+            provider: 'google',
+            providerAccountId: profile.id,
+            accessToken,
+            refreshToken,
+            expiresAt: accessToken ? new Date(Date.now() + 3600000) : null,
+          });
+
+          await storage.createAuditLog(AuditUtils.createAuditLog({
+            userId: user.id,
+            action: 'user_created',
+            resource: 'user',
+            details: { email, provider: 'google', firstName: user.firstName, lastName: user.lastName },
+            success: true,
+          }));
+        }
+      }
+
+      await storage.createAuditLog(AuditUtils.createAuditLog({
+        userId: user.id,
+        action: 'oauth_login',
+        resource: 'user',
+        details: { email: user.email, provider: 'google' },
+        success: true,
+      }));
+
+      return done(null, user);
+    } catch (error) {
+      console.error('Google OAuth error:', error);
+      return done(error);
+    }
+  }));
+}
+
+// Microsoft OAuth Strategy
+if (process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET) {
+  passport.use(new MicrosoftStrategy({
+    clientID: process.env.MICROSOFT_CLIENT_ID,
+    clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+    callbackURL: '/api/auth/microsoft/callback',
+    scope: ['user.read'],
+  }, async (accessToken, refreshToken, profile, done) => {
+    try {
+      // Check if user exists by Microsoft ID
+      let oauthAccount = await storage.getOAuthAccount('microsoft', profile.id);
+      let user: User;
+
+      if (oauthAccount) {
+        user = await storage.getUserById(oauthAccount.userId);
+        
+        // Update OAuth account tokens
+        await storage.updateOAuthAccount(oauthAccount.id, {
+          accessToken,
+          refreshToken,
+          expiresAt: accessToken ? new Date(Date.now() + 3600000) : null,
+        });
+      } else {
+        // Check if user exists by email
+        const email = profile.emails?.[0]?.value;
+        if (!email) {
+          return done(new Error('No email provided by Microsoft'));
+        }
+
+        let existingUser = await storage.getUserByEmail(email);
+
+        if (existingUser) {
+          // Link Microsoft account to existing user
+          user = existingUser;
+          await storage.createOAuthAccount({
+            userId: user.id,
+            provider: 'microsoft',
+            providerAccountId: profile.id,
+            accessToken,
+            refreshToken,
+            expiresAt: accessToken ? new Date(Date.now() + 3600000) : null,
+          });
+        } else {
+          // Create new user
+          user = await storage.createUser({
+            email,
+            firstName: profile.name?.givenName || '',
+            lastName: profile.name?.familyName || '',
+            profileImageUrl: profile.photos?.[0]?.value,
+            emailVerified: true, // Microsoft emails are pre-verified
+            role: 'user',
+          });
+
+          // Create OAuth account
+          await storage.createOAuthAccount({
+            userId: user.id,
+            provider: 'microsoft',
+            providerAccountId: profile.id,
+            accessToken,
+            refreshToken,
+            expiresAt: accessToken ? new Date(Date.now() + 3600000) : null,
+          });
+
+          await storage.createAuditLog(AuditUtils.createAuditLog({
+            userId: user.id,
+            action: 'user_created',
+            resource: 'user',
+            details: { email, provider: 'microsoft', firstName: user.firstName, lastName: user.lastName },
+            success: true,
+          }));
+        }
+      }
+
+      await storage.createAuditLog(AuditUtils.createAuditLog({
+        userId: user.id,
+        action: 'oauth_login',
+        resource: 'user',
+        details: { email: user.email, provider: 'microsoft' },
+        success: true,
+      }));
+
+      return done(null, user);
+    } catch (error) {
+      console.error('Microsoft OAuth error:', error);
+      return done(error);
+    }
+  }));
+}
+
+// JWT Strategy for API authentication
+passport.use(new JwtStrategy({
+  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+  secretOrKey: process.env.JWT_SECRET || 'your-secret-key',
+  passReqToCallback: true,
+}, async (req, payload, done) => {
+  try {
+    const user = await storage.getUserById(payload.sub);
+    
+    if (!user || !user.isActive) {
+      return done(null, false);
+    }
+
+    // Check if JWT is blacklisted (for logout functionality)
+    const isBlacklisted = await storage.isJwtBlacklisted(payload.jti);
+    if (isBlacklisted) {
+      return done(null, false);
+    }
+
+    return done(null, user);
+  } catch (error) {
+    return done(error, false);
+  }
+}));
+
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
@@ -96,15 +485,7 @@ export async function setupAuth(app: Express) {
     passport.use(domain, strategy);
   }
 
-  passport.serializeUser((user: any, done) => {
-    done(null, user);
-  });
-
-  passport.deserializeUser((user: any, done) => {
-    done(null, user);
-  });
-
-  // Auth routes
+  // Legacy Replit auth routes (keeping for compatibility)
   app.get("/api/auth/login", (req, res, next) => {
     const host = req.get("host");
     if (!host || !process.env.REPLIT_DOMAINS!.split(",").includes(host)) {
