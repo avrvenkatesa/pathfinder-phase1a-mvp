@@ -1,0 +1,47 @@
+ Create a professional React LoginForm component that integrates with our enhanced authentication system.
+
+  LOCATION: client/src/components/auth/LoginForm.tsx
+
+  API INTEGRATION:
+  - Endpoint: POST /api/auth/login (our working auth service)
+  - Request body: { email, password, mfaCode?, rememberMe? }
+  - Success response: { success: true, user: {id, email, firstName, lastName, role, mfaEnabled, emailVerified}, accessToken: string, message: string }
+  - MFA response: { success: false, requiresMfa: true, message: "MFA code required" }
+  - Error response: { success: false, error: string, message: string }
+
+  FUNCTIONALITY:
+  1. Email/password login form with validation
+  2. Two-step flow: regular login → MFA code if user.mfaEnabled
+  3. Store JWT accessToken in localStorage on success
+  4. Store user object in localStorage
+  5. Handle loading states, errors, and success callbacks
+  6. Password visibility toggle (show/hide)
+  7. Remember me checkbox
+  8. Professional error handling with user-friendly messages
+
+  UI REQUIREMENTS:
+  - Use our existing UI components: Card, Button, Input, Label, Alert from @/components/ui/
+  - Follow our project's design patterns and styling
+  - Responsive design that works on mobile/desktop
+  - Clean, professional appearance matching our app theme
+  - Loading spinner during API calls
+  - Proper form validation and error states
+
+  MFA FLOW:
+  - Initially show email/password form
+  - If response has requiresMfa=true, show MFA code input instead
+  - 6-digit code input with proper formatting
+  - "Back to login" button to reset form
+  - Clear instructions for user
+
+  ADDITIONAL FEATURES:
+  - "Forgot password?" link (placeholder for now)
+  - "Don't have account? Sign up" link (placeholder for now)
+  - TypeScript with proper interfaces
+  - Props for onSuccess and onError callbacks
+  - Professional error messages and user feedback
+
+  TESTING NOTE:
+  This will connect to our working auth service that returns JWT tokens and handles MFA. The API endpoints are already tested and functional.
+
+  Create this as a clean, production-ready component that integrates seamlessly with our existing codebase.
