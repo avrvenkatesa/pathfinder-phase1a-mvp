@@ -26,6 +26,22 @@ const isAuthenticated = async (req: any, res: any, next: any) => {
       return next();
     }
     
+    // For Google OAuth tokens
+    if (token.startsWith('google-token-')) {
+      req.user = {
+        claims: { sub: token.replace('google-token-', 'google-user-') }
+      };
+      return next();
+    }
+    
+    // For Microsoft OAuth tokens
+    if (token.startsWith('microsoft-token-')) {
+      req.user = {
+        claims: { sub: token.replace('microsoft-token-', 'microsoft-user-') }
+      };
+      return next();
+    }
+    
     // For other tokens, you could implement JWT verification here
     // For now, accepting any bearer token for demo purposes
     req.user = {
@@ -39,6 +55,60 @@ const isAuthenticated = async (req: any, res: any, next: any) => {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // No auth setup needed - using JWT tokens
+
+  // OAuth redirect routes - proxy to auth service
+  app.get('/api/auth/google', (req, res) => {
+    // For demo, redirect to Google OAuth (would need real OAuth setup)
+    res.redirect('https://accounts.google.com/oauth/authorize?client_id=demo&redirect_uri=' + encodeURIComponent(req.protocol + '://' + req.get('host') + '/api/auth/google/callback') + '&response_type=code&scope=email%20profile');
+  });
+
+  app.get('/api/auth/google/callback', async (req, res) => {
+    // For demo, create a mock Google user and redirect
+    const mockGoogleUser = {
+      id: 'google-user-' + Date.now(),
+      email: 'google.user@gmail.com',
+      firstName: 'Google',
+      lastName: 'User',
+      role: 'user'
+    };
+
+    await storage.upsertUser({
+      id: mockGoogleUser.id,
+      email: mockGoogleUser.email,
+      firstName: mockGoogleUser.firstName,
+      lastName: mockGoogleUser.lastName
+    });
+
+    const accessToken = `google-token-${Date.now()}`;
+    // In a real implementation, you'd set proper session/cookies here
+    res.redirect('/?token=' + accessToken + '&user=' + encodeURIComponent(JSON.stringify(mockGoogleUser)));
+  });
+
+  app.get('/api/auth/microsoft', (req, res) => {
+    // For demo, redirect to Microsoft OAuth (would need real OAuth setup)
+    res.redirect('https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=demo&redirect_uri=' + encodeURIComponent(req.protocol + '://' + req.get('host') + '/api/auth/microsoft/callback') + '&response_type=code&scope=user.read');
+  });
+
+  app.get('/api/auth/microsoft/callback', async (req, res) => {
+    // For demo, create a mock Microsoft user and redirect
+    const mockMicrosoftUser = {
+      id: 'microsoft-user-' + Date.now(),
+      email: 'microsoft.user@outlook.com',
+      firstName: 'Microsoft',
+      lastName: 'User',
+      role: 'user'
+    };
+
+    await storage.upsertUser({
+      id: mockMicrosoftUser.id,
+      email: mockMicrosoftUser.email,
+      firstName: mockMicrosoftUser.firstName,
+      lastName: mockMicrosoftUser.lastName
+    });
+
+    const accessToken = `microsoft-token-${Date.now()}`;
+    res.redirect('/?token=' + accessToken + '&user=' + encodeURIComponent(JSON.stringify(mockMicrosoftUser)));
+  });
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {

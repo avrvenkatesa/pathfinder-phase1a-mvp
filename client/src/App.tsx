@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Home from "@/pages/home";
@@ -17,6 +18,29 @@ import AssignmentEnginePage from "@/pages/AssignmentEnginePage";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Handle OAuth redirects
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const userParam = urlParams.get('user');
+    
+    if (token && userParam) {
+      try {
+        const user = JSON.parse(decodeURIComponent(userParam));
+        localStorage.setItem('accessToken', token);
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        // Force refresh to update auth state
+        window.location.reload();
+      } catch (error) {
+        console.error('Error parsing OAuth redirect:', error);
+      }
+    }
+  }, []);
 
   return (
     <Switch>

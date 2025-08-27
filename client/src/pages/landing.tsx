@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { AuthenticationSelector } from "@/components/auth/AuthenticationSelector";
 
 export default function Landing() {
   const [showLoginForm, setShowLoginForm] = useState(true);
@@ -26,7 +26,7 @@ export default function Landing() {
         
         {showLoginForm ? (
           <div className="space-y-4">
-            <LoginForm 
+            <AuthenticationSelector 
               onSuccess={handleLoginSuccess}
               onError={(error) => console.error('Login error:', error)}
             />
