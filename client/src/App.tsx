@@ -26,7 +26,14 @@ function Router() {
     const userParam = urlParams.get('user');
     const logout = urlParams.get('logout');
     
-    console.log('Checking OAuth params:', { token: !!token, userParam: !!userParam, logout: !!logout, url: window.location.href });
+    console.log('Checking OAuth params:', { 
+      token: !!token, 
+      userParam: !!userParam, 
+      logout: !!logout, 
+      url: window.location.href,
+      actualToken: token,
+      actualUserParam: userParam ? userParam.substring(0, 50) + '...' : null
+    });
     
     // Handle logout
     if (logout === 'true') {
