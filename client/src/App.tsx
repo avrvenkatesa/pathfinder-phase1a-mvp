@@ -31,11 +31,15 @@ function Router() {
         localStorage.setItem('accessToken', token);
         localStorage.setItem('user', JSON.stringify(user));
         
-        // Clean up URL
+        console.log('OAuth login successful:', user);
+        
+        // Clean up URL and force refresh
         window.history.replaceState({}, document.title, window.location.pathname);
         
-        // Force refresh to update auth state
-        window.location.reload();
+        // Force a page reload to ensure auth state updates
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 100);
       } catch (error) {
         console.error('Error parsing OAuth redirect:', error);
       }
