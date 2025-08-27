@@ -1,18 +1,9 @@
-import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LoginForm } from "@/components/auth/LoginForm";
 
 export default function Landing() {
-  const [showLoginForm, setShowLoginForm] = useState(false);
-  
-  const handleOAuthLogin = () => {
+  const handleLogin = () => {
     window.location.href = "/api/login";
-  };
-
-  const handleLoginSuccess = () => {
-    // Redirect to home page after successful login
-    window.location.href = "/";
   };
 
   return (
@@ -28,69 +19,49 @@ export default function Landing() {
           </p>
         </div>
         
-        {!showLoginForm ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center space-y-4">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Welcome to PathFinder
-                </h2>
-                <p className="text-gray-600">
-                  Organize and manage your contacts with powerful hierarchical relationships. 
-                  Track companies, divisions, and people all in one place.
-                </p>
-                <div className="space-y-3">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <i className="fas fa-building text-primary mr-3"></i>
-                    Manage companies and organizations
-                  </div>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <i className="fas fa-layer-group text-secondary-500 mr-3"></i>
-                    Organize divisions and departments
-                  </div>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <i className="fas fa-users text-green-600 mr-3"></i>
-                    Track people and their relationships
-                  </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Welcome to PathFinder
+              </h2>
+              <p className="text-gray-600">
+                Organize and manage your contacts with powerful hierarchical relationships. 
+                Track companies, divisions, and people all in one place.
+              </p>
+              <div className="space-y-3">
+                <div className="flex items-center text-sm text-gray-600">
+                  <i className="fas fa-building text-primary mr-3"></i>
+                  Manage companies and organizations
                 </div>
-                
-                <div className="space-y-3">
-                  <Button 
-                    onClick={() => setShowLoginForm(true)}
-                    className="w-full bg-primary hover:bg-primary-600"
-                  >
-                    Sign In with Email
-                  </Button>
-                  
-                  <Button 
-                    onClick={handleOAuthLogin}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Sign In with Replit
-                  </Button>
+                <div className="flex items-center text-sm text-gray-600">
+                  <i className="fas fa-layer-group text-secondary-500 mr-3"></i>
+                  Organize divisions and departments
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <i className="fas fa-users text-green-600 mr-3"></i>
+                  Track people and their relationships
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            <LoginForm 
-              onSuccess={handleLoginSuccess}
-              onError={(error) => console.error('Login error:', error)}
-            />
-            
-            <div className="text-center">
-              <Button 
-                onClick={() => setShowLoginForm(false)}
-                variant="link"
-                className="text-sm"
-              >
-                ← Back to sign in options
-              </Button>
+              <div className="space-y-3">
+                <Button 
+                  onClick={handleLogin}
+                  className="w-full bg-primary hover:bg-primary-600"
+                >
+                  Sign In to Get Started
+                </Button>
+                
+                <div className="text-xs text-gray-500 bg-gray-100 p-3 rounded-lg">
+                  <p className="font-medium mb-1">Test Access:</p>
+                  <p>Click "Sign In" then select "Continue with email"</p>
+                  <p>Email: test@example.com</p>
+                  <p>Password: Test123!</p>
+                  <p className="mt-1 italic">Or use the test login: <a href="/api/login?test=true" className="text-blue-600 underline">Quick Test Login</a></p>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

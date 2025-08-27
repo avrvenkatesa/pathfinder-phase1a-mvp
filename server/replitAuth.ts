@@ -102,10 +102,50 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
+    // Check if this is a test login request
+    if (req.query.test === 'true') {
+      return res.redirect('/api/test-login');
+    }
+    
     passport.authenticate(`replitauth:${req.hostname}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
+  });
+
+  // Test login route that bypasses Replit Auth for test@example.com
+  app.get("/api/test-login", async (req, res) => {
+    try {
+      // Create test user session
+      await storage.upsertUser({
+        id: 'test-user-id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User'
+      });
+
+      // Manually create a session for the test user
+      req.login({
+        claims: {
+          sub: 'test-user-id',
+          email: 'test@example.com',
+          first_name: 'Test',
+          last_name: 'User',
+          exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
+        },
+        access_token: 'test-access-token',
+        expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60)
+      }, (err) => {
+        if (err) {
+          console.error('Test login error:', err);
+          return res.redirect('/api/login');
+        }
+        res.redirect('/');
+      });
+    } catch (error) {
+      console.error('Test login error:', error);
+      res.redirect('/api/login');
+    }
   });
 
   app.get("/api/callback", (req, res, next) => {
