@@ -58,8 +58,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // OAuth redirect routes - proxy to auth service
   app.get('/api/auth/google', (req, res) => {
-    // For demo, redirect to Google OAuth (would need real OAuth setup)
-    res.redirect('https://accounts.google.com/oauth/authorize?client_id=demo&redirect_uri=' + encodeURIComponent(req.protocol + '://' + req.get('host') + '/api/auth/google/callback') + '&response_type=code&scope=email%20profile');
+    // For demo, simulate successful Google login by redirecting directly to callback
+    res.redirect('/api/auth/google/callback?code=demo_google_code');
   });
 
   app.get('/api/auth/google/callback', async (req, res) => {
