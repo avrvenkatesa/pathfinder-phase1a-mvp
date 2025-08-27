@@ -27,12 +27,17 @@ export function AuthenticationSelector({ onSuccess, onError, className }: Authen
       
       const accessToken = `google-token-${Date.now()}`;
       
-      // Set auth data and redirect
+      // Set auth data
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('user', JSON.stringify(mockGoogleUser));
       
-      // Force refresh to update auth state
-      window.location.reload();
+      // Trigger auth change event
+      window.dispatchEvent(new Event('authChange'));
+      
+      // Call success callback if provided
+      if (onSuccess) {
+        onSuccess(mockGoogleUser, accessToken);
+      }
     } else {
       // For other providers, use server redirect
       const baseUrl = window.location.origin;
