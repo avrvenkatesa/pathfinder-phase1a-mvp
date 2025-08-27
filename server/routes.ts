@@ -65,25 +65,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('/api/auth/google/callback', async (req, res) => {
-    // For demo, create a mock Google user and redirect
-    const mockGoogleUser = {
-      id: 'google-user-' + Date.now(),
-      email: 'google.user@gmail.com',
-      firstName: 'Google',
-      lastName: 'User',
-      role: 'user'
-    };
+    try {
+      console.log('Google callback reached, processing auth...');
+      
+      // For demo, create a mock Google user and redirect
+      const mockGoogleUser = {
+        id: 'google-user-' + Date.now(),
+        email: 'google.user@gmail.com',
+        firstName: 'Google',
+        lastName: 'User',
+        role: 'user'
+      };
 
-    await storage.upsertUser({
-      id: mockGoogleUser.id,
-      email: mockGoogleUser.email,
-      firstName: mockGoogleUser.firstName,
-      lastName: mockGoogleUser.lastName
-    });
+      await storage.upsertUser({
+        id: mockGoogleUser.id,
+        email: mockGoogleUser.email,
+        firstName: mockGoogleUser.firstName,
+        lastName: mockGoogleUser.lastName
+      });
 
-    const accessToken = `google-token-${Date.now()}`;
-    // In a real implementation, you'd set proper session/cookies here
-    res.redirect('/?token=' + accessToken + '&user=' + encodeURIComponent(JSON.stringify(mockGoogleUser)));
+      const accessToken = `google-token-${Date.now()}`;
+      const redirectUrl = '/?token=' + accessToken + '&user=' + encodeURIComponent(JSON.stringify(mockGoogleUser));
+      
+      console.log('Google auth complete, redirecting to:', redirectUrl);
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Google callback error:', error);
+      res.redirect('/?error=google_auth_failed');
+    }
   });
 
   app.get('/api/auth/microsoft', (req, res) => {
