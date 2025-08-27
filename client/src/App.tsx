@@ -19,7 +19,7 @@ import AssignmentEnginePage from "@/pages/AssignmentEnginePage";
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Handle OAuth redirects
+  // Handle OAuth redirects - run immediately, not dependent on auth state
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
@@ -54,25 +54,25 @@ function Router() {
         // Clear URL params and redirect
         window.history.replaceState({}, document.title, '/');
         
-        // Trigger auth refresh by reloading
-        setTimeout(() => {
-          window.location.reload();
-        }, 50);
+        // Trigger auth change immediately
+        window.dispatchEvent(new Event('authChange'));
+        
+        return; // Don't log debug info if we're processing OAuth
       } catch (error) {
         console.error('Error parsing OAuth redirect:', error);
       }
-    } else {
-      // Debug: log current auth state
-      const existingToken = localStorage.getItem('accessToken');
-      const existingUser = localStorage.getItem('user');
-      console.log('Current auth state:', { 
-        hasToken: !!existingToken, 
-        hasUser: !!existingUser,
-        isAuthenticated,
-        isLoading 
-      });
     }
-  }, [isAuthenticated, isLoading]);
+    
+    // Debug: log current auth state only if not processing OAuth
+    const existingToken = localStorage.getItem('accessToken');
+    const existingUser = localStorage.getItem('user');
+    console.log('Current auth state:', { 
+      hasToken: !!existingToken, 
+      hasUser: !!existingUser,
+      isAuthenticated,
+      isLoading 
+    });
+  }, []); // Remove dependency on auth state - run only once on mount
 
   return (
     <Switch>
