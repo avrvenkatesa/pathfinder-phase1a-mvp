@@ -31,6 +31,8 @@ export function AuthenticationSelector({ onSuccess, onError, className }: Authen
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('user', JSON.stringify(mockGoogleUser));
       
+      console.log('Google login completed, triggering auth change');
+      
       // Trigger auth change event
       window.dispatchEvent(new Event('authChange'));
       

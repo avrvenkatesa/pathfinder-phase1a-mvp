@@ -2,38 +2,59 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 export function useAuth() {
-  const [hasToken, setHasToken] = useState(false);
+  const [authState, setAuthState] = useState({
+    user: null as any,
+    isAuthenticated: false,
+    isLoading: true,
+  });
 
-  // Check localStorage for token on mount and storage changes
   useEffect(() => {
-    const checkToken = () => {
+    const checkAuth = () => {
       const token = localStorage.getItem('accessToken');
-      setHasToken(!!token);
+      const userStr = localStorage.getItem('user');
+      
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          setAuthState({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } catch (error) {
+          console.error('Error parsing user from localStorage:', error);
+          setAuthState({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+        }
+      } else {
+        setAuthState({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+      }
     };
     
-    checkToken();
+    // Check on mount
+    checkAuth();
     
-    // Listen for storage changes
-    window.addEventListener('storage', checkToken);
+    // Listen for custom auth events
+    const handleAuthChange = () => {
+      console.log('Auth change detected, updating state');
+      checkAuth();
+    };
     
-    // Custom event for manual token updates
-    window.addEventListener('authChange', checkToken);
+    window.addEventListener('authChange', handleAuthChange);
+    window.addEventListener('storage', handleAuthChange);
     
     return () => {
-      window.removeEventListener('storage', checkToken);
-      window.removeEventListener('authChange', checkToken);
+      window.removeEventListener('authChange', handleAuthChange);
+      window.removeEventListener('storage', handleAuthChange);
     };
   }, []);
 
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["/api/auth/user"],
-    retry: false,
-    enabled: hasToken, // Only run query if we have a token
-  });
-
-  return {
-    user,
-    isLoading: hasToken ? isLoading : false,
-    isAuthenticated: hasToken && !!user,
-  };
+  return authState;
 }
