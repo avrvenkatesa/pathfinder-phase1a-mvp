@@ -128,6 +128,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Logout endpoint
+  app.post('/api/logout', (req, res) => {
+    res.json({ message: 'Logout successful' });
+  });
+
+  app.get('/api/logout', (req, res) => {
+    res.redirect('/?logout=true');
+  });
+
   // Email/Password login endpoint
   app.post('/api/auth/login', async (req: any, res) => {
     try {

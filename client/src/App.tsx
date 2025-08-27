@@ -24,8 +24,17 @@ function Router() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     const userParam = urlParams.get('user');
+    const logout = urlParams.get('logout');
     
-    console.log('Checking OAuth params:', { token: !!token, userParam: !!userParam, url: window.location.href });
+    console.log('Checking OAuth params:', { token: !!token, userParam: !!userParam, logout: !!logout, url: window.location.href });
+    
+    // Handle logout
+    if (logout === 'true') {
+      localStorage.clear();
+      window.history.replaceState({}, document.title, '/');
+      window.dispatchEvent(new Event('authChange'));
+      return;
+    }
     
     if (token && userParam) {
       try {
