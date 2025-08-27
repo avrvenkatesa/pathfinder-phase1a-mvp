@@ -167,7 +167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (mfaCode !== '123456') {
             return res.status(401).json({
               success: false,
-              message: "Invalid MFA code"
+              message: "The code you entered is incorrect. Please check your authenticator app and try again."
             });
           }
         } else {
