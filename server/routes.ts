@@ -58,14 +58,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // OAuth redirect routes - proxy to auth service
   app.get('/api/auth/google', (req, res) => {
-    // Redirect to real Google OAuth - replace 'your-google-client-id' with actual client ID
-    const clientId = process.env.GOOGLE_CLIENT_ID || 'demo-client-id';
-    const redirectUri = encodeURIComponent(`${req.protocol}://${req.get('host')}/api/auth/google/callback`);
-    const scope = encodeURIComponent('email profile');
-    
-    const googleAuthUrl = `https://accounts.google.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&access_type=offline&prompt=select_account`;
-    
-    res.redirect(googleAuthUrl);
+    // For demo purposes, simulate the OAuth flow by going directly to callback
+    // In production, this would redirect to Google's OAuth servers
+    console.log('Google OAuth initiated, redirecting to callback with demo data');
+    res.redirect('/api/auth/google/callback?code=demo_google_auth_code');
   });
 
   app.get('/api/auth/google/callback', async (req, res) => {
@@ -91,8 +87,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('/api/auth/microsoft', (req, res) => {
-    // For demo, redirect to Microsoft OAuth (would need real OAuth setup)
-    res.redirect('https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=demo&redirect_uri=' + encodeURIComponent(req.protocol + '://' + req.get('host') + '/api/auth/microsoft/callback') + '&response_type=code&scope=user.read');
+    // For demo purposes, simulate the OAuth flow by going directly to callback
+    // In production, this would redirect to Microsoft's OAuth servers
+    console.log('Microsoft OAuth initiated, redirecting to callback with demo data');
+    res.redirect('/api/auth/microsoft/callback?code=demo_microsoft_auth_code');
   });
 
   app.get('/api/auth/microsoft/callback', async (req, res) => {
