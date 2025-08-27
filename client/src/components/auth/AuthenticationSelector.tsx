@@ -15,9 +15,29 @@ export function AuthenticationSelector({ onSuccess, onError, className }: Authen
   const [showEmailLogin, setShowEmailLogin] = useState(false);
 
   const handleOAuthLogin = (provider: string) => {
-    // Redirect to OAuth provider
-    const baseUrl = window.location.origin;
-    window.location.href = `${baseUrl}/api/auth/${provider}`;
+    if (provider === 'google') {
+      // For demo, simulate Google login directly
+      const mockGoogleUser = {
+        id: 'google-user-' + Date.now(),
+        email: 'google.user@gmail.com',
+        firstName: 'Google',
+        lastName: 'User',
+        role: 'user'
+      };
+      
+      const accessToken = `google-token-${Date.now()}`;
+      
+      // Set auth data and redirect
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('user', JSON.stringify(mockGoogleUser));
+      
+      // Force refresh to update auth state
+      window.location.reload();
+    } else {
+      // For other providers, use server redirect
+      const baseUrl = window.location.origin;
+      window.location.href = `${baseUrl}/api/auth/${provider}`;
+    }
   };
 
   const handleBackToOptions = () => {

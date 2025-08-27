@@ -25,26 +25,38 @@ function Router() {
     const token = urlParams.get('token');
     const userParam = urlParams.get('user');
     
+    console.log('Checking OAuth params:', { token: !!token, userParam: !!userParam, url: window.location.href });
+    
     if (token && userParam) {
       try {
         const user = JSON.parse(decodeURIComponent(userParam));
         localStorage.setItem('accessToken', token);
         localStorage.setItem('user', JSON.stringify(user));
         
-        console.log('OAuth login successful:', user);
+        console.log('OAuth login successful, redirecting to dashboard:', user);
         
-        // Clean up URL and force refresh
-        window.history.replaceState({}, document.title, window.location.pathname);
+        // Clear URL params and redirect
+        window.history.replaceState({}, document.title, '/');
         
-        // Force a page reload to ensure auth state updates
+        // Trigger auth refresh by reloading
         setTimeout(() => {
-          window.location.href = '/';
-        }, 100);
+          window.location.reload();
+        }, 50);
       } catch (error) {
         console.error('Error parsing OAuth redirect:', error);
       }
+    } else {
+      // Debug: log current auth state
+      const existingToken = localStorage.getItem('accessToken');
+      const existingUser = localStorage.getItem('user');
+      console.log('Current auth state:', { 
+        hasToken: !!existingToken, 
+        hasUser: !!existingUser,
+        isAuthenticated,
+        isLoading 
+      });
     }
-  }, []);
+  }, [isAuthenticated, isLoading]);
 
   return (
     <Switch>
