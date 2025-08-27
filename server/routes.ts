@@ -159,13 +159,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check test credentials
       if (email === 'test@example.com' && password === 'Test123!') {
+        // Check if MFA code was provided for testing
+        const { mfaCode } = req.body;
+        
+        // For MFA testing, require code "123456" for test user
+        if (mfaCode) {
+          if (mfaCode !== '123456') {
+            return res.status(401).json({
+              success: false,
+              message: "Invalid MFA code"
+            });
+          }
+        } else {
+          // First login step - require MFA
+          return res.status(200).json({
+            success: false,
+            requiresMfa: true,
+            message: "MFA code required"
+          });
+        }
+        
         // Create or get test user
         const testUser = {
           id: 'test-user-id',
           email: 'test@example.com',
           firstName: 'Test',
           lastName: 'User',
-          role: 'user'
+          role: 'user',
+          mfaEnabled: true
         };
 
         // Ensure test user exists in storage
