@@ -15,36 +15,9 @@ export function AuthenticationSelector({ onSuccess, onError, className }: Authen
   const [showEmailLogin, setShowEmailLogin] = useState(false);
 
   const handleOAuthLogin = (provider: string) => {
-    if (provider === 'google') {
-      // For demo, simulate Google login directly
-      const mockGoogleUser = {
-        id: 'google-user-' + Date.now(),
-        email: 'google.user@gmail.com',
-        firstName: 'Google',
-        lastName: 'User',
-        role: 'user'
-      };
-      
-      const accessToken = `google-token-${Date.now()}`;
-      
-      // Set auth data
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('user', JSON.stringify(mockGoogleUser));
-      
-      console.log('Google login completed, triggering auth change');
-      
-      // Trigger auth change event
-      window.dispatchEvent(new Event('authChange'));
-      
-      // Call success callback if provided
-      if (onSuccess) {
-        onSuccess(mockGoogleUser, accessToken);
-      }
-    } else {
-      // For other providers, use server redirect
-      const baseUrl = window.location.origin;
-      window.location.href = `${baseUrl}/api/auth/${provider}`;
-    }
+    // Redirect to OAuth provider for real authentication flow
+    const baseUrl = window.location.origin;
+    window.location.href = `${baseUrl}/api/auth/${provider}`;
   };
 
   const handleBackToOptions = () => {
