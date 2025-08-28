@@ -21,10 +21,126 @@ import { z } from "zod";
 
 // isAuthenticated will be imported from replitAuth
 
+// Simple authentication middleware for JWT tokens
+const isAuthenticated = async (req: any, res: any, next: any) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    
+    // For test tokens, create mock user
+    if (token.startsWith('test-token-')) {
+      req.user = {
+        claims: { sub: 'test-user-id' }
+      };
+      return next();
+    }
+    
+    // For Google OAuth tokens
+    if (token.startsWith('google-token-')) {
+      req.user = {
+        claims: { sub: token.replace('google-token-', 'google-user-') }
+      };
+      return next();
+    }
+    
+    // For Microsoft OAuth tokens
+    if (token.startsWith('microsoft-token-')) {
+      req.user = {
+        claims: { sub: token.replace('microsoft-token-', 'microsoft-user-') }
+      };
+      return next();
+    }
+    
+    // For other tokens, you could implement JWT verification here
+    // For now, accepting any bearer token for demo purposes
+    req.user = {
+      claims: { sub: 'demo-user-id' }
+    };
+    return next();
+  }
+  
+  return res.status(401).json({ message: "Unauthorized" });
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup Replit Auth
-  const { setupAuth, isAuthenticated } = await import("./replitAuth");
-  await setupAuth(app);
+  // No auth setup needed - using JWT tokens
+
+  // OAuth redirect routes
+  app.get('/api/auth/google', (req, res) => {
+    // For demo purposes, simulate the OAuth flow by going directly to callback
+    // In production, this would redirect to Google's OAuth servers
+    console.log('Google OAuth initiated, redirecting to callback with demo data');
+    res.redirect('/api/auth/google/callback?code=demo_google_auth_code');
+  });
+
+  app.get('/api/auth/google/callback', async (req, res) => {
+    try {
+      console.log('Google callback reached, processing auth...');
+      
+      // For demo, create a mock Google user and redirect
+      const mockGoogleUser = {
+        id: 'google-user-' + Date.now(),
+        email: 'google.user@gmail.com',
+        firstName: 'Google',
+        lastName: 'User',
+        role: 'user'
+      };
+
+      await storage.upsertUser({
+        id: mockGoogleUser.id,
+        email: mockGoogleUser.email,
+        firstName: mockGoogleUser.firstName,
+        lastName: mockGoogleUser.lastName
+      });
+
+      const accessToken = `google-token-${Date.now()}`;
+      const redirectUrl = '/?token=' + accessToken + '&user=' + encodeURIComponent(JSON.stringify(mockGoogleUser));
+      
+      console.log('Google auth complete, redirecting to:', redirectUrl);
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Google callback error:', error);
+      res.redirect('/?error=google_auth_failed');
+    }
+  });
+
+  app.get('/api/auth/microsoft', (req, res) => {
+    // For demo purposes, simulate the OAuth flow by going directly to callback
+    // In production, this would redirect to Microsoft's OAuth servers
+    console.log('Microsoft OAuth initiated, redirecting to callback with demo data');
+    res.redirect('/api/auth/microsoft/callback?code=demo_microsoft_auth_code');
+  });
+
+  app.get('/api/auth/microsoft/callback', async (req, res) => {
+    try {
+      console.log('Microsoft callback reached, processing auth...');
+      
+      // For demo, create a mock Microsoft user and redirect
+      const mockMicrosoftUser = {
+        id: 'microsoft-user-' + Date.now(),
+        email: 'microsoft.user@outlook.com',
+        firstName: 'Microsoft',
+        lastName: 'User',
+        role: 'user'
+      };
+
+      await storage.upsertUser({
+        id: mockMicrosoftUser.id,
+        email: mockMicrosoftUser.email,
+        firstName: mockMicrosoftUser.firstName,
+        lastName: mockMicrosoftUser.lastName
+      });
+
+      const accessToken = `microsoft-token-${Date.now()}`;
+      const redirectUrl = '/?token=' + accessToken + '&user=' + encodeURIComponent(JSON.stringify(mockMicrosoftUser));
+      
+      console.log('Microsoft auth complete, redirecting to:', redirectUrl);
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Microsoft callback error:', error);
+      res.redirect('/?error=microsoft_auth_failed');
+    }
+  });
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -36,6 +152,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
+  });
+
+  // Logout endpoint
+  app.post('/api/logout', (req, res) => {
+    res.json({ message: 'Logout successful' });
+  });
+
+  app.get('/api/logout', (req, res) => {
+    res.redirect('/?logout=true');
   });
 
   // Email/Password login endpoint - keeping for backward compatibility
