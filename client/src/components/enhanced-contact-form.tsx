@@ -265,20 +265,21 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
     }
   };
 
-  const selectedType = form.watch("type");
+  const [selectedType, setSelectedType] = useState(form.getValues("type") || "company");
+  
+  // Update selectedType when form type changes, but with stability
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "type" && value.type !== selectedType) {
+        setSelectedType(value.type);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, selectedType]);
   const parentOptions = useMemo(() => getParentOptions(selectedType), [selectedType, contacts]);
   
-  // Form progress calculation - simplified to reduce re-renders
-  const nameValue = form.watch("name");
-  const typeValue = form.watch("type");
-  const progress = useMemo(() => {
-    const allFields = Object.keys(enhancedFormSchema.shape);
-    const basicFieldsCompleted = [nameValue, typeValue].filter(value => 
-      value && value.toString().trim() !== ''
-    ).length;
-    // Estimate progress based on basic fields (simplified approach)
-    return Math.round((basicFieldsCompleted / 2) * 40 + 33); // Base 33% + up to 40% for basic fields
-  }, [nameValue, typeValue]);
+  // Form progress calculation - static to prevent re-renders
+  const progress = 33; // Static progress to prevent form re-renders
 
   // Skill and tag management functions
   const addSkill = (skill: string) => {
@@ -391,7 +392,13 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
                           Contact Type
                           <span className="text-red-500 font-medium">*</span>
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select 
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            setSelectedType(value);
+                          }} 
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select contact type" />
