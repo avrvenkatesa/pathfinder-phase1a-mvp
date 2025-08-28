@@ -1239,6 +1239,8 @@ export default function EnhancedContactForm({
       skills: data.skills || [],
       projectTypes: data.projectTypes || [],
       tags: data.tags || [],
+      skillProficiency: data.skillProficiency || {},
+      certifications: data.certifications || [],
     };
     createMutation.mutate(submitData);
   };
