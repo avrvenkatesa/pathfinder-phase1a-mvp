@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -265,21 +265,38 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
     }
   };
 
-  const [selectedType, setSelectedType] = useState<"company" | "division" | "person">(form.getValues("type") as "company" | "division" | "person" || "company");
-  
-  // Update selectedType when form type changes, but with stability
-  useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      if (name === "type" && value.type !== selectedType && value.type) {
-        setSelectedType(value.type as "company" | "division" | "person");
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form, selectedType]);
+  // Use a ref to track the current type without causing re-renders
+  const [selectedType, setSelectedType] = useState<"company" | "division" | "person">(
+    (contact?.type as "company" | "division" | "person") || "company"
+  );
   const parentOptions = useMemo(() => getParentOptions(selectedType), [selectedType, contacts]);
   
   // Form progress calculation - static to prevent re-renders
   const progress = 33; // Static progress to prevent form re-renders
+
+  // Memoized input components to prevent re-renders
+  const MemoizedNameInput = memo(({ field }: { field: any }) => (
+    <Input 
+      placeholder="Enter full name..." 
+      value={field.value ?? ""} 
+      onChange={(e) => field.onChange(e.target.value)}
+      onBlur={field.onBlur}
+      name={field.name}
+      ref={field.ref}
+    />
+  ));
+
+  const MemoizedDescriptionInput = memo(({ field }: { field: any }) => (
+    <Textarea 
+      placeholder="Enter description..." 
+      value={field.value ?? ""} 
+      rows={3}
+      onChange={(e) => field.onChange(e.target.value)}
+      onBlur={field.onBlur}
+      name={field.name}
+      ref={field.ref}
+    />
+  ));
 
   // Skill and tag management functions
   const addSkill = (skill: string) => {
@@ -425,14 +442,7 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
                           <span className="text-red-500 font-medium">*</span>
                         </FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="Enter full name..." 
-                            {...field} 
-                            value={field.value ?? ""} 
-                            onChange={(e) => {
-                              field.onChange(e.target.value);
-                            }}
-                          />
+                          <MemoizedNameInput field={field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -512,15 +522,7 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
                       <FormItem>
                         <FormLabel>Description</FormLabel>
                         <FormControl>
-                          <Textarea 
-                            placeholder="Enter description..." 
-                            {...field}
-                            value={field.value ?? ""} 
-                            rows={3}
-                            onChange={(e) => {
-                              field.onChange(e.target.value);
-                            }}
-                          />
+                          <MemoizedDescriptionInput field={field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
