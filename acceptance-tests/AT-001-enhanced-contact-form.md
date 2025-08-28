@@ -8,7 +8,7 @@
 - **Status**: PENDING
 
 ## Test Objective
-Verify that the enhanced contact form correctly displays and processes all new workflow-specific fields, including validation and data persistence.
+Verify that the enhanced contact form correctly displays and processes all new workflow-specific fields with appropriate contextual content based on contact type (person vs company/division), including validation and data persistence.
 
 ## Prerequisites
 1. Application is running at http://localhost:5000
@@ -50,25 +50,31 @@ Verify that the enhanced contact form correctly displays and processes all new w
 
 ### Step 4: Verify Skills Tab (Enhanced)
 1. Click on the "Skills" tab
-2. Add skills by clicking predefined skill buttons (e.g., "JavaScript", "React")
-3. Verify skill badges appear with remove (X) buttons
-4. Test availability status dropdown (Available, Busy, etc.)
-5. Add preferred work hours: "9am-5pm PST"
+2. **For Person type**: Add skills by clicking predefined skill buttons (e.g., "JavaScript", "React")
+3. **For Person type**: Verify skill badges appear with remove (X) buttons
+4. **For Person type**: Test availability status dropdown (Available, Busy, etc.)
+5. **For Person type**: Add preferred work hours: "9am-5pm PST"
+6. **For Company/Division**: Verify contextual message "Skills Management Not Applicable" appears
 
-**Expected Result**: Skills are added/removed properly, availability status saves
+**Expected Result**: 
+- Person: Skills are added/removed properly, availability status saves
+- Company/Division: Shows explanatory message about skills being managed at person level
 
 ### Step 5: Verify Enhanced Workflow Configuration
-1. Remain on "Skills" tab and scroll to "Enhanced Workflow Configuration" section
-2. Fill in the following workflow fields:
+1. Click on "Workflow" tab
+2. **For Person type**: Fill in the following workflow fields:
    - Workflow Role: Select "executor"
    - Max Concurrent Tasks: 8
    - Cost Per Hour: 75.50
    - Timezone: "America/Los_Angeles"
    - Current Workload: 3
-3. Add languages by typing "Spanish" and pressing Enter
-4. Add "French" using the plus button
+3. **For Person type**: Add languages by typing "Spanish" and pressing Enter
+4. **For Person type**: Add "French" using the plus button
+5. **For Company/Division**: Verify contextual message "Workflow Configuration Not Applicable" appears
 
-**Expected Result**: All workflow fields accept appropriate data types and validate correctly
+**Expected Result**: 
+- Person: All workflow fields accept appropriate data types and validate correctly
+- Company/Division: Shows explanatory message with tip about adding individual contacts
 
 ### Step 6: Submit Enhanced Contact
 1. Click "Save Contact" button
@@ -87,10 +93,14 @@ Verify that the enhanced contact form correctly displays and processes all new w
 
 ## Acceptance Criteria
 - [ ] Enhanced contact form opens with tabbed interface
-- [ ] All new workflow fields are present and functional
+- [ ] Required fields show red asterisk (*) visual indicator
+- [ ] Skills and Workflow tabs show contextual content based on contact type:
+  - [ ] Person: Full functionality with all fields available
+  - [ ] Company/Division: Informative messages explaining why tabs aren't applicable
+- [ ] All new workflow fields are present and functional (for Person type)
 - [ ] Field validation works for all input types
 - [ ] Data saves successfully to database with enhanced schema
-- [ ] Languages can be added and removed dynamically
+- [ ] Languages can be added and removed dynamically (for Person type)
 - [ ] Numeric fields (maxConcurrentTasks, costPerHour, currentWorkload) validate ranges
 - [ ] Success feedback is provided to user
 - [ ] No JavaScript errors in console

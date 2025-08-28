@@ -382,7 +382,10 @@ export default function EnhancedContactForm({ contact, onClose }: EnhancedContac
                     name="type"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Contact Type *</FormLabel>
+                        <FormLabel className="flex items-center gap-1">
+                          Contact Type
+                          <span className="text-red-500 font-medium">*</span>
+                        </FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
@@ -405,7 +408,10 @@ export default function EnhancedContactForm({ contact, onClose }: EnhancedContac
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Full Name *</FormLabel>
+                        <FormLabel className="flex items-center gap-1">
+                          Full Name
+                          <span className="text-red-500 font-medium">*</span>
+                        </FormLabel>
                         <FormControl>
                           <Input placeholder="Enter full name..." {...field} />
                         </FormControl>
@@ -626,338 +632,381 @@ export default function EnhancedContactForm({ contact, onClose }: EnhancedContac
 
               {/* Skills & Availability Tab */}
               <TabsContent value="skills" className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="availabilityStatus"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Availability Status</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select availability" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="available">Available</SelectItem>
-                            <SelectItem value="busy">Busy</SelectItem>
-                            <SelectItem value="partially_available">Partially Available</SelectItem>
-                            <SelectItem value="unavailable">Unavailable</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                {selectedType === 'person' ? (
+                  /* Skills content for individuals */
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="availabilityStatus"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Availability Status</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select availability" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="available">Available</SelectItem>
+                                <SelectItem value="busy">Busy</SelectItem>
+                                <SelectItem value="partially_available">Partially Available</SelectItem>
+                                <SelectItem value="unavailable">Unavailable</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                  <FormField
-                    control={form.control}
-                    name="preferredWorkHours"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Preferred Work Hours</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., 9am-5pm EST" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                      <FormField
+                        control={form.control}
+                        name="preferredWorkHours"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Preferred Work Hours</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g., 9am-5pm EST" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
-                <div>
-                  <FormLabel>Skills</FormLabel>
-                  <div className="mt-2 space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      {(form.watch("skills") || []).map((skill) => (
-                        <Badge key={skill} variant="secondary" className="flex items-center gap-1">
-                          {skill}
-                          <X 
-                            className="h-3 w-3 cursor-pointer" 
-                            onClick={() => removeSkill(skill)}
-                          />
-                        </Badge>
-                      ))}
+                    <div>
+                      <FormLabel>Skills</FormLabel>
+                      <div className="mt-2 space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {(form.watch("skills") || []).map((skill) => (
+                            <Badge key={skill} variant="secondary" className="flex items-center gap-1">
+                              {skill}
+                              <X 
+                                className="h-3 w-3 cursor-pointer" 
+                                onClick={() => removeSkill(skill)}
+                              />
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {PREDEFINED_SKILLS.filter(skill => 
+                            !(form.watch("skills") || []).includes(skill)
+                          ).slice(0, 10).map((skill) => (
+                            <Button
+                              key={skill}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => addSkill(skill)}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              {skill}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {PREDEFINED_SKILLS.filter(skill => 
-                        !(form.watch("skills") || []).includes(skill)
-                      ).slice(0, 10).map((skill) => (
-                        <Button
-                          key={skill}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addSkill(skill)}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {skill}
-                        </Button>
-                      ))}
-                    </div>
+                  </>
+                ) : (
+                  /* Skills content for companies/divisions */
+                  <div className="text-center py-8">
+                    <User className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-600 mb-2">
+                      Skills Management Not Applicable
+                    </h3>
+                    <p className="text-gray-500 max-w-md mx-auto">
+                      Skills and availability tracking is designed for individual contacts. 
+                      For {selectedType === 'company' ? 'companies' : 'divisions'}, 
+                      this information is managed at the person level within the organization.
+                    </p>
                   </div>
-                </div>
+                )}
               </TabsContent>
 
               {/* Workflow Preferences Tab */}
               <TabsContent value="workflow" className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="rolePreference"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Role Preference</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select role preference" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="leader">Leader</SelectItem>
-                            <SelectItem value="contributor">Contributor</SelectItem>
-                            <SelectItem value="specialist">Specialist</SelectItem>
-                            <SelectItem value="advisor">Advisor</SelectItem>
-                            <SelectItem value="any">Any Role</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                {selectedType === 'person' ? (
+                  /* Workflow content for individuals */
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="rolePreference"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Role Preference</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select role preference" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="leader">Leader</SelectItem>
+                                <SelectItem value="contributor">Contributor</SelectItem>
+                                <SelectItem value="specialist">Specialist</SelectItem>
+                                <SelectItem value="advisor">Advisor</SelectItem>
+                                <SelectItem value="any">Any Role</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                  <FormField
-                    control={form.control}
-                    name="assignmentCapacity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Assignment Capacity</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select capacity" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="low">Low (1-2 projects)</SelectItem>
-                            <SelectItem value="normal">Normal (3-5 projects)</SelectItem>
-                            <SelectItem value="high">High (6+ projects)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div>
-                  <FormLabel>Preferred Project Types</FormLabel>
-                  <div className="mt-2 space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      {(form.watch("projectTypes") || []).map((type) => (
-                        <Badge key={type} variant="secondary" className="flex items-center gap-1">
-                          {type}
-                          <X 
-                            className="h-3 w-3 cursor-pointer" 
-                            onClick={() => removeProjectType(type)}
-                          />
-                        </Badge>
-                      ))}
+                      <FormField
+                        control={form.control}
+                        name="assignmentCapacity"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Assignment Capacity</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select capacity" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="low">Low (1-2 projects)</SelectItem>
+                                <SelectItem value="normal">Normal (3-5 projects)</SelectItem>
+                                <SelectItem value="high">High (6+ projects)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {PROJECT_TYPES.filter(type => 
-                        !(form.watch("projectTypes") || []).includes(type)
-                      ).slice(0, 8).map((type) => (
-                        <Button
-                          key={type}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addProjectType(type)}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {type}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
 
-                {/* Enhanced Workflow Fields */}
-                <div className="border-t pt-4 mt-4">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Settings className="h-5 w-5" />
-                    Enhanced Workflow Configuration
-                  </h3>
-                  
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <FormField
-                      control={form.control}
-                      name="workflowRole"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Workflow Role</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select workflow role" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="approver">Approver</SelectItem>
-                              <SelectItem value="executor">Executor</SelectItem>
-                              <SelectItem value="reviewer">Reviewer</SelectItem>
-                              <SelectItem value="observer">Observer</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="maxConcurrentTasks"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Max Concurrent Tasks</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              min="1" 
-                              max="50" 
-                              placeholder="5"
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value) || 5)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="costPerHour"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Cost Per Hour ($)</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              step="0.01" 
-                              min="0" 
-                              placeholder="0.00"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="timezone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Timezone</FormLabel>
-                          <FormControl>
-                            <Input placeholder="UTC" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="currentWorkload"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Current Workload</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              min="0" 
-                              placeholder="0"
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div>
-                    <FormLabel>Languages</FormLabel>
-                    <div className="mt-2 space-y-2">
-                      <div className="flex flex-wrap gap-2">
-                        {(form.watch("languages") || []).map((language) => (
-                          <Badge key={language} variant="secondary" className="flex items-center gap-1">
-                            {language}
-                            <X 
-                              className="h-3 w-3 cursor-pointer" 
-                              onClick={() => removeLanguage(language)}
-                            />
-                          </Badge>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Input 
-                          placeholder="Add language"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              const input = e.target as HTMLInputElement;
-                              if (input.value.trim()) {
-                                addLanguage(input.value.trim());
-                                input.value = '';
-                              }
-                            }
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            const input = (e.target as HTMLButtonElement).parentElement?.querySelector('input');
-                            if (input?.value.trim()) {
-                              addLanguage(input.value.trim());
-                              input.value = '';
-                            }
-                          }}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
+                    <div>
+                      <FormLabel>Preferred Project Types</FormLabel>
+                      <div className="mt-2 space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {(form.watch("projectTypes") || []).map((type) => (
+                            <Badge key={type} variant="secondary" className="flex items-center gap-1">
+                              {type}
+                              <X 
+                                className="h-3 w-3 cursor-pointer" 
+                                onClick={() => removeProjectType(type)}
+                              />
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {PROJECT_TYPES.filter(type => 
+                            !(form.watch("projectTypes") || []).includes(type)
+                          ).slice(0, 8).map((type) => (
+                            <Button
+                              key={type}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => addProjectType(type)}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              {type}
+                            </Button>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Add any additional notes..." 
-                          {...field} 
-                          rows={4}
+                    {/* Enhanced Workflow Fields */}
+                    <div className="border-t pt-4 mt-4">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Settings className="h-5 w-5" />
+                        Enhanced Workflow Configuration
+                      </h3>
+                      
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <FormField
+                          control={form.control}
+                          name="workflowRole"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Workflow Role</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select workflow role" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="approver">Approver</SelectItem>
+                                  <SelectItem value="executor">Executor</SelectItem>
+                                  <SelectItem value="reviewer">Reviewer</SelectItem>
+                                  <SelectItem value="observer">Observer</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+
+                        <FormField
+                          control={form.control}
+                          name="maxConcurrentTasks"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Max Concurrent Tasks</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  type="number" 
+                                  min="1" 
+                                  max="50" 
+                                  placeholder="5"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 5)}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="costPerHour"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Cost Per Hour ($)</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  type="number" 
+                                  step="0.01" 
+                                  min="0" 
+                                  placeholder="0.00"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="timezone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Timezone</FormLabel>
+                              <FormControl>
+                                <Input placeholder="UTC" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="currentWorkload"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Current Workload</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  type="number" 
+                                  min="0" 
+                                  placeholder="0"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div>
+                        <FormLabel>Languages</FormLabel>
+                        <div className="mt-2 space-y-2">
+                          <div className="flex flex-wrap gap-2">
+                            {(form.watch("languages") || []).map((language) => (
+                              <Badge key={language} variant="secondary" className="flex items-center gap-1">
+                                {language}
+                                <X 
+                                  className="h-3 w-3 cursor-pointer" 
+                                  onClick={() => removeLanguage(language)}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Input 
+                              placeholder="Add language"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const input = e.target as HTMLInputElement;
+                                  if (input.value.trim()) {
+                                    addLanguage(input.value.trim());
+                                    input.value = '';
+                                  }
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                const input = (e.target as HTMLButtonElement).parentElement?.querySelector('input');
+                                if (input?.value.trim()) {
+                                  addLanguage(input.value.trim());
+                                  input.value = '';
+                                }
+                              }}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="notes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Notes</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              placeholder="Add any additional notes..." 
+                              {...field} 
+                              rows={4}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                ) : (
+                  /* Workflow content for companies/divisions */
+                  <div className="text-center py-8">
+                    <Briefcase className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-600 mb-2">
+                      Workflow Configuration Not Applicable
+                    </h3>
+                    <p className="text-gray-500 max-w-md mx-auto mb-4">
+                      Workflow roles, capacity management, and task assignments are managed 
+                      at the individual level. {selectedType === 'company' ? 'Companies' : 'Divisions'} 
+                      serve as organizational containers for people who have workflow capabilities.
+                    </p>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg max-w-md mx-auto">
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        💡 <strong>Tip:</strong> Add individual contacts within this {selectedType} 
+                        to configure their workflow roles and assignments.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
               </TabsContent>
             </Tabs>
 
