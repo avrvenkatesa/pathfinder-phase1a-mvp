@@ -14,6 +14,7 @@ import { NewWorkflow } from "@/components/new-workflow";
 import ContactTest from "@/pages/ContactTest";
 import TestContactIntegration from "@/pages/TestContactIntegration";
 import AssignmentEnginePage from "@/pages/AssignmentEnginePage";
+import EnhancedContactDemo from "@/components/enhanced-contact-demo";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -32,6 +33,7 @@ function Router() {
           <Route path="/contact-test" component={ContactTest} />
           <Route path="/test-contacts" component={TestContactIntegration} />
           <Route path="/assignment-engine" component={AssignmentEnginePage} />
+          <Route path="/enhanced-contacts" component={EnhancedContactDemo} />
         </>
       )}
       <Route component={NotFound} />

@@ -38,7 +38,7 @@ import type { Contact, InsertContact } from "@shared/schema";
 import { z } from "zod";
 import { X, Plus, Save, User, Building, Settings, Clock, Briefcase } from "lucide-react";
 
-// Enhanced form schema with comprehensive validation
+// Enhanced form schema with comprehensive validation including new workflow fields
 const enhancedFormSchema = insertContactSchema.extend({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["company", "division", "person"]),
@@ -56,6 +56,13 @@ const enhancedFormSchema = insertContactSchema.extend({
   rolePreference: z.enum(["leader", "contributor", "specialist", "advisor", "any"]).default("any"),
   projectTypes: z.array(z.string()).default([]),
   assignmentCapacity: z.enum(["low", "normal", "high"]).default("normal"),
+  // New workflow fields
+  workflowRole: z.enum(["approver", "executor", "reviewer", "observer"]).optional(),
+  maxConcurrentTasks: z.number().min(1).max(50).default(5),
+  costPerHour: z.number().positive().optional(),
+  timezone: z.string().default("UTC"),
+  languages: z.array(z.string()).default(["English"]),
+  currentWorkload: z.number().min(0).default(0),
   notes: z.string().optional(),
 });
 
@@ -97,6 +104,13 @@ export default function EnhancedContactForm({ contact, onClose }: EnhancedContac
       rolePreference: contact.rolePreference || "any",
       projectTypes: contact.projectTypes || [],
       assignmentCapacity: (contact.assignmentCapacity as "low" | "normal" | "high") || "normal",
+      // New workflow fields
+      workflowRole: contact.workflowRole || undefined,
+      maxConcurrentTasks: contact.maxConcurrentTasks || 5,
+      costPerHour: contact.costPerHour ? Number(contact.costPerHour) : undefined,
+      timezone: contact.timezone || "UTC",
+      languages: contact.languages || ["English"],
+      currentWorkload: contact.currentWorkload || 0,
       tags: contact.tags || [],
       notes: contact.notes || "",
       isActive: contact.isActive ?? true,
@@ -120,6 +134,13 @@ export default function EnhancedContactForm({ contact, onClose }: EnhancedContac
       rolePreference: "any",
       projectTypes: [],
       assignmentCapacity: "normal",
+      // New workflow fields defaults
+      workflowRole: undefined,
+      maxConcurrentTasks: 5,
+      costPerHour: undefined,
+      timezone: "UTC",
+      languages: ["English"],
+      currentWorkload: 0,
       tags: [],
       notes: "",
       isActive: true,
@@ -279,6 +300,18 @@ export default function EnhancedContactForm({ contact, onClose }: EnhancedContac
   const removeProjectType = (projectType: string) => {
     const currentTypes = form.getValues("projectTypes") || [];
     form.setValue("projectTypes", currentTypes.filter(t => t !== projectType));
+  };
+
+  const addLanguage = (language: string) => {
+    const currentLanguages = form.getValues("languages") || [];
+    if (!currentLanguages.includes(language)) {
+      form.setValue("languages", [...currentLanguages, language]);
+    }
+  };
+
+  const removeLanguage = (languageToRemove: string) => {
+    const currentLanguages = form.getValues("languages") || [];
+    form.setValue("languages", currentLanguages.filter(lang => lang !== languageToRemove));
   };
 
   const FormTrigger = isEditMode ? (
@@ -748,6 +781,162 @@ export default function EnhancedContactForm({ contact, onClose }: EnhancedContac
                           {type}
                         </Button>
                       ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Enhanced Workflow Fields */}
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Enhanced Workflow Configuration
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <FormField
+                      control={form.control}
+                      name="workflowRole"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Workflow Role</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select workflow role" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="approver">Approver</SelectItem>
+                              <SelectItem value="executor">Executor</SelectItem>
+                              <SelectItem value="reviewer">Reviewer</SelectItem>
+                              <SelectItem value="observer">Observer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="maxConcurrentTasks"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Max Concurrent Tasks</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              min="1" 
+                              max="50" 
+                              placeholder="5"
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 5)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="costPerHour"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Cost Per Hour ($)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              step="0.01" 
+                              min="0" 
+                              placeholder="0.00"
+                              {...field}
+                              onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="timezone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Timezone</FormLabel>
+                          <FormControl>
+                            <Input placeholder="UTC" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="currentWorkload"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Current Workload</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              min="0" 
+                              placeholder="0"
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div>
+                    <FormLabel>Languages</FormLabel>
+                    <div className="mt-2 space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {(form.watch("languages") || []).map((language) => (
+                          <Badge key={language} variant="secondary" className="flex items-center gap-1">
+                            {language}
+                            <X 
+                              className="h-3 w-3 cursor-pointer" 
+                              onClick={() => removeLanguage(language)}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input 
+                          placeholder="Add language"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const input = e.target as HTMLInputElement;
+                              if (input.value.trim()) {
+                                addLanguage(input.value.trim());
+                                input.value = '';
+                              }
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            const input = (e.target as HTMLButtonElement).parentElement?.querySelector('input');
+                            if (input?.value.trim()) {
+                              addLanguage(input.value.trim());
+                              input.value = '';
+                            }
+                          }}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>

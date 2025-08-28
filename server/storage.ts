@@ -1,5 +1,8 @@
 import {
   contacts,
+  contactSkills,
+  contactCertifications,
+  contactAvailability,
   users,
   workflows,
   workflowInstances,
@@ -10,6 +13,12 @@ import {
   type Contact,
   type InsertContact,
   type UpdateContact,
+  type ContactSkill,
+  type InsertContactSkill,
+  type ContactCertification,
+  type InsertContactCertification,
+  type ContactAvailability,
+  type InsertContactAvailability,
   type User,
   type UpsertUser,
   type Workflow,
@@ -52,6 +61,30 @@ export interface IStorage {
   createHierarchyChange(changeData: any): Promise<any>;
   getWorkflowAssignments(userId: string, filters?: any): Promise<any[]>;
   createWorkflowAssignment(assignmentData: any): Promise<any>;
+
+  // Contact Skills operations
+  getContactSkills(contactId: string): Promise<ContactSkill[]>;
+  createContactSkill(skill: InsertContactSkill): Promise<ContactSkill>;
+  updateContactSkill(id: string, skill: Partial<InsertContactSkill>): Promise<ContactSkill | undefined>;
+  deleteContactSkill(id: string): Promise<boolean>;
+
+  // Contact Certifications operations
+  getContactCertifications(contactId: string): Promise<ContactCertification[]>;
+  createContactCertification(certification: InsertContactCertification): Promise<ContactCertification>;
+  updateContactCertification(id: string, certification: Partial<InsertContactCertification>): Promise<ContactCertification | undefined>;
+  deleteContactCertification(id: string): Promise<boolean>;
+
+  // Contact Availability operations
+  getContactAvailability(contactId: string): Promise<ContactAvailability[]>;
+  createContactAvailability(availability: InsertContactAvailability): Promise<ContactAvailability>;
+  updateContactAvailability(id: string, availability: Partial<InsertContactAvailability>): Promise<ContactAvailability | undefined>;
+  deleteContactAvailability(id: string): Promise<boolean>;
+  
+  // Enhanced contact operations for workflow matching
+  getContactsBySkills(skillNames: string[], userId: string): Promise<Contact[]>;
+  getAvailableContacts(userId: string, workloadThreshold?: number): Promise<Contact[]>;
+  calculateContactCapacity(contactId: string): Promise<{ currentCapacity: number; maxCapacity: number; availabilityScore: number }>;
+  getContactsForAssignment(requiredSkills: string[], userId: string): Promise<Contact[]>;
 
   // Workflow operations
   getWorkflows(userId: string, filters?: WorkflowFilters): Promise<Workflow[]>;
@@ -165,17 +198,31 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createContact(contact: InsertContact, userId: string): Promise<Contact> {
+    // Convert numeric fields properly for database insertion
+    const contactData = {
+      ...contact,
+      userId,
+      costPerHour: contact.costPerHour ? String(contact.costPerHour) : undefined,
+    };
+    
     const [newContact] = await db
       .insert(contacts)
-      .values({ ...contact, userId })
+      .values(contactData)
       .returning();
     return newContact;
   }
 
   async updateContact(id: string, contact: UpdateContact, userId: string): Promise<Contact | undefined> {
+    // Convert numeric fields properly for database update
+    const updateData = {
+      ...contact,
+      updatedAt: new Date(),
+      costPerHour: contact.costPerHour !== undefined ? String(contact.costPerHour) : undefined,
+    };
+    
     const [updatedContact] = await db
       .update(contacts)
-      .set({ ...contact, updatedAt: new Date() })
+      .set(updateData)
       .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
       .returning();
     return updatedContact;
@@ -515,6 +562,208 @@ export class DatabaseStorage implements IStorage {
     }, userId);
 
     return workflow;
+  }
+  // Contact Skills operations
+  async getContactSkills(contactId: string): Promise<ContactSkill[]> {
+    return await db
+      .select()
+      .from(contactSkills)
+      .where(eq(contactSkills.contactId, contactId))
+      .orderBy(contactSkills.skillName);
+  }
+
+  async createContactSkill(skill: InsertContactSkill): Promise<ContactSkill> {
+    const [newSkill] = await db
+      .insert(contactSkills)
+      .values(skill)
+      .returning();
+    return newSkill;
+  }
+
+  async updateContactSkill(id: string, skill: Partial<InsertContactSkill>): Promise<ContactSkill | undefined> {
+    const [updatedSkill] = await db
+      .update(contactSkills)
+      .set({ ...skill, updatedAt: new Date() })
+      .where(eq(contactSkills.id, id))
+      .returning();
+    return updatedSkill;
+  }
+
+  async deleteContactSkill(id: string): Promise<boolean> {
+    const result = await db
+      .delete(contactSkills)
+      .where(eq(contactSkills.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  // Contact Certifications operations
+  async getContactCertifications(contactId: string): Promise<ContactCertification[]> {
+    return await db
+      .select()
+      .from(contactCertifications)
+      .where(eq(contactCertifications.contactId, contactId))
+      .orderBy(contactCertifications.name);
+  }
+
+  async createContactCertification(certification: InsertContactCertification): Promise<ContactCertification> {
+    const [newCertification] = await db
+      .insert(contactCertifications)
+      .values(certification)
+      .returning();
+    return newCertification;
+  }
+
+  async updateContactCertification(id: string, certification: Partial<InsertContactCertification>): Promise<ContactCertification | undefined> {
+    const [updatedCertification] = await db
+      .update(contactCertifications)
+      .set({ ...certification, updatedAt: new Date() })
+      .where(eq(contactCertifications.id, id))
+      .returning();
+    return updatedCertification;
+  }
+
+  async deleteContactCertification(id: string): Promise<boolean> {
+    const result = await db
+      .delete(contactCertifications)
+      .where(eq(contactCertifications.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  // Contact Availability operations
+  async getContactAvailability(contactId: string): Promise<ContactAvailability[]> {
+    return await db
+      .select()
+      .from(contactAvailability)
+      .where(eq(contactAvailability.contactId, contactId))
+      .orderBy(contactAvailability.dayOfWeek, contactAvailability.startTime);
+  }
+
+  async createContactAvailability(availability: InsertContactAvailability): Promise<ContactAvailability> {
+    const [newAvailability] = await db
+      .insert(contactAvailability)
+      .values(availability)
+      .returning();
+    return newAvailability;
+  }
+
+  async updateContactAvailability(id: string, availability: Partial<InsertContactAvailability>): Promise<ContactAvailability | undefined> {
+    const [updatedAvailability] = await db
+      .update(contactAvailability)
+      .set({ ...availability, updatedAt: new Date() })
+      .where(eq(contactAvailability.id, id))
+      .returning();
+    return updatedAvailability;
+  }
+
+  async deleteContactAvailability(id: string): Promise<boolean> {
+    const result = await db
+      .delete(contactAvailability)
+      .where(eq(contactAvailability.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+  
+  // Enhanced contact operations for workflow matching
+  async getContactsBySkills(skillNames: string[], userId: string): Promise<Contact[]> {
+    // Get contacts that have any of the specified skills
+    const contactsWithSkills = await db
+      .select({
+        contact: contacts,
+      })
+      .from(contacts)
+      .leftJoin(contactSkills, eq(contacts.id, contactSkills.contactId))
+      .where(and(
+        eq(contacts.userId, userId),
+        eq(contacts.isActive, true),
+        eq(contacts.type, 'person'),
+        inArray(contactSkills.skillName, skillNames)
+      ))
+      .groupBy(contacts.id);
+
+    return contactsWithSkills.map(row => row.contact);
+  }
+
+  async getAvailableContacts(userId: string, workloadThreshold: number = 80): Promise<Contact[]> {
+    return await db
+      .select()
+      .from(contacts)
+      .where(and(
+        eq(contacts.userId, userId),
+        eq(contacts.isActive, true),
+        eq(contacts.type, 'person'),
+        eq(contacts.availabilityStatus, 'available')
+      ))
+      .orderBy(contacts.currentWorkload);
+  }
+
+  async calculateContactCapacity(contactId: string): Promise<{ currentCapacity: number; maxCapacity: number; availabilityScore: number }> {
+    const [contact] = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.id, contactId));
+
+    if (!contact) {
+      return { currentCapacity: 0, maxCapacity: 0, availabilityScore: 0 };
+    }
+
+    const currentCapacity = contact.currentWorkload || 0;
+    const maxCapacity = contact.maxConcurrentTasks || 5;
+    const availabilityScore = Math.max(0, (maxCapacity - currentCapacity) / maxCapacity * 100);
+
+    return {
+      currentCapacity,
+      maxCapacity,
+      availabilityScore: Math.round(availabilityScore)
+    };
+  }
+
+  async getContactsForAssignment(requiredSkills: string[], userId: string): Promise<Contact[]> {
+    // Get contacts with matching skills and calculate their suitability
+    const contactsWithSkills = await db
+      .select({
+        contact: contacts,
+        skill: contactSkills,
+      })
+      .from(contacts)
+      .leftJoin(contactSkills, eq(contacts.id, contactSkills.contactId))
+      .where(and(
+        eq(contacts.userId, userId),
+        eq(contacts.isActive, true),
+        eq(contacts.type, 'person'),
+        or(
+          inArray(contactSkills.skillName, requiredSkills),
+          isNull(contactSkills.skillName) // Include contacts without specific skills
+        )
+      ));
+
+    // Group by contact and calculate skill match score
+    const contactMap = new Map<string, Contact>();
+    const skillMatchMap = new Map<string, number>();
+
+    contactsWithSkills.forEach(row => {
+      const contact = row.contact;
+      contactMap.set(contact.id, contact);
+      
+      if (row.skill && requiredSkills.includes(row.skill.skillName)) {
+        const currentScore = skillMatchMap.get(contact.id) || 0;
+        skillMatchMap.set(contact.id, currentScore + 1);
+      }
+    });
+
+    // Convert to array and sort by skill match score and availability
+    const result = Array.from(contactMap.values())
+      .map(contact => ({
+        ...contact,
+        skillMatchScore: skillMatchMap.get(contact.id) || 0,
+      }))
+      .sort((a, b) => {
+        // Sort by skill match first, then by current workload (lower is better)
+        if (a.skillMatchScore !== b.skillMatchScore) {
+          return b.skillMatchScore - a.skillMatchScore;
+        }
+        return (a.currentWorkload || 0) - (b.currentWorkload || 0);
+      });
+
+    return result;
   }
 }
 
