@@ -1,0 +1,72 @@
+1) validateDOMNesting(...): <button> cannot appear as a descendant of <button>
+
+Cause
+<DialogTrigger> + your FormTriggerButton are producing button-in-button markup. With Radix/Shadcn, this commonly happens if:
+
+DialogTrigger is not using asChild, or
+
+The child you give to DialogTrigger ultimately renders a <button>, and it’s itself wrapped by another <button> somewhere inside the trigger component, or
+
+The trigger child isn’t forwardRef-compatible and Radix clones it into its own <button>.
+
+Fix (simple & bullet-proof): inline the Button as the trigger
+Replace your trigger section with a direct shadcn <Button> as the only child of DialogTrigger asChild. Avoid a wrapper component here.
+
+// BEFORE
+<Dialog open={open} onOpenChange={setOpen}>
+  <DialogTrigger asChild>
+    <FormTriggerButton isEditMode={isEditMode} />
+  </DialogTrigger>
+  ...
+</Dialog>
+
+// AFTER (no nesting warnings)
+<Dialog open={open} onOpenChange={setOpen}>
+  <DialogTrigger asChild>
+    {isEditMode ? (
+      <Button variant="outline" size="sm">
+        <Settings className="h-4 w-4 mr-2" />
+        Edit Contact
+      </Button>
+    ) : (
+      <Button className="bg-primary hover:bg-primary-600">
+        <Plus className="h-4 w-4 mr-2" />
+        Add Contact
+      </Button>
+    )}
+  </DialogTrigger>
+  ...
+</Dialog>
+
+
+If you really want to keep FormTriggerButton, make it a ref-forwarding component that can be used directly as the asChild target:
+
+import * as React from "react";
+import { Button } from "@/components/ui/button";
+
+type Props = { isEditMode: boolean } & React.ComponentPropsWithoutRef<"button">;
+
+export const FormTriggerButton = React.forwardRef<HTMLButtonElement, Props>(
+  ({ isEditMode, ...rest }, ref) => {
+    return isEditMode ? (
+      <Button ref={ref} variant="outline" size="sm" {...rest}>
+        <Settings className="h-4 w-4 mr-2" />
+        Edit Contact
+      </Button>
+    ) : (
+      <Button ref={ref} {...rest}>
+        <Plus className="h-4 w-4 mr-2" />
+        Add Contact
+      </Button>
+    );
+  }
+);
+FormTriggerButton.displayName = "FormTriggerButton";
+
+// usage
+<DialogTrigger asChild>
+  <FormTriggerButton isEditMode={isEditMode} />
+</DialogTrigger>
+
+
+Either approach ensures Radix doesn’t add its own <button> and prevents a nested button.

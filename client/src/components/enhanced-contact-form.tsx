@@ -102,22 +102,6 @@ interface EnhancedContactFormProps {
   embedded?: boolean;
 }
 
-/**
- * Hoisted trigger button – stable component type
- */
-function FormTriggerButton({ isEditMode }: { isEditMode: boolean }) {
-  return isEditMode ? (
-    <Button variant="outline" size="sm">
-      <Settings className="h-4 w-4 mr-2" />
-      Edit Contact
-    </Button>
-  ) : (
-    <Button className="bg-primary hover:bg-primary-600">
-      <Plus className="h-4 w-4 mr-2" />
-      Add Contact
-    </Button>
-  );
-}
 
 type FormContentProps = {
   form: UseFormReturn<EnhancedFormData> | any;
@@ -1393,8 +1377,18 @@ export default function EnhancedContactForm({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger>
-        <FormTriggerButton isEditMode={isEditMode} />
+      <DialogTrigger asChild>
+        {isEditMode ? (
+          <Button variant="outline" size="sm">
+            <Settings className="h-4 w-4 mr-2" />
+            Edit Contact
+          </Button>
+        ) : (
+          <Button className="bg-primary hover:bg-primary-600">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Contact
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
