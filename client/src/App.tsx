@@ -34,6 +34,7 @@ function Router() {
           <Route path="/test-contacts" component={TestContactIntegration} />
           <Route path="/assignment-engine" component={AssignmentEnginePage} />
           <Route path="/enhanced-contacts" component={EnhancedContactDemo} />
+          <Route path="/data-quality" component={DataQualityDashboardPage} />
         </>
       )}
       <Route component={NotFound} />
