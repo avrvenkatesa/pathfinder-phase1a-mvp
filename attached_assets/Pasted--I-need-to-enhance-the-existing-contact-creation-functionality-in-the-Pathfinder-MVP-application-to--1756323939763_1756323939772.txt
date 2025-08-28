@@ -1,0 +1,201 @@
+ I need to enhance the existing contact creation functionality in the Pathfinder MVP application to include workflow-specific fields. The application currently has basic contact
+  management, and we need to add workflow context fields.
+
+  ## Current State:
+  - The application is using a microservices architecture
+  - Contact service exists on port 3001
+  - Using PostgreSQL database
+  - JWT authentication is already implemented
+  - Basic contact CRUD operations exist
+
+  ## Requirements:
+
+  ### 1. Database Schema Updates
+  Add the following new fields to the contacts table:
+
+  ```sql
+  -- Add to existing contacts table
+  ALTER TABLE contacts ADD COLUMN IF NOT EXISTS workflow_role VARCHAR(50) CHECK (workflow_role IN ('approver', 'executor', 'reviewer', 'observer'));
+  ALTER TABLE contacts ADD COLUMN IF NOT EXISTS max_concurrent_tasks INTEGER DEFAULT 5;
+  ALTER TABLE contacts ADD COLUMN IF NOT EXISTS skill_proficiency JSONB DEFAULT '{}';
+  ALTER TABLE contacts ADD COLUMN IF NOT EXISTS certifications JSONB DEFAULT '[]';
+  ALTER TABLE contacts ADD COLUMN IF NOT EXISTS cost_per_hour DECIMAL(10,2);
+  ALTER TABLE contacts ADD COLUMN IF NOT EXISTS timezone VARCHAR(100);
+  ALTER TABLE contacts ADD COLUMN IF NOT EXISTS languages TEXT[] DEFAULT '{}';
+  ALTER TABLE contacts ADD COLUMN IF NOT EXISTS availability_hours JSONB DEFAULT '{}';
+  ALTER TABLE contacts ADD COLUMN IF NOT EXISTS current_workload INTEGER DEFAULT 0;
+
+  2. Backend API Updates
+
+  Update the contact service API endpoints:
+
+  POST /api/contacts - Enhanced contact creation
+  // Request body should accept:
+  {
+    // Existing fields
+    "firstName": "string",
+    "lastName": "string",
+    "email": "string",
+    "phone": "string",
+    "company": "string",
+
+    // New workflow fields
+    "workflowRole": "approver|executor|reviewer|observer",
+    "maxConcurrentTasks": 5,
+    "skillProficiency": {
+      "javascript": "expert",
+      "python": "intermediate",
+      "projectManagement": "advanced"
+    },
+    "certifications": [
+      {
+        "name": "PMP",
+        "issuer": "PMI",
+        "expiry": "2025-12-31"
+      }
+    ],
+    "costPerHour": 150.00,
+    "timezone": "America/New_York",
+    "languages": ["English", "Spanish"],
+    "availabilityHours": {
+      "monday": {"start": "09:00", "end": "17:00"},
+      "tuesday": {"start": "09:00", "end": "17:00"}
+    }
+  }
+
+  GET /api/contacts/:id - Include new fields in response
+  PUT /api/contacts/:id - Allow updating new fields
+  GET /api/contacts/workflow-assignments/:contactId - Preview workflow assignments
+
+  3. Validation Rules
+
+  Implement these validation rules:
+  - workflowRole: Must be one of the allowed values
+  - maxConcurrentTasks: Must be between 1 and 50
+  - skillProficiency: Values must be 'beginner', 'intermediate', 'advanced', or 'expert'
+  - certifications.expiry: Must be a valid future date
+  - costPerHour: Must be positive number
+  - timezone: Validate against Intl.supportedValuesOf('timeZone')
+  - languages: At least one language required
+
+  4. Frontend UI Updates
+
+  Create/update the contact form with these sections:
+
+  Basic Information Section (existing)
+
+  - First Name, Last Name
+  - Email, Phone
+  - Company
+
+  Workflow Context Section (new)
+
+  // Add collapsible section with:
+  - Workflow Role dropdown
+  - Max Concurrent Tasks slider (1-50)
+  - Availability Calendar widget showing weekly schedule
+  - Cost per Hour input with currency formatting
+  - Timezone selector (use react-timezone-select)
+  - Languages multi-select
+
+  Skills & Certifications Section (new)
+
+  // Skill Proficiency Matrix component:
+  - Add skill button
+  - For each skill: name + proficiency level selector
+  - Visual proficiency indicators (progress bars or stars)
+
+  // Certifications list:
+  - Add certification button
+  - For each: name, issuer, expiry date
+  - Visual expiry warnings for soon-to-expire certs
+
+  Workflow Assignment Preview Section (new)
+
+  // Show real-time preview:
+  - Capacity calculation based on availability and current workload
+  - Potential workflow assignments this contact could handle
+  - Conflict detection with existing assignments
+  - Recommended workflows based on skills
+
+  5. Business Logic Implementation
+
+  Add these helper functions:
+  // Calculate available capacity
+  function calculateCapacity(contact) {
+    const weeklyHours = calculateWeeklyHours(contact.availabilityHours);
+    const utilizationRate = contact.currentWorkload / contact.maxConcurrentTasks;
+    return {
+      weeklyHours,
+      utilizationRate,
+      availableSlots: contact.maxConcurrentTasks - contact.currentWorkload
+    };
+  }
+
+  // Check for assignment conflicts
+  function checkAssignmentConflicts(contact, workflow) {
+    // Check timezone compatibility
+    // Check skill requirements
+    // Check availability
+    // Return conflicts array
+  }
+
+  // Match contact to workflows
+  function getRecommendedWorkflows(contact, workflows) {
+    // Score workflows based on:
+    // - Skill match percentage
+    // - Availability match
+    // - Role compatibility
+    // Return sorted list
+  }
+
+  6. Integration Points
+
+  - Integrate with existing authentication (JWT)
+  - Maintain backward compatibility with existing contact endpoints
+  - Add audit logging for contact changes
+  - Emit events for workflow service integration:
+    - 'contact.created'
+    - 'contact.updated'
+    - 'contact.skills.changed'
+
+  7. Testing Requirements
+
+  Create unit tests for:
+  - Schema validation
+  - Capacity calculation
+  - Conflict detection
+  - Skill matching algorithm
+
+  Create integration tests for:
+  - Full contact creation flow
+  - Workflow assignment preview
+  - Skill proficiency updates
+
+  8. UI/UX Requirements
+
+  - Use existing UI component library (shadcn/ui)
+  - Add loading states for all async operations
+  - Show validation errors inline
+  - Add tooltips explaining workflow fields
+  - Responsive design for mobile/tablet
+  - Keyboard navigation support
+
+  9. Performance Considerations
+
+  - Index new JSONB fields for search
+  - Lazy load certification and skill data
+  - Cache timezone data
+  - Debounce capacity calculations
+
+  10. Migration Strategy
+
+  1. Run database migrations to add new columns
+  2. Set default values for existing contacts
+  3. Create data migration script for any existing workflow data
+  4. Update API documentation
+  5. Deploy backend changes first
+  6. Deploy frontend changes
+
+  Please implement this enhancement maintaining the existing microservices architecture and ensuring all new fields are properly integrated with the workflow management context. Make sure
+  to handle edge cases and provide proper error messages.

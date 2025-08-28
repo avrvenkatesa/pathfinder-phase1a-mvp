@@ -9,6 +9,8 @@ import {
   varchar,
   pgEnum,
   boolean,
+  integer,
+  decimal,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -49,6 +51,12 @@ export const availabilityStatusEnum = pgEnum("availability_status", ["available"
 // Role preference enum
 export const rolePreferenceEnum = pgEnum("role_preference", ["leader", "contributor", "specialist", "advisor", "any"]);
 
+// Workflow role enum
+export const workflowRoleEnum = pgEnum("workflow_role", ["approver", "executor", "reviewer", "observer"]);
+
+// Skill proficiency level enum
+export const proficiencyLevelEnum = pgEnum("proficiency_level", ["beginner", "intermediate", "advanced", "expert"]);
+
 // Main contacts table with hierarchical structure
 export const contacts = pgTable("contacts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -76,12 +84,25 @@ export const contacts = pgTable("contacts", {
   // Skills & Availability
   skills: text("skills").array().default([]),
   availabilityStatus: availabilityStatusEnum("availability_status").default("available"),
-  preferredWorkHours: varchar("preferred_work_hours"), // e.g., "9am-5pm EST"
+  preferredWorkHours: varchar("preferred_work_hours"), // Legacy field, kept for compatibility
+  workStartTime: varchar("work_start_time"), // e.g., "09:00"
+  workEndTime: varchar("work_end_time"), // e.g., "17:00"  
+  workTimezone: varchar("work_timezone").default("UTC"), // Timezone for work hours
   
   // Workflow Preferences
   rolePreference: rolePreferenceEnum("role_preference").default("any"),
   projectTypes: text("project_types").array().default([]),
   assignmentCapacity: varchar("assignment_capacity").default("normal"), // low, normal, high
+  
+  // Enhanced Workflow Fields
+  workflowRole: workflowRoleEnum("workflow_role"),
+  maxConcurrentTasks: integer("max_concurrent_tasks").default(5),
+  costPerHour: decimal("cost_per_hour", { precision: 10, scale: 2 }),
+  timezone: varchar("timezone").default("UTC"),
+  languages: text("languages").array().default(["English"]),
+  currentWorkload: integer("current_workload").default(0),
+  skillProficiency: jsonb("skill_proficiency"), // JSON object mapping skills to proficiency levels
+  certifications: jsonb("certifications"), // Array of certification objects
   
   // Legacy/General
   tags: text("tags").array().default([]),
@@ -112,6 +133,47 @@ export const contactActivities = pgTable("contact_activities", {
   metadata: jsonb("metadata"), // JSON data for additional context
   createdAt: timestamp("created_at").defaultNow(),
   userId: varchar("user_id").notNull(),
+});
+
+// Contact skills with proficiency levels
+export const contactSkills = pgTable("contact_skills", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull(),
+  skillName: varchar("skill_name").notNull(),
+  proficiencyLevel: proficiencyLevelEnum("proficiency_level").notNull().default("intermediate"),
+  yearsExperience: integer("years_experience"),
+  isCertified: boolean("is_certified").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Contact certifications
+export const contactCertifications = pgTable("contact_certifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull(),
+  name: varchar("name").notNull(),
+  issuer: varchar("issuer").notNull(),
+  issueDate: timestamp("issue_date"),
+  expiryDate: timestamp("expiry_date"),
+  credentialId: varchar("credential_id"),
+  verificationUrl: varchar("verification_url"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Contact weekly availability schedule
+export const contactAvailability = pgTable("contact_availability", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull(),
+  dayOfWeek: integer("day_of_week").notNull(), // 0 = Sunday, 1 = Monday, etc.
+  startTime: varchar("start_time").notNull(), // "09:00"
+  endTime: varchar("end_time").notNull(), // "17:00"
+  isAvailable: boolean("is_available").default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Relationship types enum
@@ -164,6 +226,30 @@ export const contactsRelations = relations(contacts, ({ one, many }) => ({
   relationshipsFrom: many(contactRelationships, { relationName: "from_relationship" }),
   relationshipsTo: many(contactRelationships, { relationName: "to_relationship" }),
   hierarchyChanges: many(hierarchyChanges),
+  skills: many(contactSkills),
+  certifications: many(contactCertifications),
+  availability: many(contactAvailability),
+}));
+
+export const contactSkillsRelations = relations(contactSkills, ({ one }) => ({
+  contact: one(contacts, {
+    fields: [contactSkills.contactId],
+    references: [contacts.id],
+  }),
+}));
+
+export const contactCertificationsRelations = relations(contactCertifications, ({ one }) => ({
+  contact: one(contacts, {
+    fields: [contactCertifications.contactId],
+    references: [contacts.id],
+  }),
+}));
+
+export const contactAvailabilityRelations = relations(contactAvailability, ({ one }) => ({
+  contact: one(contacts, {
+    fields: [contactAvailability.contactId],
+    references: [contacts.id],
+  }),
 }));
 
 export const contactRelationshipsRelations = relations(contactRelationships, ({ one }) => ({
@@ -232,6 +318,24 @@ export const insertContactSchema = createInsertSchema(contacts).omit({
   skills: z.array(z.string()).default([]),
   projectTypes: z.array(z.string()).default([]),
   tags: z.array(z.string()).default([]),
+  languages: z.array(z.string()).default(["English"]),
+  // Work schedule validation
+  workStartTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format").optional().or(z.literal("")),
+  workEndTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format").optional().or(z.literal("")),
+  workTimezone: z.string().default("UTC"),
+  // Workflow field validations  
+  maxConcurrentTasks: z.number().min(1).max(50).default(5),
+  costPerHour: z.number().positive().optional(),
+  timezone: z.string().default("UTC"), // Primary contact timezone for scheduling
+  currentWorkload: z.number().min(0).default(0),
+  // Skill proficiency validation
+  skillProficiency: z.record(z.enum(["beginner", "intermediate", "advanced", "expert"])).optional(),
+  // Certifications validation
+  certifications: z.array(z.object({
+    name: z.string().min(1, "Certification name is required"),
+    issuer: z.string().min(1, "Certification issuer is required"),
+    expiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional()
+  })).optional(),
 });
 
 export const updateContactSchema = insertContactSchema.partial();
@@ -242,6 +346,40 @@ export const insertWorkflowAssignmentSchema = createInsertSchema(workflowAssignm
   assignedAt: true,
 });
 
+// Contact skills schemas
+export const insertContactSkillSchema = createInsertSchema(contactSkills).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateContactSkillSchema = insertContactSkillSchema.partial();
+
+// Contact certification schemas
+export const insertContactCertificationSchema = createInsertSchema(contactCertifications).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  expiryDate: z.date().optional(),
+  issueDate: z.date().optional(),
+});
+
+export const updateContactCertificationSchema = insertContactCertificationSchema.partial();
+
+// Contact availability schemas
+export const insertContactAvailabilitySchema = createInsertSchema(contactAvailability).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  dayOfWeek: z.number().min(0).max(6),
+  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+});
+
+export const updateContactAvailabilitySchema = insertContactAvailabilitySchema.partial();
+
 export const insertContactActivitySchema = createInsertSchema(contactActivities).omit({
   id: true,
   createdAt: true,
@@ -250,6 +388,15 @@ export const insertContactActivitySchema = createInsertSchema(contactActivities)
 // Type exports
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+export type ContactSkill = typeof contactSkills.$inferSelect;
+export type InsertContactSkill = typeof contactSkills.$inferInsert;
+
+export type ContactCertification = typeof contactCertifications.$inferSelect;
+export type InsertContactCertification = typeof contactCertifications.$inferInsert;
+
+export type ContactAvailability = typeof contactAvailability.$inferSelect;
+export type InsertContactAvailability = typeof contactAvailability.$inferInsert;
 export type Contact = typeof contacts.$inferSelect & {
   parent?: Contact | null;
   children?: Contact[];
