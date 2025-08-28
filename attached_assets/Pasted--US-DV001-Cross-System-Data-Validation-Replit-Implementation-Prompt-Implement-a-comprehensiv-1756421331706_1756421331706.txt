@@ -1,0 +1,207 @@
+ US-DV001: Cross-System Data Validation - Replit Implementation Prompt
+
+  Implement a comprehensive data validation framework for the Pathfinder platform with real-time and asynchronous validation capabilities:
+
+  CONTEXT:
+  - Building on the completed US-C001 contact management system
+  - Need validation across contact and workflow domains
+  - Support both synchronous and asynchronous validation patterns
+  - Integrate with existing microservices architecture
+
+  1. CREATE VALIDATION SERVICE FOUNDATION:
+
+  File: services/validation-service/src/validationService.ts
+  - ValidationService class with sync/async validation methods
+  - Rule engine with configurable validation rules
+  - Custom validation rule builder interface
+  - Validation result aggregation and reporting
+  - Rule versioning and migration support
+
+  Data Model (add to database):
+  ```sql
+  CREATE TABLE validation_rules (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    domain VARCHAR(100) NOT NULL, -- 'contact', 'workflow', 'cross-system'
+    rule_type VARCHAR(100) NOT NULL, -- 'sync', 'async', 'batch'
+    rule_definition JSONB NOT NULL,
+    version INTEGER DEFAULT 1,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+
+  CREATE TABLE validation_results (
+    id SERIAL PRIMARY KEY,
+    entity_type VARCHAR(100) NOT NULL,
+    entity_id VARCHAR(255) NOT NULL,
+    rule_id INTEGER REFERENCES validation_rules(id),
+    is_valid BOOLEAN NOT NULL,
+    error_message TEXT,
+    severity VARCHAR(20) DEFAULT 'error', -- 'error', 'warning', 'info'
+    validated_at TIMESTAMP DEFAULT NOW()
+  );
+
+  2. IMPLEMENT CORE VALIDATION RULES:
+
+  Contact Domain Rules:
+  - Email uniqueness across all contact types (async)
+  - Parent-child relationship integrity (sync)
+  - Skill consistency across hierarchy (async)
+  - No circular dependencies in relationships (sync)
+  - Required fields based on contact type (sync)
+  - Phone number format validation (sync)
+  - Address completeness validation (sync)
+
+  Workflow Domain Rules:
+  - Contact availability vs assignment conflicts (async)
+  - Required skills vs contact skills matching (async)
+  - Workload capacity checks (async)
+  - Deadline feasibility validation (async)
+  - Step dependency validation (sync)
+  - Resource allocation validation (async)
+
+  Cross-System Rules:
+  - Contact assignment capacity vs workflow demands (async)
+  - Skill proficiency requirements vs available contacts (async)
+  - Timeline conflicts across multiple workflows (async)
+
+  3. BUILD VALIDATION MIDDLEWARE:
+
+  File: services/validation-service/src/middleware/validationMiddleware.ts
+  - Pre-save validation hooks for all entities
+  - Bulk operation validation for imports
+  - Cross-reference validation between services
+  - Async validation queue processing
+  - Validation result caching
+
+  Integration points:
+  - Contact service: validate before create/update
+  - Workflow service: validate assignments and capacity
+  - API Gateway: validation middleware for all requests
+
+  4. CREATE VALIDATION UI COMPONENTS:
+
+  Files:
+  - client/src/components/validation/ValidationFeedback.tsx
+  - client/src/components/validation/ValidationSummary.tsx
+  - client/src/components/validation/DataQualityDashboard.tsx
+  - client/src/components/validation/BulkValidationReport.tsx
+
+  Features:
+  - Real-time validation feedback as user types
+  - Validation error summary panel with severity levels
+  - Bulk validation report generator with export
+  - Data quality dashboard with metrics and trends
+  - Validation rule configuration interface
+
+  5. VALIDATION MONITORING SYSTEM:
+
+  File: services/validation-service/src/monitoring/validationMonitor.ts
+  - Track validation failure rates by rule and domain
+  - Log validation rule violations with context
+  - Alert system for data quality degradation
+  - Generate daily/weekly validation reports
+  - Performance metrics for validation operations
+
+  Dashboard metrics:
+  - Total validations performed
+  - Success rate by domain
+  - Top failing validation rules
+  - Validation response times
+  - Data quality score trends
+
+  6. API ENDPOINTS:
+
+  Create these endpoints in services/validation-service/src/routes/validation.ts:
+
+  // Real-time validation
+  POST /api/validation/validate-entity
+  Body: { entityType: string, data: object, rules?: string[] }
+  Response: { isValid: boolean, errors: ValidationError[], warnings: ValidationWarning[] }
+
+  // Bulk validation
+  POST /api/validation/validate-bulk
+  Body: { entities: Array<{type: string, data: object}> }
+  Response: { results: ValidationResult[], summary: ValidationSummary }
+
+  // Validation rules management
+  GET /api/validation/rules
+  POST /api/validation/rules
+  PUT /api/validation/rules/:id
+  DELETE /api/validation/rules/:id
+
+  // Validation reports
+  GET /api/validation/reports/data-quality
+  GET /api/validation/reports/failures
+  GET /api/validation/reports/performance
+
+  7. INTEGRATION WITH EXISTING SERVICES:
+
+  Contact Service Integration:
+  - Add validation calls before contact create/update
+  - Validate workflow field assignments
+  - Check relationship integrity
+
+  Workflow Service Integration:
+  - Validate contact assignments against capacity
+  - Check skill requirements vs available contacts
+  - Validate timeline feasibility
+
+  Frontend Integration:
+  - Add validation feedback to all forms
+  - Show validation status in contact/workflow lists
+  - Display data quality metrics in dashboard
+
+  8. TESTING REQUIREMENTS:
+
+  Create comprehensive tests:
+  - Unit tests for validation rules
+  - Integration tests for service communication
+  - Performance tests for bulk validation
+  - UI tests for validation feedback
+  - End-to-end tests for validation workflows
+
+  Test data scenarios:
+  - Valid contact with all required fields
+  - Invalid contact with circular parent relationship
+  - Workflow with overallocated contacts
+  - Bulk import with mixed valid/invalid data
+
+  9. CONFIGURATION AND SETUP:
+
+  Environment variables:
+  - VALIDATION_SERVICE_PORT=3004
+  - VALIDATION_CACHE_TTL=300
+  - ASYNC_VALIDATION_QUEUE_SIZE=1000
+  - VALIDATION_ALERT_THRESHOLD=10
+
+  Dependencies to add:
+  - joi or yup for schema validation
+  - bull or agenda for async validation queue
+  - node-cron for scheduled validations
+  - lodash for data manipulation
+
+  10. ERROR HANDLING AND PERFORMANCE:
+
+  - Graceful degradation when validation service is unavailable
+  - Caching of validation results for performance
+  - Circuit breaker pattern for external validations
+  - Rate limiting for validation requests
+  - Batch processing for bulk validations
+
+  DELIVERABLES:
+  1. Complete validation service with all rules implemented
+  2. UI components with real-time validation feedback
+  3. Monitoring dashboard with data quality metrics
+  4. Integration with existing contact and workflow services
+  5. Comprehensive test suite
+  6. Documentation for adding new validation rules
+
+  SUCCESS CRITERIA:
+  - All contact forms show real-time validation
+  - Bulk imports are validated before processing
+  - Data quality dashboard shows current metrics
+  - Validation rules can be configured without code changes
+  - System performance is maintained with validation enabled
+
+  This implementation should provide a robust foundation for maintaining data integrity across the entire Pathfinder platform.

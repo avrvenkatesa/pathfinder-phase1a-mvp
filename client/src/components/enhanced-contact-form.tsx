@@ -38,6 +38,8 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Contact, InsertContact } from "@shared/schema";
 import { z } from "zod";
 import { X, Plus, Save, User, Building, Settings, Clock, Briefcase } from "lucide-react";
+import { ValidationFeedback } from "@/components/validation/ValidationFeedback";
+import { validationService, ValidationResult } from "@/services/validationService";
 
 const enhancedFormSchema = insertContactSchema.extend({
   name: z.string().min(1, "Name is required"),
@@ -121,6 +123,8 @@ type FormContentProps = {
   handlePrevious: () => void;
   handleNext: () => void;
   onSubmit: (data: EnhancedFormData) => void;
+  validationResults: ValidationResult;
+  isValidating: boolean;
 };
 
 /**
@@ -144,10 +148,21 @@ function FormContent({
   handlePrevious,
   handleNext,
   onSubmit,
+  validationResults,
+  isValidating,
 }: FormContentProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Real-time validation feedback */}
+        <ValidationFeedback
+          errors={validationResults.errors}
+          warnings={validationResults.warnings}
+          isValid={validationResults.isValid}
+          isValidating={isValidating}
+          className="mb-4"
+        />
+
         <Tabs value={currentStep} onValueChange={setCurrentStep}>
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="basic" className="flex items-center gap-1">
@@ -1071,6 +1086,12 @@ export default function EnhancedContactForm({
   const [open, setOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState("basic");
   const [isDraft, setIsDraft] = useState(false);
+  const [validationResults, setValidationResults] = useState<ValidationResult>({
+    isValid: true,
+    errors: [],
+    warnings: []
+  });
+  const [isValidating, setIsValidating] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -1232,7 +1253,59 @@ export default function EnhancedContactForm({
     },
   });
 
-  const onSubmit = (data: EnhancedFormData) => {
+  // Real-time validation function
+  const validateFormData = useCallback(async (data: Partial<EnhancedFormData>) => {
+    if (!data.name && !data.email && !data.type) return; // Skip validation for empty forms
+    
+    setIsValidating(true);
+    try {
+      const result = await validationService.validateEntity('contact', data);
+      setValidationResults(result);
+      
+      // Show validation warnings in toast if any
+      if (result.warnings.length > 0) {
+        toast({
+          title: "Validation Warnings",
+          description: `${result.warnings.length} warning(s) found`,
+          variant: "default",
+        });
+      }
+    } catch (error) {
+      console.error('Validation error:', error);
+    } finally {
+      setIsValidating(false);
+    }
+  }, [toast]);
+
+  // Watch for form changes and validate
+  useEffect(() => {
+    const subscription = form.watch((data) => {
+      // Debounce validation to avoid too many API calls
+      const timeoutId = setTimeout(() => {
+        validateFormData(data);
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form, validateFormData]);
+
+  const onSubmit = async (data: EnhancedFormData) => {
+    // Final validation before submission
+    setIsValidating(true);
+    const finalValidation = await validationService.validateEntity('contact', data);
+    setIsValidating(false);
+    
+    if (!finalValidation.isValid) {
+      toast({
+        title: "Validation Failed",
+        description: "Please fix the validation errors before submitting",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const submitData: InsertContact = {
       ...data,
       parentId: data.parentId && data.parentId !== "none" ? data.parentId : undefined,
@@ -1372,6 +1445,8 @@ export default function EnhancedContactForm({
           handlePrevious={handlePrevious}
           handleNext={handleNext}
           onSubmit={onSubmit}
+          validationResults={validationResults}
+          isValidating={isValidating}
         />
       </div>
     );
@@ -1427,6 +1502,8 @@ export default function EnhancedContactForm({
           handlePrevious={handlePrevious}
           handleNext={handleNext}
           onSubmit={onSubmit}
+          validationResults={validationResults}
+          isValidating={isValidating}
         />
       </DialogContent>
     </Dialog>

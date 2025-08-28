@@ -23,6 +23,10 @@ const services = {
     target: `http://localhost:${process.env.WORKFLOW_SERVICE_PORT || 3002}`,
     pathPrefix: '/api/workflow-instances',
   },
+  validation: {
+    target: `http://localhost:${process.env.VALIDATION_SERVICE_PORT || 3004}`,
+    pathPrefix: '/api/validation',
+  },
 };
 
 export function setupProxies(app: express.Express) {
@@ -185,10 +189,43 @@ export function setupProxies(app: express.Express) {
     })
   );
 
+  // Validation service proxy - with auth middleware
+  console.log(`Setting up proxy for ${services.validation.pathPrefix} -> ${services.validation.target}`);
+  app.use(
+    services.validation.pathPrefix,
+    authMiddleware,
+    createProxyMiddleware({
+      target: services.validation.target,
+      changeOrigin: true,
+      pathRewrite: {
+        // Keep the full path including /api/validation
+        ['^' + services.validation.pathPrefix]: services.validation.pathPrefix,
+      },
+      onError: (err, req, res) => {
+        console.error(`[VALIDATION PROXY ERROR] ${req.method} ${req.originalUrl}:`, err.message);
+        (res as express.Response).status(503).json({
+          success: false,
+          error: 'SERVICE_UNAVAILABLE',
+          message: 'Validation service is currently unavailable',
+          service: 'validation-service',
+        });
+      },
+      onProxyReq: (proxyReq, req, res) => {
+        // Add user ID header for validation service
+        const userId = (req as any).userId;
+        if (userId) {
+          proxyReq.setHeader('x-user-id', userId);
+        }
+        console.log(`[VALIDATION PROXY] ${req.method} ${req.originalUrl} -> ${services.validation.target}${req.url}`);
+      },
+    })
+  );
+
   console.log('✅ Service proxies configured:');
   console.log(`   Auth Service: ${services.auth.pathPrefix} -> ${services.auth.target}`);
   console.log(`   Contact Service: ${services.contact.pathPrefix} -> ${services.contact.target}`);
   console.log(`   Workflow Service: ${services.workflow.pathPrefix} -> ${services.workflow.target}`);
   console.log(`   Workflow Templates: ${services.workflowTemplates.pathPrefix} -> ${services.workflowTemplates.target}`);
   console.log(`   Workflow Instances: ${services.workflowInstances.pathPrefix} -> ${services.workflowInstances.target}`);
+  console.log(`   Validation Service: ${services.validation.pathPrefix} -> ${services.validation.target}`);
 }
