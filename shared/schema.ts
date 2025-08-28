@@ -84,7 +84,10 @@ export const contacts = pgTable("contacts", {
   // Skills & Availability
   skills: text("skills").array().default([]),
   availabilityStatus: availabilityStatusEnum("availability_status").default("available"),
-  preferredWorkHours: varchar("preferred_work_hours"), // e.g., "9am-5pm EST"
+  preferredWorkHours: varchar("preferred_work_hours"), // Legacy field, kept for compatibility
+  workStartTime: varchar("work_start_time"), // e.g., "09:00"
+  workEndTime: varchar("work_end_time"), // e.g., "17:00"  
+  workTimezone: varchar("work_timezone").default("UTC"), // Timezone for work hours
   
   // Workflow Preferences
   rolePreference: rolePreferenceEnum("role_preference").default("any"),
@@ -314,10 +317,14 @@ export const insertContactSchema = createInsertSchema(contacts).omit({
   projectTypes: z.array(z.string()).default([]),
   tags: z.array(z.string()).default([]),
   languages: z.array(z.string()).default(["English"]),
-  // Workflow field validations
+  // Work schedule validation
+  workStartTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format").optional().or(z.literal("")),
+  workEndTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format").optional().or(z.literal("")),
+  workTimezone: z.string().default("UTC"),
+  // Workflow field validations  
   maxConcurrentTasks: z.number().min(1).max(50).default(5),
   costPerHour: z.number().positive().optional(),
-  timezone: z.string().default("UTC"),
+  timezone: z.string().default("UTC"), // Primary contact timezone for scheduling
   currentWorkload: z.number().min(0).default(0),
 });
 

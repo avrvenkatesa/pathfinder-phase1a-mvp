@@ -63,6 +63,9 @@ const enhancedFormSchema = insertContactSchema.extend({
     .enum(["available", "busy", "partially_available", "unavailable"])
     .default("available"),
   preferredWorkHours: z.string().optional(),
+  workStartTime: z.string().optional(),
+  workEndTime: z.string().optional(),
+  workTimezone: z.string().default("UTC"),
   rolePreference: z
     .enum(["leader", "contributor", "specialist", "advisor", "any"])
     .default("any"),
@@ -451,17 +454,83 @@ function FormContent({
 
                   <FormField
                     control={form.control}
-                    name="preferredWorkHours"
+                    name="workTimezone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Preferred Work Hours</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., 9am-5pm EST" {...field} value={field.value || ""} />
-                        </FormControl>
+                        <FormLabel className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          Work Timezone
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value || "UTC"}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select timezone" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="UTC">UTC (Coordinated Universal Time)</SelectItem>
+                            <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
+                            <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
+                            <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
+                            <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
+                            <SelectItem value="Europe/London">London (GMT/BST)</SelectItem>
+                            <SelectItem value="Europe/Paris">Paris (CET/CEST)</SelectItem>
+                            <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
+                            <SelectItem value="Asia/Shanghai">Shanghai (CST)</SelectItem>
+                            <SelectItem value="Australia/Sydney">Sydney (AEST/AEDT)</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <FormLabel className="flex items-center gap-1 mb-3">
+                      <Clock className="h-4 w-4" />
+                      Preferred Work Hours
+                    </FormLabel>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="workStartTime"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Start Time</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="time" 
+                                {...field} 
+                                value={field.value || "09:00"}
+                                className="w-full"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="workEndTime"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>End Time</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="time" 
+                                {...field} 
+                                value={field.value || "17:00"}
+                                className="w-full"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -674,10 +743,32 @@ function FormContent({
                       name="timezone"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Timezone</FormLabel>
-                          <FormControl>
-                            <Input placeholder="UTC" {...field} value={field.value || ""} />
-                          </FormControl>
+                          <FormLabel className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            Primary Timezone
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value || "UTC"}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select primary timezone" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="UTC">UTC (Coordinated Universal Time)</SelectItem>
+                              <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
+                              <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
+                              <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
+                              <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
+                              <SelectItem value="Europe/London">London (GMT/BST)</SelectItem>
+                              <SelectItem value="Europe/Paris">Paris (CET/CEST)</SelectItem>
+                              <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
+                              <SelectItem value="Asia/Shanghai">Shanghai (CST)</SelectItem>
+                              <SelectItem value="Australia/Sydney">Sydney (AEST/AEDT)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Primary timezone for scheduling meetings and general availability
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -844,6 +935,9 @@ export default function EnhancedContactForm({
           skills: contact.skills || [],
           availabilityStatus: contact.availabilityStatus || "available",
           preferredWorkHours: contact.preferredWorkHours || "",
+          workStartTime: contact.workStartTime || "09:00",
+          workEndTime: contact.workEndTime || "17:00",
+          workTimezone: contact.workTimezone || "UTC",
           rolePreference: contact.rolePreference || "any",
           projectTypes: contact.projectTypes || [],
           assignmentCapacity: (contact.assignmentCapacity as "low" | "normal" | "high") || "normal",
@@ -874,6 +968,9 @@ export default function EnhancedContactForm({
           skills: [],
           availabilityStatus: "available",
           preferredWorkHours: "",
+          workStartTime: "09:00",
+          workEndTime: "17:00",
+          workTimezone: "UTC",
           rolePreference: "any",
           projectTypes: [],
           assignmentCapacity: "normal",
