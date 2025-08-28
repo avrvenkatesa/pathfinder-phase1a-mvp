@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from "react";
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -274,29 +274,63 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
   // Form progress calculation - static to prevent re-renders
   const progress = 33; // Static progress to prevent form re-renders
 
-  // Memoized input components to prevent re-renders
-  const MemoizedNameInput = memo(({ field }: { field: any }) => (
-    <Input 
-      placeholder="Enter full name..." 
-      value={field.value ?? ""} 
-      onChange={(e) => field.onChange(e.target.value)}
-      onBlur={field.onBlur}
-      name={field.name}
-      ref={field.ref}
-    />
-  ));
+  // Custom stable input components with refs to maintain focus
+  const StableNameInput = ({ field }: { field: any }) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const [localValue, setLocalValue] = useState(field.value ?? "");
+    
+    const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = e.target.value;
+      setLocalValue(newValue);
+      field.onChange(newValue);
+    }, [field]);
+    
+    useEffect(() => {
+      if (field.value !== localValue) {
+        setLocalValue(field.value ?? "");
+      }
+    }, [field.value]);
+    
+    return (
+      <Input 
+        ref={inputRef}
+        placeholder="Enter full name..." 
+        value={localValue}
+        onChange={handleChange}
+        onBlur={field.onBlur}
+        name={field.name}
+      />
+    );
+  };
 
-  const MemoizedDescriptionInput = memo(({ field }: { field: any }) => (
-    <Textarea 
-      placeholder="Enter description..." 
-      value={field.value ?? ""} 
-      rows={3}
-      onChange={(e) => field.onChange(e.target.value)}
-      onBlur={field.onBlur}
-      name={field.name}
-      ref={field.ref}
-    />
-  ));
+  const StableDescriptionInput = ({ field }: { field: any }) => {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [localValue, setLocalValue] = useState(field.value ?? "");
+    
+    const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newValue = e.target.value;
+      setLocalValue(newValue);
+      field.onChange(newValue);
+    }, [field]);
+    
+    useEffect(() => {
+      if (field.value !== localValue) {
+        setLocalValue(field.value ?? "");
+      }
+    }, [field.value]);
+    
+    return (
+      <Textarea 
+        ref={textareaRef}
+        placeholder="Enter description..." 
+        value={localValue}
+        rows={3}
+        onChange={handleChange}
+        onBlur={field.onBlur}
+        name={field.name}
+      />
+    );
+  };
 
   // Skill and tag management functions
   const addSkill = (skill: string) => {
@@ -442,7 +476,7 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
                           <span className="text-red-500 font-medium">*</span>
                         </FormLabel>
                         <FormControl>
-                          <MemoizedNameInput field={field} />
+                          <StableNameInput field={field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -522,7 +556,7 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
                       <FormItem>
                         <FormLabel>Description</FormLabel>
                         <FormControl>
-                          <MemoizedDescriptionInput field={field} />
+                          <StableDescriptionInput field={field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
