@@ -1,5 +1,5 @@
 // enhanced-contact-form.tsx
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useForm, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -91,24 +91,19 @@ interface EnhancedContactFormProps {
 /**
  * Hoisted trigger button – stable component type
  */
-const FormTriggerButton = React.forwardRef<
-  HTMLButtonElement,
-  { isEditMode: boolean }
->(({ isEditMode }, ref) => {
+function FormTriggerButton({ isEditMode }: { isEditMode: boolean }) {
   return isEditMode ? (
-    <Button variant="outline" size="sm" ref={ref}>
+    <Button variant="outline" size="sm">
       <Settings className="h-4 w-4 mr-2" />
       Edit Contact
     </Button>
   ) : (
-    <Button className="bg-primary hover:bg-primary-600" ref={ref}>
+    <Button className="bg-primary hover:bg-primary-600">
       <Plus className="h-4 w-4 mr-2" />
       Add Contact
     </Button>
   );
-});
-
-FormTriggerButton.displayName = "FormTriggerButton";
+}
 
 type FormContentProps = {
   form: UseFormReturn<EnhancedFormData>;
@@ -1217,7 +1212,7 @@ export default function EnhancedContactForm({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+      <DialogTrigger>
         <FormTriggerButton isEditMode={isEditMode} />
       </DialogTrigger>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
