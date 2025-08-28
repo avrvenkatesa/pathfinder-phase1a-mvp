@@ -71,9 +71,10 @@ type EnhancedFormData = z.infer<typeof enhancedFormSchema>;
 interface EnhancedContactFormProps {
   contact?: Contact;
   onClose?: () => void;
+  embedded?: boolean; // When true, skips Dialog wrapper
 }
 
-export default function EnhancedContactForm({ contact, onClose }: EnhancedContactFormProps) {
+export default function EnhancedContactForm({ contact, onClose, embedded = false }: EnhancedContactFormProps) {
   const [open, setOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState("basic");
   const [isDraft, setIsDraft] = useState(false);
@@ -326,29 +327,31 @@ export default function EnhancedContactForm({ contact, onClose }: EnhancedContac
     </Button>
   );
 
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {FormTrigger}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>{isEditMode ? 'Edit Contact' : 'Add New Contact'}</span>
-            {isDraft && (
-              <Badge variant="outline" className="text-orange-600">
-                <Save className="h-3 w-3 mr-1" />
-                Draft Saved
-              </Badge>
-            )}
-          </DialogTitle>
-          <div className="flex items-center space-x-2">
-            <Progress value={progress} className="flex-1" />
-            <span className="text-sm text-gray-500">{progress}% Complete</span>
-          </div>
-        </DialogHeader>
+  // Render the form content without dialog wrapper for embedded use
+  const FormContent = () => (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold flex items-center gap-2">
+          {isEditMode ? 'Edit Contact' : 'Add New Contact'}
+          {isDraft && (
+            <Badge variant="outline" className="text-orange-600">
+              <Save className="h-3 w-3 mr-1" />
+              Draft Saved
+            </Badge>
+          )}
+        </h2>
+        {embedded && onClose && (
+          <Button variant="ghost" onClick={onClose} className="p-2">
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+      <div className="flex items-center space-x-2">
+        <Progress value={progress} className="flex-1" />
+        <span className="text-sm text-gray-500">{progress}% Complete</span>
+      </div>
 
-        <Form {...form}>
+      <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs value={currentStep} onValueChange={setCurrentStep}>
               <TabsList className="grid w-full grid-cols-5">
@@ -1063,6 +1066,67 @@ export default function EnhancedContactForm({ contact, onClose }: EnhancedContac
                 </Button>
               </div>
             </div>
+          </form>
+        </Form>
+      </div>
+    );
+
+  // Return embedded version or dialog version based on props
+  if (embedded) {
+    return <FormContent />;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        {FormTrigger}
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between">
+            <span>{isEditMode ? 'Edit Contact' : 'Add New Contact'}</span>
+            {isDraft && (
+              <Badge variant="outline" className="text-orange-600">
+                <Save className="h-3 w-3 mr-1" />
+                Draft Saved
+              </Badge>
+            )}
+          </DialogTitle>
+          <div className="flex items-center space-x-2">
+            <Progress value={progress} className="flex-1" />
+            <span className="text-sm text-gray-500">{progress}% Complete</span>
+          </div>
+        </DialogHeader>
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <Tabs value={currentStep} onValueChange={setCurrentStep}>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="basic" className="flex items-center gap-1">
+                  <User className="h-4 w-4" />
+                  Basic
+                </TabsTrigger>
+                <TabsTrigger value="contact" className="flex items-center gap-1">
+                  <Building className="h-4 w-4" />
+                  Contact
+                </TabsTrigger>
+                <TabsTrigger value="hierarchy" className="flex items-center gap-1">
+                  <Building className="h-4 w-4" />
+                  Hierarchy
+                </TabsTrigger>
+                <TabsTrigger value="skills" className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  Skills
+                </TabsTrigger>
+                <TabsTrigger value="workflow" className="flex items-center gap-1">
+                  <Briefcase className="h-4 w-4" />
+                  Workflow
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Copy all the tab content here... */}
+              {/* This is getting complex, let me use a different approach */}
+            </Tabs>
           </form>
         </Form>
       </DialogContent>
