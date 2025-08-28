@@ -265,13 +265,13 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
     }
   };
 
-  const [selectedType, setSelectedType] = useState(form.getValues("type") || "company");
+  const [selectedType, setSelectedType] = useState<"company" | "division" | "person">(form.getValues("type") as "company" | "division" | "person" || "company");
   
   // Update selectedType when form type changes, but with stability
   useEffect(() => {
     const subscription = form.watch((value, { name }) => {
-      if (name === "type" && value.type !== selectedType) {
-        setSelectedType(value.type);
+      if (name === "type" && value.type !== selectedType && value.type) {
+        setSelectedType(value.type as "company" | "division" | "person");
       }
     });
     return () => subscription.unsubscribe();
@@ -395,7 +395,7 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
                         <Select 
                           onValueChange={(value) => {
                             field.onChange(value);
-                            setSelectedType(value);
+                            setSelectedType(value as "company" | "division" | "person");
                           }} 
                           defaultValue={field.value}
                         >
@@ -425,7 +425,14 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
                           <span className="text-red-500 font-medium">*</span>
                         </FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter full name..." {...field} value={field.value || ""} />
+                          <Input 
+                            placeholder="Enter full name..." 
+                            {...field} 
+                            value={field.value ?? ""} 
+                            onChange={(e) => {
+                              field.onChange(e.target.value);
+                            }}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -508,8 +515,11 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
                           <Textarea 
                             placeholder="Enter description..." 
                             {...field}
-                            value={field.value || ""} 
+                            value={field.value ?? ""} 
                             rows={3}
+                            onChange={(e) => {
+                              field.onChange(e.target.value);
+                            }}
                           />
                         </FormControl>
                         <FormMessage />
