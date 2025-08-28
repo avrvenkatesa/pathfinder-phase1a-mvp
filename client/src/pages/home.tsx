@@ -190,14 +190,19 @@ export default function Home() {
               contacts={contacts} 
               onResultsUpdate={handleResultsUpdate}
             />
-            {filteredContacts.length > 0 && (
+            {(filteredContacts.length > 0 || contacts.length > 0) && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Search Results ({filteredContacts.length} contacts)</CardTitle>
+                  <CardTitle>
+                    {filteredContacts.length > 0 
+                      ? `Search Results (${filteredContacts.length} contacts)` 
+                      : `All Contacts (${contacts.length} contacts)`
+                    }
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredContacts.slice(0, 12).map((contact) => (
+                    {(filteredContacts.length > 0 ? filteredContacts : contacts).slice(0, 12).map((contact) => (
                       <div 
                         key={contact.id} 
                         className="p-4 border rounded-lg space-y-2 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -232,9 +237,10 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
-                  {filteredContacts.length > 12 && (
+                  {(filteredContacts.length > 0 ? filteredContacts : contacts).length > 12 && (
                     <p className="text-center text-sm text-gray-500 mt-4">
-                      Showing first 12 results. Use filters to narrow down your search.
+                      Showing first 12 {filteredContacts.length > 0 ? 'results' : 'contacts'}. 
+                      {filteredContacts.length > 0 ? 'Use filters to narrow down your search.' : 'Use the search above to find specific contacts.'}
                     </p>
                   )}
                 </CardContent>
