@@ -1,9 +1,41 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useState } from "react";
 
 export default function Landing() {
-  const handleLogin = () => {
-    window.location.href = "/api/login";
+  const [showEmailLogin, setShowEmailLogin] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleGoogleLogin = () => {
+    window.location.href = "/api/auth/google";
+  };
+
+  const handleMicrosoftLogin = () => {
+    window.location.href = "/api/auth/microsoft";
+  };
+
+  const handleEmailLogin = async () => {
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          window.location.href = "/?token=" + data.token;
+        }
+      } else {
+        alert("Login failed. Please check your credentials.");
+      }
+    } catch (error) {
+      alert("Login failed. Please try again.");
+    }
   };
 
   return (
@@ -43,12 +75,70 @@ export default function Landing() {
                   Track people and their relationships
                 </div>
               </div>
-              <Button 
-                onClick={handleLogin}
-                className="w-full bg-primary hover:bg-primary-600"
-              >
-                Sign In to Get Started
-              </Button>
+              {!showEmailLogin ? (
+                <div className="space-y-3">
+                  <Button 
+                    onClick={handleGoogleLogin}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <i className="fab fa-google mr-2"></i>
+                    Continue with Google
+                  </Button>
+                  <Button 
+                    onClick={handleMicrosoftLogin}
+                    className="w-full bg-gray-800 hover:bg-gray-900 text-white"
+                  >
+                    <i className="fab fa-microsoft mr-2"></i>
+                    Continue with Microsoft
+                  </Button>
+                  <Button 
+                    onClick={() => setShowEmailLogin(true)}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <i className="fas fa-envelope mr-2"></i>
+                    Continue with Email
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Button 
+                      onClick={handleEmailLogin}
+                      className="w-full bg-primary hover:bg-primary-600"
+                    >
+                      Sign In
+                    </Button>
+                    <Button 
+                      onClick={() => setShowEmailLogin(false)}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Back to Login Options
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
