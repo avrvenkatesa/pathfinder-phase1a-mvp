@@ -77,6 +77,20 @@ const enhancedFormSchema = insertContactSchema.extend({
   timezone: z.string().default("UTC"),
   languages: z.array(z.string()).default(["English"]),
   currentWorkload: z.number().min(0).default(0),
+  skillProficiency: z
+    .record(z.enum(["beginner", "intermediate", "advanced", "expert"]))
+    .optional()
+    .default({}),
+  certifications: z
+    .array(
+      z.object({
+        name: z.string().min(1, "Certification name is required"),
+        issuer: z.string().min(1, "Certification issuer is required"),
+        expiry: z.string().optional(),
+      })
+    )
+    .optional()
+    .default([]),
   notes: z.string().optional(),
 });
 
@@ -106,7 +120,7 @@ function FormTriggerButton({ isEditMode }: { isEditMode: boolean }) {
 }
 
 type FormContentProps = {
-  form: UseFormReturn<EnhancedFormData>;
+  form: UseFormReturn<EnhancedFormData> | any;
   currentStep: string;
   setCurrentStep: (v: string) => void;
   isEditMode: boolean;
@@ -563,6 +577,169 @@ function FormContent({
                         ))}
                     </div>
                   </div>
+
+                  {/* Skill Proficiency Section */}
+                  <div className="space-y-4 border-t pt-4">
+                    <FormLabel className="text-base font-semibold">
+                      Skill Proficiency Levels
+                    </FormLabel>
+                    <div className="space-y-3">
+                      {Object.entries(form.watch("skillProficiency") || {}).map(([skill, level]) => (
+                        <div key={skill} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                          <span className="font-medium">{skill}</span>
+                          <div className="flex items-center gap-2">
+                            <Select 
+                              value={level} 
+                              onValueChange={(newLevel) => {
+                                const current = form.getValues("skillProficiency") || {};
+                                form.setValue("skillProficiency", {
+                                  ...current,
+                                  [skill]: newLevel as "beginner" | "intermediate" | "advanced" | "expert"
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="beginner">Beginner</SelectItem>
+                                <SelectItem value="intermediate">Intermediate</SelectItem>
+                                <SelectItem value="advanced">Advanced</SelectItem>
+                                <SelectItem value="expert">Expert</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const current = form.getValues("skillProficiency") || {};
+                                const updated = { ...current };
+                                delete updated[skill];
+                                form.setValue("skillProficiency", updated);
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Add skill proficiency for existing skills */}
+                      <div className="flex flex-wrap gap-2">
+                        {(form.watch("skills") || [])
+                          .filter(skill => !(form.watch("skillProficiency") || {})[skill])
+                          .map((skill) => (
+                            <Button
+                              key={skill}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const current = form.getValues("skillProficiency") || {};
+                                form.setValue("skillProficiency", {
+                                  ...current,
+                                  [skill]: "intermediate"
+                                });
+                              }}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Set {skill} Level
+                            </Button>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Certifications Section */}
+                  <div className="space-y-4 border-t pt-4">
+                    <div className="flex items-center justify-between">
+                      <FormLabel className="text-base font-semibold">
+                        Certifications
+                      </FormLabel>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const current = form.getValues("certifications") || [];
+                          form.setValue("certifications", [
+                            ...current,
+                            { name: "", issuer: "", expiry: "" }
+                          ]);
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Certification
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {(form.watch("certifications") || []).map((cert, index) => (
+                        <div key={index} className="grid grid-cols-3 gap-3 p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <FormLabel className="text-sm">Certification Name</FormLabel>
+                            <Input
+                              placeholder="e.g., AWS Solutions Architect"
+                              value={cert.name}
+                              onChange={(e) => {
+                                const current = form.getValues("certifications") || [];
+                                const updated = [...current];
+                                updated[index] = { ...updated[index], name: e.target.value };
+                                form.setValue("certifications", updated);
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <FormLabel className="text-sm">Issuer</FormLabel>
+                            <Input
+                              placeholder="e.g., Amazon Web Services"
+                              value={cert.issuer}
+                              onChange={(e) => {
+                                const current = form.getValues("certifications") || [];
+                                const updated = [...current];
+                                updated[index] = { ...updated[index], issuer: e.target.value };
+                                form.setValue("certifications", updated);
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                              <FormLabel className="text-sm">Expiry Date</FormLabel>
+                              <Input
+                                type="date"
+                                value={cert.expiry || ""}
+                                onChange={(e) => {
+                                  const current = form.getValues("certifications") || [];
+                                  const updated = [...current];
+                                  updated[index] = { ...updated[index], expiry: e.target.value };
+                                  form.setValue("certifications", updated);
+                                }}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const current = form.getValues("certifications") || [];
+                                const updated = current.filter((_, i) => i !== index);
+                                form.setValue("certifications", updated);
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {(form.watch("certifications") || []).length === 0 && (
+                        <div className="text-center py-4 text-gray-500">
+                          No certifications added yet. Click "Add Certification" to get started.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </>
             ) : (
@@ -947,6 +1124,8 @@ export default function EnhancedContactForm({
           timezone: contact.timezone || "UTC",
           languages: contact.languages || ["English"],
           currentWorkload: contact.currentWorkload || 0,
+          skillProficiency: (contact as any).skillProficiency || {},
+          certifications: (contact as any).certifications || [],
           tags: contact.tags || [],
           notes: contact.notes || "",
           isActive: contact.isActive ?? true,
@@ -980,6 +1159,8 @@ export default function EnhancedContactForm({
           timezone: "UTC",
           languages: ["English"],
           currentWorkload: 0,
+          skillProficiency: {},
+          certifications: [],
           tags: [],
           notes: "",
           isActive: true,
