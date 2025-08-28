@@ -5,7 +5,7 @@
 - **Test Name**: Enhanced Contact Form with Workflow Fields
 - **Priority**: High
 - **Estimated Duration**: 15 minutes
-- **Status**: PENDING
+- **Status**: IN_PROGRESS
 
 ## Test Objective
 Verify that the enhanced contact form correctly displays and processes all new workflow-specific fields with appropriate contextual content based on contact type (person vs company/division), including validation and data persistence.

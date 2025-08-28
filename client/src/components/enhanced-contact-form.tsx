@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useCallback, memo, useRef } from "react";
-import { useForm } from "react-hook-form";
+// enhanced-contact-form.tsx
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useForm, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -31,27 +32,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import {
-  insertContactSchema,
-  PREDEFINED_SKILLS,
-  PROJECT_TYPES,
-} from "@shared/schema";
+import { insertContactSchema, PREDEFINED_SKILLS, PROJECT_TYPES } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Contact, InsertContact } from "@shared/schema";
 import { z } from "zod";
-import {
-  X,
-  Plus,
-  Save,
-  User,
-  Building,
-  Settings,
-  Clock,
-  Briefcase,
-} from "lucide-react";
+import { X, Plus, Save, User, Building, Settings, Clock, Briefcase } from "lucide-react";
 
-// Enhanced form schema with comprehensive validation
 const enhancedFormSchema = insertContactSchema.extend({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["company", "division", "person"]),
@@ -81,9 +68,7 @@ const enhancedFormSchema = insertContactSchema.extend({
     .default("any"),
   projectTypes: z.array(z.string()).default([]),
   assignmentCapacity: z.enum(["low", "normal", "high"]).default("normal"),
-  workflowRole: z
-    .enum(["approver", "executor", "reviewer", "observer"])
-    .optional(),
+  workflowRole: z.enum(["approver", "executor", "reviewer", "observer"]).optional(),
   maxConcurrentTasks: z.number().min(1).max(50).default(5),
   costPerHour: z.number().positive().optional(),
   timezone: z.string().default("UTC"),
@@ -100,93 +85,10 @@ interface EnhancedContactFormProps {
   embedded?: boolean;
 }
 
-// Props interface for FormContent
-interface FormContentProps {
-  form: any;
-  currentStep: string;
-  setCurrentStep: (step: string) => void;
-  onSubmit: any;
-  embedded: boolean;
-  isDraft: boolean;
-  onClose?: () => void;
-  isEditMode: boolean;
-  createMutation: any;
-  parentOptions: any[];
-  selectedType: string;
-  addSkill: (skill: string) => void;
-  removeSkill: (skill: string) => void;
-  addProjectType: (type: string) => void;
-  removeProjectType: (type: string) => void;
-  addLanguage: (lang: string) => void;
-  removeLanguage: (lang: string) => void;
-  handlePrevious: () => void;
-  handleNext: () => void;
-}
-
-interface FormTriggerProps {
-  isEditMode: boolean;
-}
-
-// Stable input components defined OUTSIDE the main component to prevent re-creation
-const StableNameInput = ({ field }: { field: any }) => {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [localValue, setLocalValue] = useState(field.value ?? "");
-  
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setLocalValue(newValue);
-    field.onChange(newValue);
-  }, [field]);
-  
-  useEffect(() => {
-    if (field.value !== localValue) {
-      setLocalValue(field.value ?? "");
-    }
-  }, [field.value]);
-  
-  return (
-    <Input 
-      ref={inputRef}
-      placeholder="Enter full name..." 
-      value={localValue}
-      onChange={handleChange}
-      onBlur={field.onBlur}
-      name={field.name}
-    />
-  );
-};
-
-const StableDescriptionInput = ({ field }: { field: any }) => {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [localValue, setLocalValue] = useState(field.value ?? "");
-  
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    setLocalValue(newValue);
-    field.onChange(newValue);
-  }, [field]);
-  
-  useEffect(() => {
-    if (field.value !== localValue) {
-      setLocalValue(field.value ?? "");
-    }
-  }, [field.value]);
-  
-  return (
-    <Textarea 
-      ref={textareaRef}
-      placeholder="Enter description..." 
-      value={localValue}
-      rows={3}
-      onChange={handleChange}
-      onBlur={field.onBlur}
-      name={field.name}
-    />
-  );
-};
-
-// FormTrigger component - memoized and stable
-const FormTrigger = memo(function FormTrigger({ isEditMode }: FormTriggerProps) {
+/**
+ * Hoisted trigger button – stable component type
+ */
+function FormTriggerButton({ isEditMode }: { isEditMode: boolean }) {
   return isEditMode ? (
     <Button variant="outline" size="sm">
       <Settings className="h-4 w-4 mr-2" />
@@ -198,21 +100,40 @@ const FormTrigger = memo(function FormTrigger({ isEditMode }: FormTriggerProps) 
       Add Contact
     </Button>
   );
-});
+}
 
-// FormContent component - memoized and stable - this is the KEY fix for focus loss
-const FormContent = memo(function FormContent({
+type FormContentProps = {
+  form: UseFormReturn<EnhancedFormData>;
+  currentStep: string;
+  setCurrentStep: (v: string) => void;
+  isEditMode: boolean;
+  createMutation: ReturnType<typeof useMutation>;
+  onCancel: () => void;
+  selectedType: EnhancedFormData["type"];
+  parentOptions: Contact[];
+  addSkill: (s: string) => void;
+  removeSkill: (s: string) => void;
+  addProjectType: (s: string) => void;
+  removeProjectType: (s: string) => void;
+  addLanguage: (s: string) => void;
+  removeLanguage: (s: string) => void;
+  handlePrevious: () => void;
+  handleNext: () => void;
+  onSubmit: (data: EnhancedFormData) => void;
+};
+
+/**
+ * Hoisted form content – stable component type
+ */
+function FormContent({
   form,
   currentStep,
   setCurrentStep,
-  onSubmit,
-  embedded,
-  isDraft,
-  onClose,
   isEditMode,
   createMutation,
-  parentOptions,
+  onCancel,
   selectedType,
+  parentOptions,
   addSkill,
   removeSkill,
   addProjectType,
@@ -221,6 +142,7 @@ const FormContent = memo(function FormContent({
   removeLanguage,
   handlePrevious,
   handleNext,
+  onSubmit,
 }: FormContentProps) {
   return (
     <Form {...form}>
@@ -249,7 +171,7 @@ const FormContent = memo(function FormContent({
             </TabsTrigger>
           </TabsList>
 
-          {/* Basic Information Tab */}
+          {/* Basic Information */}
           <TabsContent value="basic" className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <FormField
@@ -258,13 +180,9 @@ const FormContent = memo(function FormContent({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-1">
-                      Contact Type
-                      <span className="text-red-500 font-medium">*</span>
+                      Contact Type <span className="text-red-500 font-medium">*</span>
                     </FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select contact type" />
@@ -287,24 +205,611 @@ const FormContent = memo(function FormContent({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-1">
-                      Full Name
-                      <span className="text-red-500 font-medium">*</span>
+                      Full Name <span className="text-red-500 font-medium">*</span>
                     </FormLabel>
                     <FormControl>
-                      <StableNameInput field={field} />
+                      <Input placeholder="Enter full name..." {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-            {/* More content would go here - but I'll simplify for now */}
+
+            {selectedType === "person" && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="firstName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>First Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter first name..." {...field} value={field.value || ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="lastName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Last Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter last name..." {...field} value={field.value || ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="jobTitle"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Job Title</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter job title..." {...field} value={field.value || ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="department"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Department</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter department..." {...field} value={field.value || ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </>
+            )}
+
+            {selectedType !== "person" && (
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Enter description..."
+                        {...field}
+                        value={field.value || ""}
+                        rows={3}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </TabsContent>
+
+          {/* Contact Details */}
+          <TabsContent value="contact" className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="Enter email..." {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Primary Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter phone..." {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="secondaryPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Secondary Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter secondary phone..." {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="website"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Website</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://example.com" {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Enter address..." {...field} value={field.value || ""} rows={3} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </TabsContent>
+
+          {/* Hierarchy */}
+          <TabsContent value="hierarchy" className="space-y-4">
+            {parentOptions.length > 0 && (
+              <FormField
+                control={form.control}
+                name="parentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Parent Organization</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select parent organization (optional)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {parentOptions.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name} ({c.type})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-2">Hierarchy Rules:</p>
+              <ul className="text-xs text-gray-500 space-y-1">
+                <li>• Companies can be standalone or have divisions</li>
+                <li>• Divisions must belong to a company</li>
+                <li>• People can belong to companies or divisions</li>
+                <li>• Circular references are automatically prevented</li>
+              </ul>
+            </div>
+          </TabsContent>
+
+          {/* Skills */}
+          <TabsContent value="skills" className="space-y-4">
+            {selectedType === "person" ? (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="availabilityStatus"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Availability Status</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select availability" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="available">Available</SelectItem>
+                            <SelectItem value="busy">Busy</SelectItem>
+                            <SelectItem value="partially_available">Partially Available</SelectItem>
+                            <SelectItem value="unavailable">Unavailable</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="preferredWorkHours"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Preferred Work Hours</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., 9am-5pm EST" {...field} value={field.value || ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <FormLabel>Skills</FormLabel>
+                  <div className="mt-2 space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {(form.watch("skills") || []).map((skill) => (
+                        <Badge key={skill} variant="secondary" className="flex items-center gap-1">
+                          {skill}
+                          <X className="h-3 w-3 cursor-pointer" onClick={() => removeSkill(skill)} />
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {PREDEFINED_SKILLS.filter(
+                        (s) => !(form.watch("skills") || []).includes(s)
+                      )
+                        .slice(0, 10)
+                        .map((skill) => (
+                          <Button
+                            key={skill}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addSkill(skill)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            {skill}
+                          </Button>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <User className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-600 mb-2">Skills Management Not Applicable</h3>
+                <p className="text-gray-500 max-w-md mx-auto">
+                  Skills and availability tracking is designed for individual contacts. For{" "}
+                  {selectedType === "company" ? "companies" : "divisions"}, this information is
+                  managed at the person level within the organization.
+                </p>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Workflow */}
+          <TabsContent value="workflow" className="space-y-4">
+            {selectedType === "person" ? (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="rolePreference"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Role Preference</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select role preference" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="leader">Leader</SelectItem>
+                            <SelectItem value="contributor">Contributor</SelectItem>
+                            <SelectItem value="specialist">Specialist</SelectItem>
+                            <SelectItem value="advisor">Advisor</SelectItem>
+                            <SelectItem value="any">Any Role</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="assignmentCapacity"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Assignment Capacity</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select capacity" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="low">Low (1-2 projects)</SelectItem>
+                            <SelectItem value="normal">Normal (3-5 projects)</SelectItem>
+                            <SelectItem value="high">High (6+ projects)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <FormLabel>Preferred Project Types</FormLabel>
+                  <div className="mt-2 space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {(form.watch("projectTypes") || []).map((type) => (
+                        <Badge key={type} variant="secondary" className="flex items-center gap-1">
+                          {type}
+                          <X className="h-3 w-3 cursor-pointer" onClick={() => removeProjectType(type)} />
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {PROJECT_TYPES.filter((t) => !(form.watch("projectTypes") || []).includes(t))
+                        .slice(0, 8)
+                        .map((type) => (
+                          <Button
+                            key={type}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addProjectType(type)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            {type}
+                          </Button>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Enhanced Workflow Configuration
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <FormField
+                      control={form.control}
+                      name="workflowRole"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Workflow Role</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select workflow role" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="approver">Approver</SelectItem>
+                              <SelectItem value="executor">Executor</SelectItem>
+                              <SelectItem value="reviewer">Reviewer</SelectItem>
+                              <SelectItem value="observer">Observer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="maxConcurrentTasks"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Max Concurrent Tasks</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="50"
+                              placeholder="5"
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 5)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="costPerHour"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Cost Per Hour ($)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              {...field}
+                              value={field.value || ""}
+                              onChange={(e) =>
+                                field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="timezone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Timezone</FormLabel>
+                          <FormControl>
+                            <Input placeholder="UTC" {...field} value={field.value || ""} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="currentWorkload"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Current Workload</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div>
+                    <FormLabel>Languages</FormLabel>
+                    <div className="mt-2 space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {(form.watch("languages") || []).map((language) => (
+                          <Badge key={language} variant="secondary" className="flex items-center gap-1">
+                            {language}
+                            <X className="h-3 w-3 cursor-pointer" onClick={() => removeLanguage(language)} />
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="Add language"
+                          onKeyPress={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const input = e.target as HTMLInputElement;
+                              if (input.value.trim()) {
+                                addLanguage(input.value.trim());
+                                input.value = "";
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Add any additional notes..."
+                          {...field}
+                          value={field.value || ""}
+                          rows={4}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <Briefcase className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-600 mb-2">Workflow Configuration Not Applicable</h3>
+                <p className="text-gray-500 max-w-md mx-auto mb-4">
+                  Workflow roles, capacity management, and task assignments are managed at the individual level.{" "}
+                  {selectedType === "company" ? "Companies" : "Divisions"} serve as organizational
+                  containers for people who have workflow capabilities.
+                </p>
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg max-w-md mx-auto">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    💡 <strong>Tip:</strong> Add individual contacts within this {selectedType} to configure their
+                    workflow roles and assignments.
+                  </p>
+                </div>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
+
+        <div className="flex justify-between pt-4 border-t">
+          <div className="flex space-x-2">
+            {currentStep !== "basic" && (
+              <Button type="button" variant="outline" onClick={handlePrevious}>
+                Previous
+              </Button>
+            )}
+            {currentStep !== "workflow" && (
+              <Button type="button" variant="outline" onClick={handleNext}>
+                Next
+              </Button>
+            )}
+          </div>
+
+          <div className="flex space-x-3">
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {isEditMode ? "Updating..." : "Creating..."}
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  {isEditMode ? "Update Contact" : "Create Contact"}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </form>
     </Form>
   );
-});
+}
 
 export default function EnhancedContactForm({
   contact,
@@ -341,14 +846,10 @@ export default function EnhancedContactForm({
           preferredWorkHours: contact.preferredWorkHours || "",
           rolePreference: contact.rolePreference || "any",
           projectTypes: contact.projectTypes || [],
-          assignmentCapacity:
-            (contact.assignmentCapacity as "low" | "normal" | "high") ||
-            "normal",
+          assignmentCapacity: (contact.assignmentCapacity as "low" | "normal" | "high") || "normal",
           workflowRole: contact.workflowRole || undefined,
           maxConcurrentTasks: contact.maxConcurrentTasks || 5,
-          costPerHour: contact.costPerHour
-            ? Number(contact.costPerHour)
-            : undefined,
+          costPerHour: contact.costPerHour ? Number(contact.costPerHour) : undefined,
           timezone: contact.timezone || "UTC",
           languages: contact.languages || ["English"],
           currentWorkload: contact.currentWorkload || 0,
@@ -395,19 +896,19 @@ export default function EnhancedContactForm({
 
   const selectedType = form.watch("type");
 
-  // Auto-save draft functionality
+  // Auto-save draft
   useEffect(() => {
     const subscription = form.watch((data) => {
-      const hasData = Object.values(data).some(
-        (value) => value && (typeof value === "string" ? value.trim() : true),
+      const hasData = Object.values(data).some((value) =>
+        value && (typeof value === "string" ? value.trim() : true)
       );
       if (hasData && !isEditMode) {
-        setIsDraft(true);
+        if (!isDraft) setIsDraft(true); // avoid unnecessary flips
         localStorage.setItem("contactDraft", JSON.stringify(data));
       }
     });
     return () => subscription.unsubscribe();
-  }, [form, isEditMode]);
+  }, [form, isEditMode, isDraft]);
 
   // Load draft on mount
   useEffect(() => {
@@ -416,9 +917,9 @@ export default function EnhancedContactForm({
       if (draft) {
         try {
           const draftData = JSON.parse(draft);
-          Object.keys(draftData).forEach((key) => {
-            if (draftData[key]) {
-              form.setValue(key as keyof EnhancedFormData, draftData[key]);
+          (Object.keys(draftData) as (keyof EnhancedFormData)[]).forEach((key) => {
+            if ((draftData as any)[key]) {
+              form.setValue(key, (draftData as any)[key]);
             }
           });
           setIsDraft(true);
@@ -431,9 +932,7 @@ export default function EnhancedContactForm({
 
   const createMutation = useMutation({
     mutationFn: async (data: InsertContact) => {
-      const endpoint = isEditMode
-        ? `/api/contacts/${contact.id}`
-        : "/api/contacts";
+      const endpoint = isEditMode ? `/api/contacts/${contact!.id}` : "/api/contacts";
       const method = isEditMode ? "PUT" : "POST";
       const response = await apiRequest(method, endpoint, data);
       return response.json();
@@ -449,7 +948,7 @@ export default function EnhancedContactForm({
       localStorage.removeItem("contactDraft");
       setOpen(false);
       form.reset();
-      if (onClose) onClose();
+      onClose?.();
     },
     onError: (error) => {
       if (isUnauthorizedError(error)) {
@@ -474,8 +973,7 @@ export default function EnhancedContactForm({
   const onSubmit = (data: EnhancedFormData) => {
     const submitData: InsertContact = {
       ...data,
-      parentId:
-        data.parentId && data.parentId !== "none" ? data.parentId : undefined,
+      parentId: data.parentId && data.parentId !== "none" ? data.parentId : undefined,
       skills: data.skills || [],
       projectTypes: data.projectTypes || [],
       tags: data.tags || [],
@@ -483,123 +981,91 @@ export default function EnhancedContactForm({
     createMutation.mutate(submitData);
   };
 
-  // Get available parent options based on contact type
   const parentOptions = useMemo(() => {
     if (!contacts) return [];
-
     const flattenContacts = (contactList: Contact[]): Contact[] => {
       const result: Contact[] = [];
-      contactList.forEach((contact) => {
-        result.push(contact);
-        if (contact.children) {
-          result.push(...flattenContacts(contact.children));
-        }
+      contactList.forEach((c) => {
+        result.push(c);
+        if ((c as any).children) result.push(...flattenContacts((c as any).children));
       });
       return result;
     };
-
-    const allContacts = flattenContacts(contacts);
-
+    const all = flattenContacts(contacts);
     switch (selectedType) {
       case "division":
-        return allContacts.filter((c) => c.type === "company");
+        return all.filter((c) => c.type === "company");
       case "person":
-        return allContacts.filter(
-          (c) => c.type === "division" || c.type === "company",
-        );
+        return all.filter((c) => c.type === "division" || c.type === "company");
       default:
         return [];
     }
   }, [selectedType, contacts]);
 
-  // Form progress calculation
   const progress = 33;
 
-  // Skill and tag management functions
+  // Skill & tag helpers
   const addSkill = useCallback(
     (skill: string) => {
-      const currentSkills = form.getValues("skills") || [];
-      if (!currentSkills.includes(skill)) {
-        form.setValue("skills", [...currentSkills, skill]);
-      }
+      const current = form.getValues("skills") || [];
+      if (!current.includes(skill)) form.setValue("skills", [...current, skill]);
     },
-    [form],
+    [form]
   );
-
   const removeSkill = useCallback(
     (skill: string) => {
-      const currentSkills = form.getValues("skills") || [];
-      form.setValue(
-        "skills",
-        currentSkills.filter((s) => s !== skill),
-      );
+      const current = form.getValues("skills") || [];
+      form.setValue("skills", current.filter((s) => s !== skill));
     },
-    [form],
+    [form]
   );
-
   const addProjectType = useCallback(
-    (projectType: string) => {
-      const currentTypes = form.getValues("projectTypes") || [];
-      if (!currentTypes.includes(projectType)) {
-        form.setValue("projectTypes", [...currentTypes, projectType]);
-      }
+    (pt: string) => {
+      const current = form.getValues("projectTypes") || [];
+      if (!current.includes(pt)) form.setValue("projectTypes", [...current, pt]);
     },
-    [form],
+    [form]
   );
-
   const removeProjectType = useCallback(
-    (projectType: string) => {
-      const currentTypes = form.getValues("projectTypes") || [];
-      form.setValue(
-        "projectTypes",
-        currentTypes.filter((t) => t !== projectType),
-      );
+    (pt: string) => {
+      const current = form.getValues("projectTypes") || [];
+      form.setValue("projectTypes", current.filter((t) => t !== pt));
     },
-    [form],
+    [form]
   );
-
   const addLanguage = useCallback(
-    (language: string) => {
-      const currentLanguages = form.getValues("languages") || [];
-      if (!currentLanguages.includes(language)) {
-        form.setValue("languages", [...currentLanguages, language]);
-      }
+    (lang: string) => {
+      const current = form.getValues("languages") || [];
+      if (!current.includes(lang)) form.setValue("languages", [...current, lang]);
     },
-    [form],
+    [form]
   );
-
   const removeLanguage = useCallback(
-    (languageToRemove: string) => {
-      const currentLanguages = form.getValues("languages") || [];
-      form.setValue(
-        "languages",
-        currentLanguages.filter((lang) => lang !== languageToRemove),
-      );
+    (lang: string) => {
+      const current = form.getValues("languages") || [];
+      form.setValue("languages", current.filter((l) => l !== lang));
     },
-    [form],
+    [form]
   );
 
+  // Step nav
   const handlePrevious = useCallback(() => {
     const steps = ["basic", "contact", "hierarchy", "skills", "workflow"];
-    const currentIndex = steps.indexOf(currentStep);
-    if (currentIndex > 0) {
-      setCurrentStep(steps[currentIndex - 1]);
-    }
+    const idx = steps.indexOf(currentStep);
+    if (idx > 0) setCurrentStep(steps[idx - 1]);
   }, [currentStep]);
-
   const handleNext = useCallback(() => {
     const steps = ["basic", "contact", "hierarchy", "skills", "workflow"];
-    const currentIndex = steps.indexOf(currentStep);
-    if (currentIndex < steps.length - 1) {
-      setCurrentStep(steps[currentIndex + 1]);
-    }
+    const idx = steps.indexOf(currentStep);
+    if (idx < steps.length - 1) setCurrentStep(steps[idx + 1]);
   }, [currentStep]);
 
-  const triggerEl = <FormTrigger isEditMode={isEditMode} />;
+  const onCancel = () => {
+    if (embedded) onClose?.();
+    else setOpen(false);
+  };
 
-  // FIXED: Removed duplicate FormContent definition that was causing focus loss
-  // Now using the stable memoized FormContent component defined outside this function
-
+  // Render
   if (embedded) {
     return (
       <div className="p-6 space-y-6">
@@ -623,18 +1089,16 @@ export default function EnhancedContactForm({
           <Progress value={progress} className="flex-1" />
           <span className="text-sm text-gray-500">{progress}% Complete</span>
         </div>
+
         <FormContent
           form={form}
           currentStep={currentStep}
           setCurrentStep={setCurrentStep}
-          onSubmit={onSubmit}
-          embedded={embedded}
-          isDraft={isDraft}
-          onClose={onClose}
           isEditMode={isEditMode}
-          createMutation={createMutation}
-          parentOptions={parentOptions}
+          createMutation={createMutation as any}
+          onCancel={onCancel}
           selectedType={selectedType}
+          parentOptions={parentOptions}
           addSkill={addSkill}
           removeSkill={removeSkill}
           addProjectType={addProjectType}
@@ -643,6 +1107,7 @@ export default function EnhancedContactForm({
           removeLanguage={removeLanguage}
           handlePrevious={handlePrevious}
           handleNext={handleNext}
+          onSubmit={onSubmit}
         />
       </div>
     );
@@ -650,7 +1115,9 @@ export default function EnhancedContactForm({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{triggerEl}</DialogTrigger>
+      <DialogTrigger asChild>
+        <FormTriggerButton isEditMode={isEditMode} />
+      </DialogTrigger>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
@@ -667,18 +1134,16 @@ export default function EnhancedContactForm({
             <span className="text-sm text-gray-500">{progress}% Complete</span>
           </div>
         </DialogHeader>
+
         <FormContent
           form={form}
           currentStep={currentStep}
           setCurrentStep={setCurrentStep}
-          onSubmit={onSubmit}
-          embedded={embedded}
-          isDraft={isDraft}
-          onClose={onClose}
           isEditMode={isEditMode}
-          createMutation={createMutation}
-          parentOptions={parentOptions}
+          createMutation={createMutation as any}
+          onCancel={onCancel}
           selectedType={selectedType}
+          parentOptions={parentOptions}
           addSkill={addSkill}
           removeSkill={removeSkill}
           addProjectType={addProjectType}
@@ -687,6 +1152,7 @@ export default function EnhancedContactForm({
           removeLanguage={removeLanguage}
           handlePrevious={handlePrevious}
           handleNext={handleNext}
+          onSubmit={onSubmit}
         />
       </DialogContent>
     </Dialog>
