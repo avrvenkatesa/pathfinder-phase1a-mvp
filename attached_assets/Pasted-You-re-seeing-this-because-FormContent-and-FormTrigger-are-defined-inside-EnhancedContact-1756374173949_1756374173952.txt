@@ -1,0 +1,121 @@
+You’re seeing this because `FormContent` (and `FormTrigger`) are **defined inside** `EnhancedContactForm`. On every keystroke, `react-hook-form` updates state → `EnhancedContactForm` re-renders → the **function identity** of `FormContent` changes → React treats it as a *different* component and **unmounts/remounts the whole form subtree**. That remount steals focus after the first character; by the second character, the new tree has stabilized and typing continues normally.&#x20;
+
+### Fix
+
+Hoist those inner component definitions to module scope (top level) so their identity is stable across renders (optionally `memo` them). Pass the few props they need.
+
+#### Before (problem)
+
+```tsx
+export default function EnhancedContactForm(...) {
+  // ...
+  const FormContent = () => ( /* ... the entire form ... */ );
+  // ...
+  return embedded ? <FormContent /> : ( /* dialog with <FormContent /> */ );
+}
+```
+
+#### After (stable)
+
+```tsx
+// --- New: top-level, memoized ---
+const FormContent = React.memo(function FormContent({
+  form,
+  currentStep,
+  setCurrentStep,
+  onSubmit,
+  progress,
+  embedded,
+  isDraft,
+  onClose,
+  isEditMode,
+  createMutation,
+  parentOptions,
+  selectedType,
+  addSkill, removeSkill,
+  addProjectType, removeProjectType,
+  addLanguage, removeLanguage,
+  handlePrevious, handleNext,
+}: { /* prop types here */ }) {
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* ... existing Tabs, Fields, Buttons exactly as in your file ... */}
+      </form>
+    </Form>
+  );
+});
+
+// (Optionally also hoist FormTrigger similarly)
+const FormTrigger = React.memo(function FormTrigger({ isEditMode }: { isEditMode: boolean }) {
+  return isEditMode ? (
+    <Button variant="outline" size="sm">
+      <Settings className="h-4 w-4 mr-2" />
+      Edit Contact
+    </Button>
+  ) : (
+    <Button className="bg-primary hover:bg-primary-600">
+      <Plus className="h-4 w-4 mr-2" />
+      Add Contact
+    </Button>
+  );
+});
+
+export default function EnhancedContactForm({ contact, onClose, embedded = false }: EnhancedContactFormProps) {
+  // ... all your hooks and helpers exactly as-is ...
+
+  const triggerEl = <FormTrigger isEditMode={isEditMode} />;
+
+  const contentEl = (
+    <FormContent
+      form={form}
+      currentStep={currentStep}
+      setCurrentStep={setCurrentStep}
+      onSubmit={onSubmit}
+      progress={progress}
+      embedded={embedded}
+      isDraft={isDraft}
+      onClose={onClose}
+      isEditMode={isEditMode}
+      createMutation={createMutation}
+      parentOptions={parentOptions}
+      selectedType={selectedType}
+      addSkill={addSkill} removeSkill={removeSkill}
+      addProjectType={addProjectType} removeProjectType={removeProjectType}
+      addLanguage={addLanguage} removeLanguage={removeLanguage}
+      handlePrevious={handlePrevious} handleNext={handleNext}
+    />
+  );
+
+  if (embedded) {
+    return (
+      <div className="p-6 space-y-6">
+        {/* ... header/progress ... */}
+        {contentEl}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{triggerEl}</DialogTrigger>
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+        {/* ... header/progress ... */}
+        {contentEl}
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+### Why this works
+
+* Top-level `FormContent` keeps a **stable component type** between renders, so React reconciles the same DOM nodes rather than destroying & recreating them. The input you’re typing into stays mounted, so focus isn’t lost.
+* `React.memo` reduces unnecessary rerenders (not strictly required for the focus bug, but nice).
+
+### Optional extra hardening
+
+* Keep primitive props stable where possible (you already `useCallback` the add/remove handlers—good).
+* Avoid passing freshly created objects/arrays as props each render unless needed.
+
+Make just this refactor (no form logic changes), and the “first character loses focus” issue should disappear.
