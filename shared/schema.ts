@@ -101,6 +101,8 @@ export const contacts = pgTable("contacts", {
   timezone: varchar("timezone").default("UTC"),
   languages: text("languages").array().default(["English"]),
   currentWorkload: integer("current_workload").default(0),
+  skillProficiency: jsonb("skill_proficiency"), // JSON object mapping skills to proficiency levels
+  certifications: jsonb("certifications"), // Array of certification objects
   
   // Legacy/General
   tags: text("tags").array().default([]),
@@ -326,6 +328,14 @@ export const insertContactSchema = createInsertSchema(contacts).omit({
   costPerHour: z.number().positive().optional(),
   timezone: z.string().default("UTC"), // Primary contact timezone for scheduling
   currentWorkload: z.number().min(0).default(0),
+  // Skill proficiency validation
+  skillProficiency: z.record(z.enum(["beginner", "intermediate", "advanced", "expert"])).optional(),
+  // Certifications validation
+  certifications: z.array(z.object({
+    name: z.string().min(1, "Certification name is required"),
+    issuer: z.string().min(1, "Certification issuer is required"),
+    expiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional()
+  })).optional(),
 });
 
 export const updateContactSchema = insertContactSchema.partial();

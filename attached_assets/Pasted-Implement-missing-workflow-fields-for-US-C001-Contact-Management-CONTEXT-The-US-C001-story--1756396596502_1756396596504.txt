@@ -1,0 +1,103 @@
+Implement missing workflow fields for US-C001 Contact Management
+
+  CONTEXT:
+  The US-C001 story "Create Contact with Workflow Context" is mostly implemented, but acceptance testing revealed two critical fields are missing from the backend API:
+
+  1. `skillProficiency` - JSON object mapping skills to proficiency levels
+  2. `certifications` - Array of certification objects
+
+  CURRENT IMPLEMENTATION STATUS:
+  ✅ Working: workflowRole, maxConcurrentTasks, costPerHour, timezone, languages
+  ❌ Missing: skillProficiency, certifications
+
+  TASK REQUIREMENTS:
+
+  1. **Database Schema Updates**:
+     - Add `skill_proficiency` JSONB column to contacts table
+     - Add `certifications` JSONB column to contacts table
+     - Create database migration script
+
+  2. **Backend API Implementation**:
+     - Update contact model/schema to include new fields
+     - Add validation for skillProficiency format:
+       ```json
+       {
+         "JavaScript": "expert",
+         "Python": "advanced",
+         "React": "intermediate",
+         "SQL": "beginner"
+       }
+       ```
+     - Add validation for certifications format:
+       ```json
+       [
+         {
+           "name": "AWS Solutions Architect",
+           "issuer": "Amazon Web Services",
+           "expiry": "2025-12-31"
+         }
+       ]
+       ```
+
+  3. **Validation Rules**:
+     - skillProficiency values must be: "beginner", "intermediate", "advanced", "expert"
+     - certifications array objects must have: name (required), issuer (required), expiry (optional, ISO date format)
+     - Both fields should be optional
+
+  4. **API Endpoints to Update**:
+     - POST /api/contacts - Accept and store new fields
+     - PUT /api/contacts/:id - Allow updating new fields
+     - GET /api/contacts/:id - Return new fields in response
+     - GET /api/contacts - Return new fields in list response
+
+  5. **Test Data for Validation**:
+     Create test data that matches the acceptance test cases:
+
+     ```json
+     {
+       "name": "Jane Doe",
+       "type": "person",
+       "email": "jane.doe@test.com",
+       "workflowRole": "executor",
+       "skillProficiency": {
+         "JavaScript": "expert",
+         "Python": "advanced",
+         "React": "expert",
+         "Node.js": "advanced",
+         "PostgreSQL": "intermediate"
+       },
+       "certifications": [
+         {
+           "name": "AWS Solutions Architect",
+           "issuer": "Amazon Web Services",
+           "expiry": "2025-12-31"
+         },
+         {
+           "name": "PMP",
+           "issuer": "PMI",
+           "expiry": "2026-06-30"
+         }
+       ]
+     }
+
+  6. Implementation Notes:
+    - Use JSONB data type for PostgreSQL for better querying
+    - Maintain backward compatibility - existing contacts without these fields should continue working
+    - Add appropriate indexes if needed for searching by skills or certifications
+    - Follow existing code patterns and validation structure
+    - Update any TypeScript interfaces/types
+  7. Testing Requirements:
+  After implementation, these acceptance tests should pass:
+    - US-C001-B2: Create Contact with Skill Proficiency (currently PARTIAL)
+    - US-C001-B3: Create Contact with Certifications (currently PARTIAL)
+    - US-C001-B5: Update Contact with Workflow Fields (currently PARTIAL)
+
+  AUTHENTICATION:
+  Use existing auth token: Bearer test-token-1756395643200
+  Test credentials: email: "test@example.com", password: "Test123!", mfaCode: "123456"
+
+  SUCCESS CRITERIA:
+  - All backend API acceptance tests for US-C001 should pass completely
+  - No breaking changes to existing functionality
+  - New fields are properly validated and stored
+  - Both create and update operations support the new fields
