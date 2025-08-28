@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 import Header from "@/components/header";
 import ContactFilters from "@/components/contact-filters";
 import ContactTree from "@/components/contact-tree";
@@ -35,6 +36,7 @@ import {
 export default function Home() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("search");
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
 
@@ -196,7 +198,11 @@ export default function Home() {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredContacts.slice(0, 12).map((contact) => (
-                      <div key={contact.id} className="p-4 border rounded-lg space-y-2">
+                      <div 
+                        key={contact.id} 
+                        className="p-4 border rounded-lg space-y-2 cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => setLocation(`/contacts/${contact.id}`)}
+                      >
                         <div className="flex items-center justify-between">
                           <h4 className="font-medium">{contact.name}</h4>
                           <span className={`px-2 py-1 text-xs rounded-full ${
