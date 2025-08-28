@@ -15,9 +15,30 @@ import ContactTest from "@/pages/ContactTest";
 import TestContactIntegration from "@/pages/TestContactIntegration";
 import AssignmentEnginePage from "@/pages/AssignmentEnginePage";
 import EnhancedContactDemo from "@/components/enhanced-contact-demo";
+import DataQualityDashboardPage from "@/pages/data-quality-dashboard";
+import { useEffect } from "react";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Handle OAuth redirect with token
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const user = urlParams.get('user');
+    
+    if (token && user) {
+      // Store token in localStorage for API requests
+      localStorage.setItem('authToken', token);
+      localStorage.setItem('user', user);
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, '/');
+      
+      // Refresh the auth query
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    }
+  }, []);
 
   return (
     <Switch>
