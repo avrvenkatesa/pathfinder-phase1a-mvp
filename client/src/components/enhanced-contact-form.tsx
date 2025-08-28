@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -266,17 +266,19 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
   };
 
   const selectedType = form.watch("type");
-  const parentOptions = getParentOptions(selectedType);
+  const parentOptions = useMemo(() => getParentOptions(selectedType), [selectedType, contacts]);
   
-  // Form progress calculation
-  const watchedFields = form.watch();
-  const requiredFields = ['name', 'type'];
-  const allFields = Object.keys(enhancedFormSchema.shape);
-  const completedFields = Object.entries(watchedFields).filter(([key, value]) => {
-    if (Array.isArray(value)) return value.length > 0;
-    return value && value.toString().trim() !== '';
-  }).length;
-  const progress = Math.round((completedFields / allFields.length) * 100);
+  // Form progress calculation - simplified to reduce re-renders
+  const nameValue = form.watch("name");
+  const typeValue = form.watch("type");
+  const progress = useMemo(() => {
+    const allFields = Object.keys(enhancedFormSchema.shape);
+    const basicFieldsCompleted = [nameValue, typeValue].filter(value => 
+      value && value.toString().trim() !== ''
+    ).length;
+    // Estimate progress based on basic fields (simplified approach)
+    return Math.round((basicFieldsCompleted / 2) * 40 + 33); // Base 33% + up to 40% for basic fields
+  }, [nameValue, typeValue]);
 
   // Skill and tag management functions
   const addSkill = (skill: string) => {
@@ -416,7 +418,7 @@ export default function EnhancedContactForm({ contact, onClose, embedded = false
                           <span className="text-red-500 font-medium">*</span>
                         </FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter full name..." {...field} />
+                          <Input placeholder="Enter full name..." {...field} value={field.value || ""} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
