@@ -34,12 +34,12 @@ export function DataQualityDashboard() {
   const [timeRange, setTimeRange] = useState<string>('7d');
 
   const { data: dataQuality, isLoading: isLoadingQuality, refetch: refetchQuality } = useQuery({
-    queryKey: ['/api/validation/reports/data-quality', { entityType: selectedEntityType !== 'all' ? selectedEntityType : undefined }],
+    queryKey: ['/api/validation/reports/data-quality', selectedEntityType, timeRange],
     retry: false,
   });
 
   const { data: failures, isLoading: isLoadingFailures, refetch: refetchFailures } = useQuery({
-    queryKey: ['/api/validation/reports/failures', { limit: 50, entityType: selectedEntityType !== 'all' ? selectedEntityType : undefined }],
+    queryKey: ['/api/validation/reports/failures', selectedEntityType, timeRange],
     retry: false,
   });
 
@@ -53,19 +53,13 @@ export function DataQualityDashboard() {
     refetchFailures();
   };
 
-  const totalMetrics = dataQuality?.dataQuality?.reduce((acc: any, curr: DataQualityMetrics) => ({
-    totalValidations: acc.totalValidations + curr.total_validations,
-    passed: acc.passed + curr.successful_validations,
-    failed: acc.failed + curr.failed_validations,
-    warnings: acc.warnings + curr.warnings,
-    errors: acc.errors + curr.failed_validations
-  }), {
-    totalValidations: 0,
-    passed: 0,
-    failed: 0,
-    warnings: 0,
-    errors: 0
-  }) || {
+  const totalMetrics = dataQuality?.summary ? {
+    totalValidations: dataQuality.summary.totalValidations,
+    passed: dataQuality.summary.passedValidations,
+    failed: dataQuality.summary.failedValidations,
+    warnings: dataQuality.summary.warningsCount,
+    errors: dataQuality.summary.failedValidations
+  } : {
     totalValidations: 0,
     passed: 0,
     failed: 0,

@@ -1042,10 +1042,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Data Quality Dashboard API endpoints
-  app.get('/api/validation/reports/data-quality/:timeframe?', async (req, res) => {
+  app.get('/api/validation/reports/data-quality', async (req, res) => {
     try {
-      const timeframe = req.params.timeframe || 'today';
-      
       res.json({
         summary: {
           totalValidations: 45,
@@ -1054,6 +1052,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           warningsCount: 5,
           successRate: 71.1
         },
+        dataQuality: [
+          {
+            entity_type: 'contact',
+            total_validations: 35,
+            successful_validations: 25,
+            failed_validations: 10,
+            warnings: 3,
+            success_rate: 71.4
+          },
+          {
+            entity_type: 'workflow',
+            total_validations: 10,
+            successful_validations: 7,
+            failed_validations: 3,
+            warnings: 2,
+            success_rate: 70.0
+          }
+        ],
         trends: {
           daily: [
             { date: '2025-08-29', passed: 32, failed: 13, warnings: 5 },
@@ -1072,33 +1088,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/validation/reports/failures/:timeframe?', async (req, res) => {
+  app.get('/api/validation/reports/failures', async (req, res) => {
     try {
-      const timeframe = req.params.timeframe || 'today';
-      
       res.json({
         failures: [
           {
-            timestamp: new Date().toISOString(),
-            entityType: 'contact',
-            field: 'email',
-            rule: 'email_format',
-            message: 'Please enter a valid email address',
-            value: 'invalid-email',
-            severity: 'error'
+            id: 1,
+            entity_type: 'contact',
+            entity_id: 'contact-123',
+            error_message: 'Please enter a valid email address',
+            severity: 'error',
+            validated_at: new Date().toISOString(),
+            rule_name: 'email_format',
+            rule_domain: 'contact'
           },
           {
-            timestamp: new Date().toISOString(),
-            entityType: 'contact',
-            field: 'phone',
-            rule: 'phone_format',
-            message: 'Please enter a valid phone number (at least 10 digits)',
-            value: '56',
-            severity: 'error'
+            id: 2,
+            entity_type: 'contact',
+            entity_id: 'contact-456',
+            error_message: 'Please enter a valid phone number (at least 10 digits)',
+            severity: 'error',
+            validated_at: new Date().toISOString(),
+            rule_name: 'phone_format',
+            rule_domain: 'contact'
+          },
+          {
+            id: 3,
+            entity_type: 'contact',
+            entity_id: 'contact-789',
+            error_message: 'First name is required',
+            severity: 'warning',
+            validated_at: new Date().toISOString(),
+            rule_name: 'required_fields',
+            rule_domain: 'contact'
           }
         ],
-        totalFailures: 13,
-        timeframe
+        totalFailures: 13
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to generate failure report' });
