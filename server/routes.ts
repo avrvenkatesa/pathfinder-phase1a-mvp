@@ -1042,7 +1042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Data Quality Dashboard API endpoints
-  app.get('/api/validation/reports/data-quality', async (req, res) => {
+  app.get('/api/validation/reports/data-quality/:entityType?/:timeRange?', async (req, res) => {
     try {
       res.json({
         summary: {
@@ -1088,7 +1088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/validation/reports/failures', async (req, res) => {
+  app.get('/api/validation/reports/failures/:entityType?/:timeRange?', async (req, res) => {
     try {
       res.json({
         failures: [
