@@ -912,25 +912,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         result.metadata.severity = 'error';
       }
 
-      // Required field validation
+      // Required field validation - entity-aware
       if (entityType === 'contact') {
-        if (!data.firstName || data.firstName.trim() === '') {
-          result.isValid = false;
-          result.errors.push({
-            field: 'firstName',
-            message: 'First name is required',
-            code: 'REQUIRED_FIELD',
-            value: data.firstName
-          });
+        // Only validate firstName/lastName for person type contacts
+        if (data.type === 'person') {
+          if (!data.firstName || data.firstName.trim() === '') {
+            result.isValid = false;
+            result.errors.push({
+              field: 'firstName',
+              message: 'First name is required for person contacts',
+              code: 'REQUIRED_FIELD',
+              value: data.firstName
+            });
+          }
+
+          if (!data.lastName || data.lastName.trim() === '') {
+            result.isValid = false;
+            result.errors.push({
+              field: 'lastName',
+              message: 'Last name is required for person contacts',
+              code: 'REQUIRED_FIELD',
+              value: data.lastName
+            });
+          }
         }
 
-        if (!data.lastName || data.lastName.trim() === '') {
+        // Validate name field for all contact types (company, division, person)
+        if (!data.name || data.name.trim() === '') {
           result.isValid = false;
           result.errors.push({
-            field: 'lastName',
-            message: 'Last name is required',
+            field: 'name',
+            message: `${data.type === 'company' ? 'Company' : data.type === 'division' ? 'Division' : 'Full'} name is required`,
             code: 'REQUIRED_FIELD',
-            value: data.lastName
+            value: data.name
           });
         }
 
@@ -1116,7 +1130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: 3,
             entity_type: 'contact',
             entity_id: 'contact-789',
-            error_message: 'First name is required',
+            error_message: 'Please enter a valid email address',
             severity: 'warning',
             validated_at: new Date().toISOString(),
             rule_name: 'required_fields',
