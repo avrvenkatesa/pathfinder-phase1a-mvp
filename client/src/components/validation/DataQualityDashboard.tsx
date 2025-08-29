@@ -245,9 +245,9 @@ export function DataQualityDashboard() {
                     {performance.performance.map((perf: any, index: number) => (
                       <div key={index} className="flex justify-between items-center">
                         <span className="text-sm">
-                          {format(new Date(perf.hour), 'HH:mm')}
+                          {perf.metric}
                         </span>
-                        <span className="font-medium">{perf.validations_count}</span>
+                        <span className="font-medium">{perf.value}</span>
                       </div>
                     ))}
                   </div>
