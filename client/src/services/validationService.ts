@@ -54,23 +54,19 @@ class ValidationService {
     }
 
     try {
-      const response = await apiRequest('/api/validation/validate-entity', {
-        method: 'POST',
-        body: JSON.stringify({
-          entityType,
-          data,
-          rules
-        }),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      const response = await apiRequest('POST', '/api/validation/validate-entity', {
+        entityType,
+        data,
+        rules
       });
 
+      const responseData = await response.json();
+      
       const result: ValidationResult = {
-        isValid: response.isValid,
-        errors: response.errors || [],
-        warnings: response.warnings || [],
-        metadata: response.metadata
+        isValid: responseData.isValid,
+        errors: responseData.errors || [],
+        warnings: responseData.warnings || [],
+        metadata: responseData.metadata
       };
 
       // Cache successful results
@@ -85,7 +81,7 @@ class ValidationService {
           field: 'system',
           message: 'Validation service unavailable',
           code: 'SERVICE_ERROR',
-          value: error.message
+          value: error instanceof Error ? error.message : String(error)
         }],
         warnings: []
       };
@@ -118,16 +114,10 @@ class ValidationService {
     rules?: string[]
   ): Promise<void> {
     try {
-      await apiRequest('/api/validation/validate-entity-async', {
-        method: 'POST',
-        body: JSON.stringify({
-          entityType,
-          data,
-          rules
-        }),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      await apiRequest('POST', '/api/validation/validate-entity-async', {
+        entityType,
+        data,
+        rules
       });
     } catch (error) {
       console.error('Async validation error:', error);
@@ -142,17 +132,15 @@ class ValidationService {
     summary: ValidationSummary;
   }> {
     try {
-      const response = await apiRequest('/api/validation/validate-bulk', {
-        method: 'POST',
-        body: JSON.stringify({ entities }),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      const response = await apiRequest('POST', '/api/validation/validate-bulk', {
+        entities
       });
 
+      const responseData = await response.json();
+
       return {
-        results: response.results || [],
-        summary: response.summary || {
+        results: responseData.results || [],
+        summary: responseData.summary || {
           totalValidated: 0,
           passed: 0,
           failed: 0,
@@ -185,8 +173,9 @@ class ValidationService {
       if (ruleType) params.append('ruleType', ruleType);
       params.append('active', 'true');
 
-      const response = await apiRequest(`/api/validation/rules?${params.toString()}`);
-      return response.rules || [];
+      const response = await apiRequest('GET', `/api/validation/rules?${params.toString()}`);
+      const responseData = await response.json();
+      return responseData.rules || [];
     } catch (error) {
       console.error('Error fetching validation rules:', error);
       return [];
