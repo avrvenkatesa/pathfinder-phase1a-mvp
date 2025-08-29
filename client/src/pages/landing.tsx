@@ -10,32 +10,16 @@ export default function Landing() {
   const [password, setPassword] = useState("");
 
   const handleGoogleLogin = () => {
-    window.location.href = "/api/auth/google";
+    window.location.href = "/api/login";
   };
 
   const handleMicrosoftLogin = () => {
-    window.location.href = "/api/auth/microsoft";
+    window.location.href = "/api/login";
   };
 
-  const handleEmailLogin = async () => {
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          window.location.href = "/?token=" + data.token;
-        }
-      } else {
-        alert("Login failed. Please check your credentials.");
-      }
-    } catch (error) {
-      alert("Login failed. Please try again.");
-    }
+  const handleEmailLogin = () => {
+    // Redirect to Replit Auth for email/password login as well
+    window.location.href = "/api/login";
   };
 
   return (
