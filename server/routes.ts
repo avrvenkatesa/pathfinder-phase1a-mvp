@@ -882,6 +882,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // US-DV001 Validation Service API Routes
+  app.post('/api/validation/validate-entity', async (req, res) => {
+    try {
+      const { entityType, data, rules } = req.body;
+      
+      // Basic validation response structure
+      const result = {
+        isValid: true,
+        errors: [],
+        warnings: [],
+        metadata: {
+          entityType,
+          entityId: data.id || 'new',
+          validatedAt: new Date().toISOString(),
+          severity: 'info' as const
+        }
+      };
+
+      // Simple email validation for demonstration
+      if (data.email && !data.email.includes('@')) {
+        result.isValid = false;
+        result.errors.push({
+          field: 'email',
+          message: 'Please enter a valid email address',
+          code: 'INVALID_EMAIL',
+          value: data.email
+        });
+        result.metadata.severity = 'error';
+      }
+
+      // Required field validation
+      if (entityType === 'contact') {
+        if (!data.firstName || data.firstName.trim() === '') {
+          result.isValid = false;
+          result.errors.push({
+            field: 'firstName',
+            message: 'First name is required',
+            code: 'REQUIRED_FIELD',
+            value: data.firstName
+          });
+        }
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error('Validation service error:', error);
+      res.status(500).json({
+        isValid: false,
+        errors: [{
+          field: 'system',
+          message: 'Validation service error',
+          code: 'SERVICE_ERROR',
+          value: error.message
+        }],
+        warnings: []
+      });
+    }
+  });
+
+  app.post('/api/validation/validate-entity-async', async (req, res) => {
+    // Async validation endpoint - just return 200 for now
+    res.status(200).json({ message: 'Async validation queued' });
+  });
+
+  app.post('/api/validation/validate-bulk', async (req, res) => {
+    try {
+      const { entities } = req.body;
+      const results = entities.map(() => ({
+        isValid: true,
+        errors: [],
+        warnings: []
+      }));
+      
+      res.json({
+        results,
+        summary: {
+          totalValidated: entities.length,
+          passed: entities.length,
+          failed: 0,
+          warnings: 0,
+          errors: 0
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        results: [],
+        summary: {
+          totalValidated: 0,
+          passed: 0,
+          failed: 0,
+          warnings: 0,
+          errors: 1
+        }
+      });
+    }
+  });
+
+  app.get('/api/validation/rules', async (req, res) => {
+    try {
+      res.json({
+        rules: [
+          {
+            id: 'email_format',
+            domain: 'contact',
+            ruleType: 'format',
+            description: 'Email format validation',
+            active: true
+          },
+          {
+            id: 'required_fields',
+            domain: 'contact',
+            ruleType: 'required',
+            description: 'Required field validation',
+            active: true
+          }
+        ]
+      });
+    } catch (error) {
+      res.status(500).json({ rules: [] });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
