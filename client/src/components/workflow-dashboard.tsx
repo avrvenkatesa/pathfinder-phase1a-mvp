@@ -225,10 +225,6 @@ function WorkflowsTab() {
             <SelectItem value="Quality Assurance">Quality Assurance</SelectItem>
           </SelectContent>
         </Select>
-        <Button onClick={handleNewWorkflow}>
-          <Plus size={16} className="mr-1" />
-          New Workflow
-        </Button>
       </div>
 
       {/* Workflows Table */}
