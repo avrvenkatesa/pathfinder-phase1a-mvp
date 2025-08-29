@@ -1213,6 +1213,56 @@ export default function EnhancedContactForm({
     }
   }, [form, isEditMode]);
 
+  // Reset form when dialog opens for new contacts
+  useEffect(() => {
+    if (!isEditMode && open) {
+      // Clear localStorage draft and reset form to defaults
+      localStorage.removeItem("contactDraft");
+      form.reset({
+        name: "",
+        type: "company",
+        firstName: "",
+        lastName: "",
+        jobTitle: "",
+        department: "",
+        email: "",
+        phone: "",
+        secondaryPhone: "",
+        address: "",
+        website: "",
+        description: "",
+        parentId: "",
+        skills: [],
+        availabilityStatus: "available",
+        preferredWorkHours: "",
+        workStartTime: "09:00",
+        workEndTime: "17:00",
+        workTimezone: "UTC",
+        rolePreference: "any",
+        projectTypes: [],
+        assignmentCapacity: "normal",
+        workflowRole: undefined,
+        maxConcurrentTasks: 5,
+        costPerHour: undefined,
+        timezone: "UTC",
+        languages: ["English"],
+        currentWorkload: 0,
+        skillProficiency: {},
+        certifications: [],
+        tags: [],
+        notes: "",
+        isActive: true,
+      });
+      setIsDraft(false);
+      setCurrentStep("basic");
+      setValidationResults({
+        isValid: true,
+        errors: [],
+        warnings: []
+      });
+    }
+  }, [open, isEditMode, form]);
+
   const createMutation = useMutation({
     mutationFn: async (data: InsertContact) => {
       const endpoint = isEditMode ? `/api/contacts/${contact!.id}` : "/api/contacts";
