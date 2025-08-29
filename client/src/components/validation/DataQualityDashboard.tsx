@@ -204,7 +204,7 @@ export function DataQualityDashboard() {
                           </div>
                           <div className="font-medium">Entity ID: {failure.entity_id}</div>
                           <div className="text-sm text-gray-600">
-                            {failure.error_message ? JSON.parse(failure.error_message)[0]?.message : 'Unknown error'}
+                            {failure.error_message || 'Unknown error'}
                           </div>
                         </div>
                         <div className="text-xs text-gray-500">
