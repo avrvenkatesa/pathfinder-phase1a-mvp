@@ -123,6 +123,8 @@ type FormContentProps = {
   handlePrevious: () => void;
   handleNext: () => void;
   onSubmit: (data: EnhancedFormData) => void;
+  customSkillInput: string;
+  setCustomSkillInput: (value: string) => void;
   validationResults: ValidationResult;
   isValidating: boolean;
 };
@@ -150,6 +152,8 @@ function FormContent({
   onSubmit,
   validationResults,
   isValidating,
+  customSkillInput,
+  setCustomSkillInput,
 }: FormContentProps) {
   return (
     <Form {...form}>
@@ -1532,6 +1536,8 @@ export default function EnhancedContactForm({
           onSubmit={onSubmit}
           validationResults={validationResults}
           isValidating={isValidating}
+          customSkillInput={customSkillInput}
+          setCustomSkillInput={setCustomSkillInput}
         />
       </div>
     );
@@ -1589,6 +1595,8 @@ export default function EnhancedContactForm({
           onSubmit={onSubmit}
           validationResults={validationResults}
           isValidating={isValidating}
+          customSkillInput={customSkillInput}
+          setCustomSkillInput={setCustomSkillInput}
         />
       </DialogContent>
     </Dialog>
