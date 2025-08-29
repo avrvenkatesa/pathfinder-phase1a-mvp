@@ -1781,7 +1781,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                               <div key={index} className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded">
                                 <div className="flex items-center gap-2">
                                   <div className="w-6 h-6 rounded-full bg-green-200 flex items-center justify-center text-xs font-semibold">
-                                    {contact.name.split(' ').map((n: string) => n[0]).join('')}
+                                    {contact.name?.split(' ').map((n: string) => n[0]).join('') || '?'}
                                   </div>
                                   <div>
                                     <span className="text-sm font-medium text-gray-800">{contact.name}</span>
