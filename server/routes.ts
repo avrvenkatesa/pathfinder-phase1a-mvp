@@ -934,19 +934,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        // Phone number format validation
-        if (data.phone && data.phone.trim() !== '') {
-          const phoneRegex = /^[\+]?[\d\s\-\(\)\.]{10,}$/;
-          if (!phoneRegex.test(data.phone)) {
-            result.isValid = false;
-            result.errors.push({
-              field: 'phone',
-              message: 'Please enter a valid phone number (at least 10 digits)',
-              code: 'INVALID_PHONE',
-              value: data.phone
-            });
+        // Phone number format validation (check both phone and primaryPhone fields)
+        const phoneFields = ['phone', 'primaryPhone'];
+        phoneFields.forEach(phoneField => {
+          if (data[phoneField] && data[phoneField].trim() !== '') {
+            const phoneValue = data[phoneField].trim();
+            // Count only digits in the phone number
+            const digitCount = phoneValue.replace(/\D/g, '').length;
+            
+            if (digitCount < 10) {
+              result.isValid = false;
+              result.errors.push({
+                field: phoneField,
+                message: 'Please enter a valid phone number (at least 10 digits)',
+                code: 'INVALID_PHONE',
+                value: data[phoneField]
+              });
+            }
           }
-        }
+        });
       }
 
       res.json(result);
