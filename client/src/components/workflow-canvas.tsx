@@ -1784,8 +1784,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflowData }) => {
                                     {contact.name?.split(' ').map((n: string) => n[0]).join('') || '?'}
                                   </div>
                                   <div>
-                                    <span className="text-sm font-medium text-gray-800">{contact.name}</span>
-                                    <div className="text-xs text-gray-600">{contact.title} • {contact.matchScore}% match</div>
+                                    <span className="text-sm font-medium text-gray-800">{contact.name || 'Unknown Contact'}</span>
+                                    <div className="text-xs text-gray-600">{contact.title || 'No Title'} • {contact.matchScore || 0}% match</div>
                                   </div>
                                 </div>
                                 <button 
