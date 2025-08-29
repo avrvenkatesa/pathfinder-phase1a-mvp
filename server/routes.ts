@@ -923,6 +923,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
             value: data.firstName
           });
         }
+
+        if (!data.lastName || data.lastName.trim() === '') {
+          result.isValid = false;
+          result.errors.push({
+            field: 'lastName',
+            message: 'Last name is required',
+            code: 'REQUIRED_FIELD',
+            value: data.lastName
+          });
+        }
+
+        // Phone number format validation
+        if (data.phone && data.phone.trim() !== '') {
+          const phoneRegex = /^[\+]?[\d\s\-\(\)\.]{10,}$/;
+          if (!phoneRegex.test(data.phone)) {
+            result.isValid = false;
+            result.errors.push({
+              field: 'phone',
+              message: 'Please enter a valid phone number (at least 10 digits)',
+              code: 'INVALID_PHONE',
+              value: data.phone
+            });
+          }
+        }
       }
 
       res.json(result);
@@ -994,7 +1018,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: 'required_fields',
             domain: 'contact',
             ruleType: 'required',
-            description: 'Required field validation',
+            description: 'Required field validation (firstName, lastName)',
+            active: true
+          },
+          {
+            id: 'phone_format',
+            domain: 'contact',
+            ruleType: 'format',
+            description: 'Phone number format validation',
             active: true
           }
         ]
