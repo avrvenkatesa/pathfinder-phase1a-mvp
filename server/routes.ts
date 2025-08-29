@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import { contactService } from "./services/contactService";
 import { 
   insertContactSchema, 
@@ -19,128 +20,10 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 
-// isAuthenticated will be imported from replitAuth
-
-// Simple authentication middleware for JWT tokens
-const isAuthenticated = async (req: any, res: any, next: any) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    
-    // For test tokens, create mock user
-    if (token.startsWith('test-token-')) {
-      req.user = {
-        claims: { sub: 'test-user-id' }
-      };
-      return next();
-    }
-    
-    // For Google OAuth tokens
-    if (token.startsWith('google-token-')) {
-      req.user = {
-        claims: { sub: token.replace('google-token-', 'google-user-') }
-      };
-      return next();
-    }
-    
-    // For Microsoft OAuth tokens
-    if (token.startsWith('microsoft-token-')) {
-      req.user = {
-        claims: { sub: token.replace('microsoft-token-', 'microsoft-user-') }
-      };
-      return next();
-    }
-    
-    // For other tokens, you could implement JWT verification here
-    // For now, accepting any bearer token for demo purposes
-    req.user = {
-      claims: { sub: 'demo-user-id' }
-    };
-    return next();
-  }
-  
-  return res.status(401).json({ message: "Unauthorized" });
-};
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // No auth setup needed - using JWT tokens
-
-  // OAuth redirect routes
-  app.get('/api/auth/google', (req, res) => {
-    // For demo purposes, simulate the OAuth flow by going directly to callback
-    // In production, this would redirect to Google's OAuth servers
-    console.log('Google OAuth initiated, redirecting to callback with demo data');
-    res.redirect('/api/auth/google/callback?code=demo_google_auth_code');
-  });
-
-  app.get('/api/auth/google/callback', async (req, res) => {
-    try {
-      console.log('Google callback reached, processing auth...');
-      
-      // For demo, create a mock Google user and redirect
-      const mockGoogleUser = {
-        id: 'google-user-' + Date.now(),
-        email: 'google.user@gmail.com',
-        firstName: 'Google',
-        lastName: 'User',
-        role: 'user'
-      };
-
-      await storage.upsertUser({
-        id: mockGoogleUser.id,
-        email: mockGoogleUser.email,
-        firstName: mockGoogleUser.firstName,
-        lastName: mockGoogleUser.lastName
-      });
-
-      const accessToken = `google-token-${Date.now()}`;
-      const redirectUrl = '/?token=' + accessToken + '&user=' + encodeURIComponent(JSON.stringify(mockGoogleUser));
-      
-      console.log('Google auth complete, redirecting to:', redirectUrl);
-      res.redirect(redirectUrl);
-    } catch (error) {
-      console.error('Google callback error:', error);
-      res.redirect('/?error=google_auth_failed');
-    }
-  });
-
-  app.get('/api/auth/microsoft', (req, res) => {
-    // For demo purposes, simulate the OAuth flow by going directly to callback
-    // In production, this would redirect to Microsoft's OAuth servers
-    console.log('Microsoft OAuth initiated, redirecting to callback with demo data');
-    res.redirect('/api/auth/microsoft/callback?code=demo_microsoft_auth_code');
-  });
-
-  app.get('/api/auth/microsoft/callback', async (req, res) => {
-    try {
-      console.log('Microsoft callback reached, processing auth...');
-      
-      // For demo, create a mock Microsoft user and redirect
-      const mockMicrosoftUser = {
-        id: 'microsoft-user-' + Date.now(),
-        email: 'microsoft.user@outlook.com',
-        firstName: 'Microsoft',
-        lastName: 'User',
-        role: 'user'
-      };
-
-      await storage.upsertUser({
-        id: mockMicrosoftUser.id,
-        email: mockMicrosoftUser.email,
-        firstName: mockMicrosoftUser.firstName,
-        lastName: mockMicrosoftUser.lastName
-      });
-
-      const accessToken = `microsoft-token-${Date.now()}`;
-      const redirectUrl = '/?token=' + accessToken + '&user=' + encodeURIComponent(JSON.stringify(mockMicrosoftUser));
-      
-      console.log('Microsoft auth complete, redirecting to:', redirectUrl);
-      res.redirect(redirectUrl);
-    } catch (error) {
-      console.error('Microsoft callback error:', error);
-      res.redirect('/?error=microsoft_auth_failed');
-    }
-  });
+  // Auth middleware
+  await setupAuth(app);
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -154,100 +37,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Logout endpoint
-  app.post('/api/logout', (req, res) => {
-    res.json({ message: 'Logout successful' });
-  });
 
-  app.get('/api/logout', (req, res) => {
-    res.redirect('/?logout=true');
-  });
-
-  // Email/Password login endpoint - keeping for backward compatibility
-  app.post('/api/auth/login', async (req: any, res) => {
-    try {
-      const { email, password } = req.body;
-      
-      // Validate required fields
-      if (!email || !password) {
-        return res.status(400).json({
-          success: false,
-          message: "Email and password are required"
-        });
-      }
-
-      // Check test credentials
-      if (email === 'test@example.com' && password === 'Test123!') {
-        // Check if MFA code was provided for testing
-        const { mfaCode } = req.body;
-        
-        // For MFA testing, require code "123456" for test user
-        if (mfaCode) {
-          if (mfaCode !== '123456') {
-            return res.status(401).json({
-              success: false,
-              message: "The code you entered is incorrect. Please check your authenticator app and try again."
-            });
-          }
-        } else {
-          // First login step - require MFA
-          return res.status(200).json({
-            success: false,
-            requiresMfa: true,
-            message: "MFA code required"
-          });
-        }
-        
-        // Create or get test user
-        const testUser = {
-          id: 'test-user-id',
-          email: 'test@example.com',
-          firstName: 'Test',
-          lastName: 'User',
-          role: 'user',
-          mfaEnabled: true
-        };
-
-        // Ensure test user exists in storage
-        await storage.upsertUser({
-          id: testUser.id,
-          email: testUser.email,
-          firstName: testUser.firstName,
-          lastName: testUser.lastName
-        });
-
-        // Mock JWT token
-        const accessToken = `test-token-${Date.now()}`;
-
-        return res.json({
-          success: true,
-          user: {
-            id: testUser.id,
-            email: testUser.email,
-            firstName: testUser.firstName,
-            lastName: testUser.lastName,
-            role: testUser.role,
-            mfaEnabled: false,
-            emailVerified: true
-          },
-          accessToken,
-          message: "Login successful"
-        });
-      }
-
-      // Invalid credentials
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password"
-      });
-    } catch (error) {
-      console.error("Login error:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Login failed"
-      });
-    }
-  });
 
   // Contact routes
   app.get("/api/contacts", isAuthenticated, async (req: any, res) => {
