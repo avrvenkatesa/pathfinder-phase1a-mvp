@@ -580,18 +580,15 @@ function FormContent({
                     <div className="flex gap-2 mt-3">
                       <Input
                         placeholder="Type a custom skill..."
-                        value=""
-                        onChange={(e) => {
-                          // This will be handled by the onKeyDown event
-                        }}
+                        value={customSkillInput}
+                        onChange={(e) => setCustomSkillInput(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            const input = e.target as HTMLInputElement;
-                            const skillName = input.value.trim();
+                            const skillName = customSkillInput.trim();
                             if (skillName && !(form.watch("skills") || []).includes(skillName)) {
                               addSkill(skillName);
-                              input.value = '';
+                              setCustomSkillInput('');
                             }
                           }
                         }}
@@ -601,12 +598,11 @@ function FormContent({
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={(e) => {
-                          const input = (e.target as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement;
-                          const skillName = input?.value.trim();
+                        onClick={() => {
+                          const skillName = customSkillInput.trim();
                           if (skillName && !(form.watch("skills") || []).includes(skillName)) {
                             addSkill(skillName);
-                            input.value = '';
+                            setCustomSkillInput('');
                           }
                         }}
                       >
@@ -1124,6 +1120,7 @@ export default function EnhancedContactForm({
   const [open, setOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState("basic");
   const [isDraft, setIsDraft] = useState(false);
+  const [customSkillInput, setCustomSkillInput] = useState("");
   const [validationResults, setValidationResults] = useState<ValidationResult>({
     isValid: true,
     errors: [],
