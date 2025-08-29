@@ -575,6 +575,44 @@ function FormContent({
                           </Button>
                         ))}
                     </div>
+                    
+                    {/* Custom Skill Input */}
+                    <div className="flex gap-2 mt-3">
+                      <Input
+                        placeholder="Type a custom skill..."
+                        value=""
+                        onChange={(e) => {
+                          // This will be handled by the onKeyDown event
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const input = e.target as HTMLInputElement;
+                            const skillName = input.value.trim();
+                            if (skillName && !(form.watch("skills") || []).includes(skillName)) {
+                              addSkill(skillName);
+                              input.value = '';
+                            }
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          const input = (e.target as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement;
+                          const skillName = input?.value.trim();
+                          if (skillName && !(form.watch("skills") || []).includes(skillName)) {
+                            addSkill(skillName);
+                            input.value = '';
+                          }
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Skill Proficiency Section */}
