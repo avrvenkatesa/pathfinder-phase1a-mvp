@@ -45,10 +45,21 @@ export default function ContactsPage() {
 
   const createMutation = useMutation({
     mutationFn: async (contactData: Partial<Contact>) => {
-      await apiRequest('/api/contacts', {
+      const response = await fetch('/api/contacts', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(contactData),
+        credentials: 'include',
       });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create contact: ${errorText}`);
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });

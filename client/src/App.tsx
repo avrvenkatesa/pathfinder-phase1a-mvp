@@ -27,7 +27,6 @@ function Router() {
       {/* Testing routes - available without authentication */}
       <Route path="/websocket-test" component={WebSocketTestComponent} />
       <Route path="/cross-tab-test" component={CrossTabValidationTest} />
-      <Route path="/contacts" component={ContactsPage} />
       <Route path="/workflows" component={WorkflowDashboard} />
       <Route path="/workflows/new" component={NewWorkflow} />
       <Route path="/workflows/:id" component={WorkflowPage} />
@@ -37,6 +36,7 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Home} />
+          <Route path="/contacts" component={Home} />
           <Route path="/contacts/:id" component={ContactDetail} />
           <Route path="/contact-test" component={ContactTest} />
           <Route path="/test-contacts" component={TestContactIntegration} />
