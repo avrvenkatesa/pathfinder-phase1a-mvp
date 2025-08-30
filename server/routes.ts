@@ -23,13 +23,13 @@ import { z } from "zod";
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware - temporarily disabled for cross-tab validation testing
-  // await setupAuth(app);
+  // Auth middleware
+  await setupAuth(app);
 
   // Auth routes
-  app.get('/api/auth/user', async (req: any, res) => {
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = 'test-user'; // req.user.claims.sub;
+      const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -60,9 +60,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/contacts/hierarchy", async (req: any, res) => {
+  app.get("/api/contacts/hierarchy", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = 'test-user'; // req.user.claims.sub;
+      const userId = req.user.claims.sub;
       const hierarchy = await storage.getContactHierarchy(userId);
       res.json(hierarchy);
     } catch (error) {
@@ -71,9 +71,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/contacts/stats", async (req: any, res) => {
+  app.get("/api/contacts/stats", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = 'test-user'; // req.user.claims.sub;
+      const userId = req.user.claims.sub;
       const stats = await storage.getContactStats(userId);
       res.json(stats);
     } catch (error) {
@@ -83,9 +83,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Capacity optimization analysis - must be before :id route
-  app.get("/api/contacts/capacity-analysis", async (req: any, res) => {
+  app.get("/api/contacts/capacity-analysis", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = 'test-user'; // req.user.claims.sub;
+      const userId = req.user.claims.sub;
       const analysis = await contactService.getCapacityOptimizationSuggestions(userId);
       res.json(analysis);
     } catch (error) {
@@ -94,9 +94,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/contacts/:id", async (req: any, res) => {
+  app.get("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = 'test-user'; // req.user.claims.sub;
+      const userId = req.user.claims.sub;
       const contact = await storage.getContactById(req.params.id, userId);
       
       if (!contact) {
@@ -110,9 +110,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/contacts", async (req: any, res) => {
+  app.post("/api/contacts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = 'test-user'; // req.user.claims.sub;
+      const userId = req.user.claims.sub;
       const contactData = insertContactSchema.parse(req.body);
       
       const contact = await storage.createContact(contactData, userId);
