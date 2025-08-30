@@ -133,7 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contactData = updateContactSchema.parse(req.body);
       
       // Get original contact data to detect changes
-      const originalContact = await storage.getContact(contactId, userId);
+      const originalContact = await storage.getContactById(contactId, userId);
       
       const contact = await storage.updateContact(contactId, contactData, userId);
       
@@ -177,7 +177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contactId = req.params.id;
       
       // Get contact data before deletion for broadcasting
-      const contactData = await storage.getContact(contactId, userId);
+      const contactData = await storage.getContactById(contactId, userId);
       
       const deleted = await storage.deleteContact(contactId, userId);
       
