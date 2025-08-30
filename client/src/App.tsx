@@ -27,21 +27,21 @@ function Router() {
       {/* Testing routes - available without authentication */}
       <Route path="/websocket-test" component={WebSocketTestComponent} />
       <Route path="/cross-tab-test" component={CrossTabValidationTest} />
+      <Route path="/contacts" component={Home} />
       <Route path="/workflows" component={WorkflowDashboard} />
       <Route path="/workflows/new" component={NewWorkflow} />
       <Route path="/workflows/:id" component={WorkflowPage} />
+      <Route path="/contacts/:id" component={ContactDetail} />
+      <Route path="/contact-test" component={ContactTest} />
+      <Route path="/test-contacts" component={TestContactIntegration} />
+      <Route path="/assignment-engine" component={AssignmentEnginePage} />
+      <Route path="/data-quality" component={DataQualityDashboardPage} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (
         <>
           <Route path="/" component={Home} />
-          <Route path="/contacts" component={Home} />
-          <Route path="/contacts/:id" component={ContactDetail} />
-          <Route path="/contact-test" component={ContactTest} />
-          <Route path="/test-contacts" component={TestContactIntegration} />
-          <Route path="/assignment-engine" component={AssignmentEnginePage} />
-          <Route path="/data-quality" component={DataQualityDashboardPage} />
         </>
       )}
       <Route component={NotFound} />
