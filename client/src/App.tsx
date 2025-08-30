@@ -18,6 +18,7 @@ import AssignmentEnginePage from "@/pages/AssignmentEnginePage";
 import DataQualityDashboardPage from "@/pages/data-quality-dashboard";
 import { WebSocketTestComponent } from "@/components/WebSocketTestComponent";
 import { CrossTabValidationTest } from "@/components/CrossTabValidationTest";
+import { CrossTabTestInterface } from "@/components/CrossTabTestInterface";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -27,6 +28,7 @@ function Router() {
       {/* Testing routes - available without authentication */}
       <Route path="/websocket-test" component={WebSocketTestComponent} />
       <Route path="/cross-tab-test" component={CrossTabValidationTest} />
+      <Route path="/test-validation" component={CrossTabTestInterface} />
       <Route path="/contacts" component={Home} />
       <Route path="/workflows" component={WorkflowDashboard} />
       <Route path="/workflows/new" component={NewWorkflow} />
