@@ -15,6 +15,7 @@ import ContactTest from "@/pages/ContactTest";
 import TestContactIntegration from "@/pages/TestContactIntegration";
 import AssignmentEnginePage from "@/pages/AssignmentEnginePage";
 import DataQualityDashboardPage from "@/pages/data-quality-dashboard";
+import { WebSocketTestComponent } from "@/components/WebSocketTestComponent";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -34,6 +35,7 @@ function Router() {
           <Route path="/test-contacts" component={TestContactIntegration} />
           <Route path="/assignment-engine" component={AssignmentEnginePage} />
           <Route path="/data-quality" component={DataQualityDashboardPage} />
+          <Route path="/websocket-test" component={WebSocketTestComponent} />
         </>
       )}
       <Route component={NotFound} />
