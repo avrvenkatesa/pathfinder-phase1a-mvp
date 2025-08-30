@@ -23,6 +23,10 @@ function Router() {
 
   return (
     <Switch>
+      {/* Testing routes - available without authentication */}
+      <Route path="/websocket-test" component={WebSocketTestComponent} />
+      <Route path="/cross-tab-test" component={CrossTabValidationTest} />
+      
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (
@@ -36,8 +40,6 @@ function Router() {
           <Route path="/test-contacts" component={TestContactIntegration} />
           <Route path="/assignment-engine" component={AssignmentEnginePage} />
           <Route path="/data-quality" component={DataQualityDashboardPage} />
-          <Route path="/websocket-test" component={WebSocketTestComponent} />
-          <Route path="/cross-tab-test" component={CrossTabValidationTest} />
         </>
       )}
       <Route component={NotFound} />
