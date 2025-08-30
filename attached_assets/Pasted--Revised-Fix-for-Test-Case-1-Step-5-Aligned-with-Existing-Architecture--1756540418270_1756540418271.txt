@@ -1,0 +1,413 @@
+# Revised Fix for Test Case 1 Step 5 - Aligned with Existing Architecture                                                     │ │
+│ │                                                                                                                               │ │
+│ │ ## Replit's Key Insights Summary                                                                                              │ │
+│ │ ✅ **Correct Observations:**                                                                                                   │ │
+│ │ 1. Existing `ContactWebSocketService` uses native WebSocket, not Socket.IO                                                    │ │
+│ │ 2. Current message types don't include CONTACT_DELETED or CONTACT_MODIFIED                                                    │ │
+│ │ 3. No Socket.IO server setup exists - only WebSocket client service                                                           │ │
+│ │ 4. Need to respect microservice boundaries (Contact → API Gateway → Workflow)                                                 │ │
+│ │ 5. Missing referential integrity checks at database level                                                                     │ │
+│ │                                                                                                                               │ │
+│ │ ## Revised Implementation Approach                                                                                            │ │
+│ │                                                                                                                               │ │
+│ │ ### Phase 1: Extend Existing WebSocket Infrastructure                                                                         │ │
+│ │                                                                                                                               │ │
+│ │ #### 1.1 Update WebSocket Message Types                                                                                       │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // In client/src/services/contact-websocket.service.ts                                                                        │ │
+│ │ export interface WebSocketMessage {                                                                                           │ │
+│ │   type: 'CONTACT_AVAILABILITY_UPDATE' |                                                                                       │ │
+│ │         'CONTACT_WORKLOAD_UPDATE' |                                                                                           │ │
+│ │         'CONTACT_STATUS_CHANGE' |                                                                                             │ │
+│ │         'CONTACT_DELETED' |           // NEW                                                                                  │ │
+│ │         'CONTACT_MODIFIED' |           // NEW                                                                                 │ │
+│ │         'CONTACT_VALIDATION_ERROR' |  // NEW                                                                                  │ │
+│ │         'HEARTBEAT' |                                                                                                         │ │
+│ │         'AUTH_REQUIRED' |                                                                                                     │ │
+│ │         'ERROR';                                                                                                              │ │
+│ │   data?: any;                                                                                                                 │ │
+│ │   timestamp: string;                                                                                                          │ │
+│ │   contactId?: string;                                                                                                         │ │
+│ │   affectedWorkflows?: string[];       // NEW                                                                                  │ │
+│ │ }                                                                                                                             │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ #### 1.2 Enhance ContactWebSocketService                                                                                      │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // Extend existing client/src/services/contact-websocket.service.ts                                                           │ │
+│ │ export class ContactWebSocketService {                                                                                        │ │
+│ │   private ws: WebSocket | null = null;                                                                                        │ │
+│ │   private subscribers: Map<string, Set<(msg: WebSocketMessage) => void>> = new Map();                                         │ │
+│ │                                                                                                                               │ │
+│ │   // Add new subscription method for workflow components                                                                      │ │
+│ │   subscribeToContactDeletions(workflowId: string, callback: (msg: WebSocketMessage) => void) {                                │ │
+│ │     const key = `workflow:${workflowId}`;                                                                                     │ │
+│ │     if (!this.subscribers.has(key)) {                                                                                         │ │
+│ │       this.subscribers.set(key, new Set());                                                                                   │ │
+│ │     }                                                                                                                         │ │
+│ │     this.subscribers.get(key)?.add(callback);                                                                                 │ │
+│ │                                                                                                                               │ │
+│ │     // Return unsubscribe function                                                                                            │ │
+│ │     return () => {                                                                                                            │ │
+│ │       this.subscribers.get(key)?.delete(callback);                                                                            │ │
+│ │     };                                                                                                                        │ │
+│ │   }                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │   private handleMessage(event: MessageEvent) {                                                                                │ │
+│ │     try {                                                                                                                     │ │
+│ │       const message: WebSocketMessage = JSON.parse(event.data);                                                               │ │
+│ │                                                                                                                               │ │
+│ │       // Existing message handling...                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │       // New: Handle deletion/modification events                                                                             │ │
+│ │       if (message.type === 'CONTACT_DELETED' || message.type === 'CONTACT_MODIFIED') {                                        │ │
+│ │         // Notify all workflow subscribers                                                                                    │ │
+│ │         this.subscribers.forEach((callbacks, key) => {                                                                        │ │
+│ │           if (key.startsWith('workflow:')) {                                                                                  │ │
+│ │             callbacks.forEach(callback => callback(message));                                                                 │ │
+│ │           }                                                                                                                   │ │
+│ │         });                                                                                                                   │ │
+│ │       }                                                                                                                       │ │
+│ │     } catch (error) {                                                                                                         │ │
+│ │       console.error('WebSocket message parsing error:', error);                                                               │ │
+│ │     }                                                                                                                         │ │
+│ │   }                                                                                                                           │ │
+│ │ }                                                                                                                             │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### Phase 2: Server-Side Event Broadcasting                                                                                   │ │
+│ │                                                                                                                               │ │
+│ │ #### 2.1 Add WebSocket Broadcasting to Contact Service                                                                        │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // In services/contact-service/src/routes.ts - DELETE endpoint (around line 244)                                              │ │
+│ │ router.delete('/contacts/:id', async (req, res) => {                                                                          │ │
+│ │   const contactId = req.params.id;                                                                                            │ │
+│ │                                                                                                                               │ │
+│ │   try {                                                                                                                       │ │
+│ │     // STEP 1: Check for active workflow assignments                                                                          │ │
+│ │     const assignments = await db                                                                                              │ │
+│ │       .select()                                                                                                               │ │
+│ │       .from(workflowAssignments)                                                                                              │ │
+│ │       .where(eq(workflowAssignments.contactId, contactId));                                                                   │ │
+│ │                                                                                                                               │ │
+│ │     if (assignments.length > 0) {                                                                                             │ │
+│ │       // STEP 2: Broadcast pending deletion through API Gateway                                                               │ │
+│ │       await notifyAPIGateway({                                                                                                │ │
+│ │         type: 'CONTACT_DELETION_PENDING',                                                                                     │ │
+│ │         contactId,                                                                                                            │ │
+│ │         affectedWorkflows: assignments.map(a => a.workflowId),                                                                │ │
+│ │         timestamp: new Date().toISOString()                                                                                   │ │
+│ │       });                                                                                                                     │ │
+│ │     }                                                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │     // STEP 3: Perform deletion                                                                                               │ │
+│ │     const result = await db                                                                                                   │ │
+│ │       .delete(contacts)                                                                                                       │ │
+│ │       .where(eq(contacts.id, contactId))                                                                                      │ │
+│ │       .returning();                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │     if (result.length > 0) {                                                                                                  │ │
+│ │       // STEP 4: Broadcast deletion confirmation                                                                              │ │
+│ │       await notifyAPIGateway({                                                                                                │ │
+│ │         type: 'CONTACT_DELETED',                                                                                              │ │
+│ │         contactId,                                                                                                            │ │
+│ │         affectedWorkflows: assignments.map(a => a.workflowId),                                                                │ │
+│ │         timestamp: new Date().toISOString()                                                                                   │ │
+│ │       });                                                                                                                     │ │
+│ │                                                                                                                               │ │
+│ │       return res.json({ success: true, deleted: result[0] });                                                                 │ │
+│ │     }                                                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │     return res.status(404).json({ error: 'Contact not found' });                                                              │ │
+│ │   } catch (error) {                                                                                                           │ │
+│ │     console.error('Contact deletion error:', error);                                                                          │ │
+│ │     return res.status(500).json({ error: 'Failed to delete contact' });                                                       │ │
+│ │   }                                                                                                                           │ │
+│ │ });                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ // Helper function to notify API Gateway                                                                                      │ │
+│ │ async function notifyAPIGateway(message: any) {                                                                               │ │
+│ │   try {                                                                                                                       │ │
+│ │     // Use existing http-client to notify API Gateway                                                                         │ │
+│ │     await httpClient.post('/internal/broadcast', message);                                                                    │ │
+│ │   } catch (error) {                                                                                                           │ │
+│ │     console.error('Failed to notify API Gateway:', error);                                                                    │ │
+│ │   }                                                                                                                           │ │
+│ │ }                                                                                                                             │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ #### 2.2 API Gateway WebSocket Broadcasting                                                                                   │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // In services/api-gateway/src/index.ts - Add internal broadcast endpoint                                                     │ │
+│ │ app.post('/internal/broadcast', async (req, res) => {                                                                         │ │
+│ │   const message = req.body;                                                                                                   │ │
+│ │                                                                                                                               │ │
+│ │   // Broadcast to all connected WebSocket clients                                                                             │ │
+│ │   wss.clients.forEach((client) => {                                                                                           │ │
+│ │     if (client.readyState === WebSocket.OPEN) {                                                                               │ │
+│ │       client.send(JSON.stringify(message));                                                                                   │ │
+│ │     }                                                                                                                         │ │
+│ │   });                                                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │   res.json({ broadcasted: true, clientCount: wss.clients.size });                                                             │ │
+│ │ });                                                                                                                           │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### Phase 3: Workflow Component Integration                                                                                   │ │
+│ │                                                                                                                               │ │
+│ │ #### 3.1 Enhanced Workflow Contact Assignment Component                                                                       │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // In client/src/components/workflow-contact-assignment.tsx                                                                   │ │
+│ │ import { useEffect, useState, useCallback } from 'react';                                                                     │ │
+│ │ import { ContactWebSocketService } from '../services/contact-websocket.service';                                              │ │
+│ │ import { Alert } from './ui/alert';                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ export function WorkflowContactAssignment({ workflowId, assignedContacts, onContactsChange }) {                               │ │
+│ │   const [validationErrors, setValidationErrors] = useState<Map<string, string>>(new Map());                                   │ │
+│ │   const [deletedContacts, setDeletedContacts] = useState<Set<string>>(new Set());                                             │ │
+│ │   const wsService = ContactWebSocketService.getInstance();                                                                    │ │
+│ │                                                                                                                               │ │
+│ │   useEffect(() => {                                                                                                           │ │
+│ │     // Subscribe to contact deletion events                                                                                   │ │
+│ │     const unsubscribe = wsService.subscribeToContactDeletions(                                                                │ │
+│ │       workflowId,                                                                                                             │ │
+│ │       (message) => {                                                                                                          │ │
+│ │         if (message.type === 'CONTACT_DELETED') {                                                                             │ │
+│ │           handleContactDeleted(message);                                                                                      │ │
+│ │         } else if (message.type === 'CONTACT_MODIFIED') {                                                                     │ │
+│ │           handleContactModified(message);                                                                                     │ │
+│ │         }                                                                                                                     │ │
+│ │       }                                                                                                                       │ │
+│ │     );                                                                                                                        │ │
+│ │                                                                                                                               │ │
+│ │     // Fallback: Periodic validation check                                                                                    │ │
+│ │     const validationInterval = setInterval(() => {                                                                            │ │
+│ │       validateAllContacts();                                                                                                  │ │
+│ │     }, 30000); // Every 30 seconds                                                                                            │ │
+│ │                                                                                                                               │ │
+│ │     // Initial validation                                                                                                     │ │
+│ │     validateAllContacts();                                                                                                    │ │
+│ │                                                                                                                               │ │
+│ │     return () => {                                                                                                            │ │
+│ │       unsubscribe();                                                                                                          │ │
+│ │       clearInterval(validationInterval);                                                                                      │ │
+│ │     };                                                                                                                        │ │
+│ │   }, [workflowId, assignedContacts]);                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │   const handleContactDeleted = useCallback((message: WebSocketMessage) => {                                                   │ │
+│ │     const { contactId, affectedWorkflows } = message;                                                                         │ │
+│ │                                                                                                                               │ │
+│ │     if (affectedWorkflows?.includes(workflowId) ||                                                                            │ │
+│ │         assignedContacts.includes(contactId)) {                                                                               │ │
+│ │       setDeletedContacts(prev => new Set([...prev, contactId]));                                                              │ │
+│ │       setValidationErrors(prev => {                                                                                           │ │
+│ │         const newErrors = new Map(prev);                                                                                      │ │
+│ │         newErrors.set(contactId, 'This contact has been deleted and must be removed');                                        │ │
+│ │         return newErrors;                                                                                                     │ │
+│ │       });                                                                                                                     │ │
+│ │     }                                                                                                                         │ │
+│ │   }, [workflowId, assignedContacts]);                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │   const validateAllContacts = async () => {                                                                                   │ │
+│ │     try {                                                                                                                     │ │
+│ │       const response = await fetch('/api/contacts/validate-batch', {                                                          │ │
+│ │         method: 'POST',                                                                                                       │ │
+│ │         headers: { 'Content-Type': 'application/json' },                                                                      │ │
+│ │         body: JSON.stringify({ contactIds: assignedContacts })                                                                │ │
+│ │       });                                                                                                                     │ │
+│ │                                                                                                                               │ │
+│ │       if (response.ok) {                                                                                                      │ │
+│ │         const validation = await response.json();                                                                             │ │
+│ │         const newErrors = new Map<string, string>();                                                                          │ │
+│ │                                                                                                                               │ │
+│ │         validation.forEach((result: any) => {                                                                                 │ │
+│ │           if (!result.isValid) {                                                                                              │ │
+│ │             newErrors.set(result.contactId, result.reason);                                                                   │ │
+│ │             if (result.reason === 'Contact not found') {                                                                      │ │
+│ │               setDeletedContacts(prev => new Set([...prev, result.contactId]));                                               │ │
+│ │             }                                                                                                                 │ │
+│ │           }                                                                                                                   │ │
+│ │         });                                                                                                                   │ │
+│ │                                                                                                                               │ │
+│ │         setValidationErrors(newErrors);                                                                                       │ │
+│ │       }                                                                                                                       │ │
+│ │     } catch (error) {                                                                                                         │ │
+│ │       console.error('Contact validation failed:', error);                                                                     │ │
+│ │     }                                                                                                                         │ │
+│ │   };                                                                                                                          │ │
+│ │                                                                                                                               │ │
+│ │   const removeInvalidContact = (contactId: string) => {                                                                       │ │
+│ │     const updatedContacts = assignedContacts.filter(id => id !== contactId);                                                  │ │
+│ │     onContactsChange(updatedContacts);                                                                                        │ │
+│ │                                                                                                                               │ │
+│ │     // Clear error for this contact                                                                                           │ │
+│ │     setValidationErrors(prev => {                                                                                             │ │
+│ │       const newErrors = new Map(prev);                                                                                        │ │
+│ │       newErrors.delete(contactId);                                                                                            │ │
+│ │       return newErrors;                                                                                                       │ │
+│ │     });                                                                                                                       │ │
+│ │     setDeletedContacts(prev => {                                                                                              │ │
+│ │       const newSet = new Set(prev);                                                                                           │ │
+│ │       newSet.delete(contactId);                                                                                               │ │
+│ │       return newSet;                                                                                                          │ │
+│ │     });                                                                                                                       │ │
+│ │   };                                                                                                                          │ │
+│ │                                                                                                                               │ │
+│ │   return (                                                                                                                    │ │
+│ │     <div className="workflow-contact-assignment">                                                                             │ │
+│ │       {/* Validation Alerts */}                                                                                               │ │
+│ │       {validationErrors.size > 0 && (                                                                                         │ │
+│ │         <div className="space-y-2 mb-4">                                                                                      │ │
+│ │           {Array.from(validationErrors.entries()).map(([contactId, error]) => (                                               │ │
+│ │             <Alert key={contactId} variant="destructive">                                                                     │ │
+│ │               <div className="flex justify-between items-center">                                                             │ │
+│ │                 <span>{error}</span>                                                                                          │ │
+│ │                 <button                                                                                                       │ │
+│ │                   onClick={() => removeInvalidContact(contactId)}                                                             │ │
+│ │                   className="ml-2 px-2 py-1 bg-white text-red-600 rounded text-sm"                                            │ │
+│ │                 >                                                                                                             │ │
+│ │                   Remove Contact                                                                                              │ │
+│ │                 </button>                                                                                                     │ │
+│ │               </div>                                                                                                          │ │
+│ │             </Alert>                                                                                                          │ │
+│ │           ))}                                                                                                                 │ │
+│ │         </div>                                                                                                                │ │
+│ │       )}                                                                                                                      │ │
+│ │                                                                                                                               │ │
+│ │       {/* Contact List */}                                                                                                    │ │
+│ │       <div className="assigned-contacts-list">                                                                                │ │
+│ │         {assignedContacts.map(contactId => (                                                                                  │ │
+│ │           <div                                                                                                                │ │
+│ │             key={contactId}                                                                                                   │ │
+│ │             className={`contact-item ${deletedContacts.has(contactId) ? 'border-red-500 bg-red-50' : ''}`}                    │ │
+│ │           >                                                                                                                   │ │
+│ │             {deletedContacts.has(contactId) && (                                                                              │ │
+│ │               <span className="text-red-500 mr-2">⚠️</span>                                                                   │ │
+│ │             )}                                                                                                                │ │
+│ │             <ContactCard contactId={contactId} />                                                                             │ │
+│ │           </div>                                                                                                              │ │
+│ │         ))}                                                                                                                   │ │
+│ │       </div>                                                                                                                  │ │
+│ │     </div>                                                                                                                    │ │
+│ │   );                                                                                                                          │ │
+│ │ }                                                                                                                             │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### Phase 4: Database Referential Integrity                                                                                   │ │
+│ │                                                                                                                               │ │
+│ │ #### 4.1 Add Database Constraints                                                                                             │ │
+│ │ ```sql                                                                                                                        │ │
+│ │ -- In database/migrations/003_referential_integrity.sql                                                                       │ │
+│ │ -- Add ON DELETE RESTRICT to prevent deletion of contacts with active assignments                                             │ │
+│ │ ALTER TABLE workflow_assignments                                                                                              │ │
+│ │ ADD CONSTRAINT fk_workflow_contact                                                                                            │ │
+│ │ FOREIGN KEY (contact_id) REFERENCES contacts(id)                                                                              │ │
+│ │ ON DELETE RESTRICT;                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ -- Add trigger to check before deletion                                                                                       │ │
+│ │ CREATE OR REPLACE FUNCTION check_contact_deletion()                                                                           │ │
+│ │ RETURNS TRIGGER AS $$                                                                                                         │ │
+│ │ BEGIN                                                                                                                         │ │
+│ │   IF EXISTS (                                                                                                                 │ │
+│ │     SELECT 1 FROM workflow_assignments                                                                                        │ │
+│ │     WHERE contact_id = OLD.id AND status = 'active'                                                                           │ │
+│ │   ) THEN                                                                                                                      │ │
+│ │     RAISE EXCEPTION 'Cannot delete contact with active workflow assignments';                                                 │ │
+│ │   END IF;                                                                                                                     │ │
+│ │   RETURN OLD;                                                                                                                 │ │
+│ │ END;                                                                                                                          │ │
+│ │ $$ LANGUAGE plpgsql;                                                                                                          │ │
+│ │                                                                                                                               │ │
+│ │ CREATE TRIGGER before_contact_delete                                                                                          │ │
+│ │ BEFORE DELETE ON contacts                                                                                                     │ │
+│ │ FOR EACH ROW                                                                                                                  │ │
+│ │ EXECUTE FUNCTION check_contact_deletion();                                                                                    │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### Phase 5: Batch Validation Endpoint                                                                                        │ │
+│ │                                                                                                                               │ │
+│ │ #### 5.1 Add Validation Endpoint                                                                                              │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // In services/contact-service/src/routes.ts                                                                                  │ │
+│ │ router.post('/contacts/validate-batch', async (req, res) => {                                                                 │ │
+│ │   const { contactIds } = req.body;                                                                                            │ │
+│ │                                                                                                                               │ │
+│ │   if (!Array.isArray(contactIds)) {                                                                                           │ │
+│ │     return res.status(400).json({ error: 'contactIds must be an array' });                                                    │ │
+│ │   }                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │   try {                                                                                                                       │ │
+│ │     const results = await Promise.all(                                                                                        │ │
+│ │       contactIds.map(async (contactId) => {                                                                                   │ │
+│ │         const contact = await db                                                                                              │ │
+│ │           .select()                                                                                                           │ │
+│ │           .from(contacts)                                                                                                     │ │
+│ │           .where(eq(contacts.id, contactId))                                                                                  │ │
+│ │           .limit(1);                                                                                                          │ │
+│ │                                                                                                                               │ │
+│ │         if (contact.length === 0) {                                                                                           │ │
+│ │           return {                                                                                                            │ │
+│ │             contactId,                                                                                                        │ │
+│ │             isValid: false,                                                                                                   │ │
+│ │             reason: 'Contact not found'                                                                                       │ │
+│ │           };                                                                                                                  │ │
+│ │         }                                                                                                                     │ │
+│ │                                                                                                                               │ │
+│ │         const c = contact[0];                                                                                                 │ │
+│ │         if (!c.isActive) {                                                                                                    │ │
+│ │           return {                                                                                                            │ │
+│ │             contactId,                                                                                                        │ │
+│ │             isValid: false,                                                                                                   │ │
+│ │             reason: 'Contact is inactive'                                                                                     │ │
+│ │           };                                                                                                                  │ │
+│ │         }                                                                                                                     │ │
+│ │                                                                                                                               │ │
+│ │         return {                                                                                                              │ │
+│ │           contactId,                                                                                                          │ │
+│ │           isValid: true,                                                                                                      │ │
+│ │           contact: c                                                                                                          │ │
+│ │         };                                                                                                                    │ │
+│ │       })                                                                                                                      │ │
+│ │     );                                                                                                                        │ │
+│ │                                                                                                                               │ │
+│ │     res.json(results);                                                                                                        │ │
+│ │   } catch (error) {                                                                                                           │ │
+│ │     console.error('Batch validation error:', error);                                                                          │ │
+│ │     res.status(500).json({ error: 'Validation failed' });                                                                     │ │
+│ │   }                                                                                                                           │ │
+│ │ });                                                                                                                           │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ## Implementation Priority & Timeline                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │ ### Day 1 (High Priority - Core Fix)                                                                                          │ │
+│ │ 1. ✅ Extend WebSocket message types (30 mins)                                                                                 │ │
+│ │ 2. ✅ Add deletion broadcasting to contact service (2 hours)                                                                   │ │
+│ │ 3. ✅ Implement API Gateway broadcast endpoint (1 hour)                                                                        │ │
+│ │ 4. ✅ Update workflow component to listen for events (2 hours)                                                                 │ │
+│ │                                                                                                                               │ │
+│ │ ### Day 2 (Medium Priority - Validation & UI)                                                                                 │ │
+│ │ 1. ✅ Implement batch validation endpoint (1 hour)                                                                             │ │
+│ │ 2. ✅ Add validation UI components (2 hours)                                                                                   │ │
+│ │ 3. ✅ Implement fallback polling (1 hour)                                                                                      │ │
+│ │ 4. ✅ Testing & debugging (2 hours)                                                                                            │ │
+│ │                                                                                                                               │ │
+│ │ ### Day 3 (Low Priority - Polish)                                                                                             │ │
+│ │ 1. ✅ Database referential integrity (1 hour)                                                                                  │ │
+│ │ 2. ✅ Performance optimization (2 hours)                                                                                       │ │
+│ │ 3. ✅ Enhanced error messages (1 hour)                                                                                         │ │
+│ │ 4. ✅ Final testing (2 hours)                                                                                                  │ │
+│ │                                                                                                                               │ │
+│ │ ## Key Improvements from Original Approach                                                                                    │ │
+│ │ 1. **Uses existing WebSocket infrastructure** instead of introducing Socket.IO                                                │ │
+│ │ 2. **Respects microservice boundaries** - Contact → API Gateway → Clients                                                     │ │
+│ │ 3. **Adds database-level protection** with referential integrity                                                              │ │
+│ │ 4. **Provides graceful degradation** with polling fallback                                                                    │ │
+│ │ 5. **Implements proper subscription model** for targeted updates                                                              │ │
+│ │                                                                                                                               │ │
+│ │ ## Success Metrics                                                                                                            │ │
+│ │ - ✅ Deletion events propagate in < 2 seconds                                                                                  │ │
+│ │ - ✅ Clear visual indicators for invalid contacts                                                                              │ │
+│ │ - ✅ Workflow save blocked when invalid contacts present                                                                       │ │
+│ │ - ✅ Fallback validation every 30 seconds                                                                                      │ │
+│ │ - ✅ Database prevents orphaned references  
