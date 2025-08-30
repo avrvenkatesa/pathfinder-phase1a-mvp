@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import authJwtRoutes from "./routes/authJwt"; // ⬅️ NEW
 import { contactService } from "./services/contactService";
 import { contactWebSocketService } from "./services/websocketService";
 import { 
@@ -21,12 +22,20 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 
-
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
+  // Auth middleware (Replit OIDC session)
   await setupAuth(app);
 
-  // Auth routes
+  // ⬅️ Mount JWT auth endpoints (session probe, refresh, logout, mint-from-session, etc.)
+  // Exposes:
+  //  - POST /api/auth/login               (dev only)
+  //  - POST /api/auth/mint-from-session   (Replit OIDC → JWT cookies)
+  //  - POST /api/auth/refresh
+  //  - POST /api/auth/logout   (and GET /api/auth/logout)
+  //  - GET  /api/auth/session
+  app.use("/api/auth", authJwtRoutes);
+
+  // Auth routes (Replit session-based user info)
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -37,8 +46,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
-
-
 
   // Contact routes
   app.get("/api/contacts", isAuthenticated, async (req: any, res) => {
@@ -52,7 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         location: req.query.location as string,
         isActive: req.query.isActive ? req.query.isActive === 'true' : true,
       };
-      
+
       const contacts = await storage.getContacts(userId, filters);
       res.json(contacts);
     } catch (error) {
@@ -99,11 +106,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const contact = await storage.getContactById(req.params.id, userId);
-      
+
       if (!contact) {
         return res.status(404).json({ message: "Contact not found" });
       }
-      
+
       res.json(contact);
     } catch (error) {
       console.error("Error fetching contact:", error);
@@ -116,7 +123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       console.log("Creating contact for user ID:", userId);
       const contactData = insertContactSchema.parse(req.body);
-      
+
       const contact = await storage.createContact(contactData, userId);
       res.status(201).json(contact);
     } catch (error) {
@@ -134,16 +141,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Updating contact for user ID:", userId);
       const contactId = req.params.id;
       const contactData = updateContactSchema.parse(req.body);
-      
+
       // Get original contact data to detect changes
       const originalContact = await storage.getContactById(contactId, userId);
-      
+
       const contact = await storage.updateContact(contactId, contactData, userId);
-      
+
       if (!contact) {
         return res.status(404).json({ message: "Contact not found" });
       }
-      
+
       // Broadcast contact modification event if there were changes
       if (originalContact) {
         const changes: Record<string, any> = {};
@@ -175,7 +182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
         }
       }
-      
+
       res.json(contact);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -191,16 +198,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       console.log("Deleting contact for user ID:", userId);
       const contactId = req.params.id;
-      
+
       // Get contact data before deletion for broadcasting
       const contactData = await storage.getContactById(contactId, userId);
-      
+
       const deleted = await storage.deleteContact(contactId, userId);
-      
+
       if (!deleted) {
         return res.status(404).json({ message: "Contact not found" });
       }
-      
+
       // Compute affected workflows before broadcasting
       let affectedWorkflowIds: string[] = [];
       try {
@@ -217,7 +224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { name: contactData?.name, type: contactData?.type },
         affectedWorkflowIds
       );
-      
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting contact:", error);
@@ -226,7 +233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Enhanced Contact routes for workflow functionality
-  
+
   // Contact Skills routes
   app.get("/api/contacts/:id/skills", isAuthenticated, async (req: any, res) => {
     try {
@@ -244,7 +251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         contactId: req.params.id
       });
-      
+
       const skill = await storage.createContactSkill(skillData);
       res.status(201).json(skill);
     } catch (error) {
@@ -260,11 +267,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const skillData = updateContactSkillSchema.parse(req.body);
       const skill = await storage.updateContactSkill(req.params.id, skillData);
-      
+
       if (!skill) {
         return res.status(404).json({ message: "Skill not found" });
       }
-      
+
       res.json(skill);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -278,11 +285,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/skills/:id", isAuthenticated, async (req: any, res) => {
     try {
       const deleted = await storage.deleteContactSkill(req.params.id);
-      
+
       if (!deleted) {
         return res.status(404).json({ message: "Skill not found" });
       }
-      
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting contact skill:", error);
@@ -307,7 +314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         contactId: req.params.id
       });
-      
+
       const certification = await storage.createContactCertification(certificationData);
       res.status(201).json(certification);
     } catch (error) {
@@ -323,11 +330,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const certificationData = updateContactCertificationSchema.parse(req.body);
       const certification = await storage.updateContactCertification(req.params.id, certificationData);
-      
+
       if (!certification) {
         return res.status(404).json({ message: "Certification not found" });
       }
-      
+
       res.json(certification);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -341,11 +348,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/certifications/:id", isAuthenticated, async (req: any, res) => {
     try {
       const deleted = await storage.deleteContactCertification(req.params.id);
-      
+
       if (!deleted) {
         return res.status(404).json({ message: "Certification not found" });
       }
-      
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting contact certification:", error);
@@ -370,7 +377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         contactId: req.params.id
       });
-      
+
       const availability = await storage.createContactAvailability(availabilityData);
       res.status(201).json(availability);
     } catch (error) {
@@ -386,11 +393,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const availabilityData = updateContactAvailabilitySchema.parse(req.body);
       const availability = await storage.updateContactAvailability(req.params.id, availabilityData);
-      
+
       if (!availability) {
         return res.status(404).json({ message: "Availability not found" });
       }
-      
+
       res.json(availability);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -404,11 +411,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/availability/:id", isAuthenticated, async (req: any, res) => {
     try {
       const deleted = await storage.deleteContactAvailability(req.params.id);
-      
+
       if (!deleted) {
         return res.status(404).json({ message: "Availability not found" });
       }
-      
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting contact availability:", error);
@@ -421,11 +428,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const skills = req.query.skills ? (req.query.skills as string).split(',') : [];
-      
+
       if (skills.length === 0) {
         return res.status(400).json({ message: "At least one skill is required" });
       }
-      
+
       const contacts = await storage.getContactsBySkills(skills, userId);
       res.json(contacts);
     } catch (error) {
@@ -438,7 +445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const workloadThreshold = req.query.threshold ? parseInt(req.query.threshold as string) : 80;
-      
+
       const contacts = await storage.getAvailableContacts(userId, workloadThreshold);
       res.json(contacts);
     } catch (error) {
@@ -461,11 +468,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const skills = req.query.skills ? (req.query.skills as string).split(',') : [];
-      
+
       if (skills.length === 0) {
         return res.status(400).json({ message: "At least one required skill must be specified" });
       }
-      
+
       const contacts = await storage.getContactsForAssignment(skills, userId);
       res.json(contacts);
     } catch (error) {
@@ -475,23 +482,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Enhanced Business Logic APIs
-  
+
   // Assignment recommendations with scoring
   app.post("/api/contacts/assignment-recommendations", isAuthenticated, async (req: any, res) => {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const { requiredSkills, options = {} } = req.body;
-      
+
       if (!requiredSkills || requiredSkills.length === 0) {
         return res.status(400).json({ message: "Required skills must be specified" });
       }
-      
+
       const recommendations = await contactService.getAssignmentRecommendations(
         requiredSkills,
         userId,
         options
       );
-      
+
       res.json(recommendations);
     } catch (error) {
       console.error("Error generating assignment recommendations:", error);
@@ -504,9 +511,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const { contact, skills = [], certifications = [], availability = [] } = req.body;
-      
+
       const contactData = insertContactSchema.parse(contact);
-      
+
       const result = await contactService.createContactWithDetails(
         contactData,
         skills,
@@ -514,7 +521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         availability,
         userId
       );
-      
+
       res.status(201).json(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -529,11 +536,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/contacts/:id/skills/bulk", isAuthenticated, async (req: any, res) => {
     try {
       const { skills } = req.body;
-      
+
       if (!skills || !Array.isArray(skills)) {
         return res.status(400).json({ message: "Skills array is required" });
       }
-      
+
       const result = await contactService.assignSkillsBulk(req.params.id, skills);
       res.json(result);
     } catch (error) {
@@ -547,11 +554,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const { requiredSkills } = req.body;
-      
+
       if (!requiredSkills || !Array.isArray(requiredSkills)) {
         return res.status(400).json({ message: "Required skills array is required" });
       }
-      
+
       const analysis = await contactService.analyzeSkillsGap(requiredSkills, userId);
       res.json(analysis);
     } catch (error) {
@@ -600,11 +607,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = 'test-user'; // req.user.claims.sub;
       const relationshipData = { ...req.body, userId };
       const relationship = await storage.updateContactRelationship(req.params.id, relationshipData, userId);
-      
+
       if (!relationship) {
         return res.status(404).json({ message: "Relationship not found" });
       }
-      
+
       res.json(relationship);
     } catch (error) {
       console.error("Error updating relationship:", error);
@@ -616,11 +623,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const deleted = await storage.deleteContactRelationship(req.params.id, userId);
-      
+
       if (!deleted) {
         return res.status(404).json({ message: "Relationship not found" });
       }
-      
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting relationship:", error);
@@ -632,7 +639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const { operation, relationshipIds } = req.body;
-      
+
       const result = await storage.bulkUpdateRelationships(relationshipIds, operation, userId);
       res.json({ affected: result });
     } catch (error) {
@@ -696,7 +703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const { assignments, priority, deadline } = req.body;
-      
+
       const results = await Promise.all(
         assignments.map((assignment: any) => 
           storage.createWorkflowAssignment({ 
@@ -707,7 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
         )
       );
-      
+
       res.status(201).json(results);
     } catch (error) {
       console.error("Error creating bulk workflow assignments:", error);
@@ -725,7 +732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         category: req.query.category as string,
         isTemplate: req.query.isTemplate ? req.query.isTemplate === 'true' : undefined,
       };
-      
+
       const workflows = await storage.getWorkflows(userId, filters);
       res.json(workflows);
     } catch (error) {
@@ -738,11 +745,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const workflow = await storage.getWorkflowById(req.params.id, userId);
-      
+
       if (!workflow) {
         return res.status(404).json({ message: "Workflow not found" });
       }
-      
+
       res.json(workflow);
     } catch (error) {
       console.error("Error fetching workflow:", error);
@@ -754,7 +761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const workflowData = insertWorkflowSchema.parse(req.body);
-      
+
       const workflow = await storage.createWorkflow(workflowData, userId);
       res.status(201).json(workflow);
     } catch (error) {
@@ -770,13 +777,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const workflowData = updateWorkflowSchema.parse(req.body);
-      
+
       const workflow = await storage.updateWorkflow(req.params.id, workflowData, userId);
-      
+
       if (!workflow) {
         return res.status(404).json({ message: "Workflow not found" });
       }
-      
+
       res.json(workflow);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -791,11 +798,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const deleted = await storage.deleteWorkflow(req.params.id, userId);
-      
+
       if (!deleted) {
         return res.status(404).json({ message: "Workflow not found" });
       }
-      
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting workflow:", error);
@@ -807,11 +814,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const duplicated = await storage.duplicateWorkflow(req.params.id, userId);
-      
+
       if (!duplicated) {
         return res.status(404).json({ message: "Workflow not found" });
       }
-      
+
       res.status(201).json(duplicated);
     } catch (error) {
       console.error("Error duplicating workflow:", error);
@@ -824,13 +831,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const { name, variables } = req.body;
-      
+
       const instance = await storage.createWorkflowInstance(req.params.id, {
         name: name || `Execution ${new Date().toISOString()}`,
         variables: variables || {},
         status: 'pending',
       }, userId);
-      
+
       res.status(201).json(instance);
     } catch (error) {
       console.error("Error executing workflow:", error);
@@ -842,14 +849,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const instance = await storage.getWorkflowInstance(req.params.id, userId);
-      
+
       if (!instance) {
         return res.status(404).json({ message: "Workflow instance not found" });
       }
-      
+
       // Get tasks for this instance
       const tasks = await storage.getWorkflowTasksByInstance(req.params.id);
-      
+
       res.json({ ...instance, tasks });
     } catch (error) {
       console.error("Error fetching workflow instance:", error);
@@ -861,11 +868,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const instance = await storage.updateWorkflowInstance(req.params.id, req.body, userId);
-      
+
       if (!instance) {
         return res.status(404).json({ message: "Workflow instance not found" });
       }
-      
+
       res.json(instance);
     } catch (error) {
       console.error("Error updating workflow instance:", error);
@@ -888,11 +895,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/workflow-tasks/:id", isAuthenticated, async (req: any, res) => {
     try {
       const task = await storage.updateWorkflowTask(req.params.id, req.body);
-      
+
       if (!task) {
         return res.status(404).json({ message: "Workflow task not found" });
       }
-      
+
       res.json(task);
     } catch (error) {
       console.error("Error updating workflow task:", error);
@@ -909,7 +916,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         category: req.query.category as string,
         isPublic: req.query.isPublic ? req.query.isPublic === 'true' : undefined,
       };
-      
+
       const templates = await storage.getWorkflowTemplates(userId, filters);
       res.json(templates);
     } catch (error) {
@@ -922,7 +929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = 'test-user'; // req.user.claims.sub;
       const templateData = insertWorkflowTemplateSchema.parse(req.body);
-      
+
       const template = await storage.createWorkflowTemplate(templateData, userId);
       res.status(201).json(template);
     } catch (error) {
@@ -949,12 +956,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/validation/validate-entity', async (req, res) => {
     try {
       const { entityType, data, rules } = req.body;
-      
+
       // Basic validation response structure
       const result = {
         isValid: true,
-        errors: [],
-        warnings: [],
+        errors: [] as any[],
+        warnings: [] as any[],
         metadata: {
           entityType,
           entityId: data.id || 'new',
@@ -1018,7 +1025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const phoneValue = data[phoneField].trim();
             // Count only digits in the phone number
             const digitCount = phoneValue.replace(/\D/g, '').length;
-            
+
             if (digitCount < 10) {
               result.isValid = false;
               result.errors.push({
@@ -1033,7 +1040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Validation service error:', error);
       res.status(500).json({
         isValid: false,
@@ -1048,7 +1055,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/validation/validate-entity-async', async (req, res) => {
+  app.post('/api/validation/validate-entity-async', async (_req, res) => {
     // Async validation endpoint - just return 200 for now
     res.status(200).json({ message: 'Async validation queued' });
   });
@@ -1061,7 +1068,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         errors: [],
         warnings: []
       }));
-      
+
       res.json({
         results,
         summary: {
@@ -1086,7 +1093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/validation/rules', async (req, res) => {
+  app.get('/api/validation/rules', async (_req, res) => {
     try {
       res.json({
         rules: [
@@ -1119,7 +1126,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Data Quality Dashboard API endpoints
-  app.get('/api/validation/reports/data-quality/:entityType?/:timeRange?', async (req, res) => {
+  app.get('/api/validation/reports/data-quality/:entityType?/:timeRange?', async (_req, res) => {
     try {
       res.json({
         summary: {
@@ -1165,7 +1172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/validation/reports/failures/:entityType?/:timeRange?', async (req, res) => {
+  app.get('/api/validation/reports/failures/:entityType?/:timeRange?', async (_req, res) => {
     try {
       res.json({
         failures: [
@@ -1207,7 +1214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/validation/reports/performance', async (req, res) => {
+  app.get('/api/validation/reports/performance', async (_req, res) => {
     try {
       res.json({
         metrics: {
@@ -1229,9 +1236,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
-  
+
   // Initialize WebSocket service for contact events
   contactWebSocketService.initialize(httpServer);
-  
+
   return httpServer;
 }
