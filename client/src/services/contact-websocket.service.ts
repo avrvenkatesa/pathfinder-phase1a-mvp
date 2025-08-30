@@ -222,16 +222,18 @@ export class ContactWebSocketService {
 
   public connect(): void {
     if (this.state === WebSocketState.CONNECTED || this.state === WebSocketState.CONNECTING) {
+      console.log('WebSocket already connected/connecting, state:', this.state);
       return;
     }
 
+    console.log('Attempting to connect to WebSocket:', this.config.url);
     this.setState(WebSocketState.CONNECTING);
 
     try {
       this.ws = new WebSocket(this.config.url);
 
       this.ws.onopen = () => {
-        console.log('Contact WebSocket connected');
+        console.log('Contact WebSocket connected to:', this.config.url);
         this.setState(WebSocketState.CONNECTED);
         this.reconnectAttempts = 0;
         this.authenticate();
