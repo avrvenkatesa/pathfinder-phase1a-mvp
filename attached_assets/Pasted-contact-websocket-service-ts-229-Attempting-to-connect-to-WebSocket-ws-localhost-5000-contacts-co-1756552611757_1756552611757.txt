@@ -1,0 +1,27 @@
+contact-websocket.service.ts:229 Attempting to connect to WebSocket: ws://localhost:5000/contacts
+contact-websocket.service.ts:233  WebSocket connection to 'ws://localhost:5000/contacts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED
+connect @ contact-websocket.service.ts:233
+contact-websocket.service.ts:260  Contact WebSocket error: Event
+ws.onerror @ contact-websocket.service.ts:260
+contact-websocket.service.ts:249 Contact WebSocket disconnected: 1006 
+contact-websocket.service.ts:286 Scheduling reconnect attempt 1 in 5000ms
+contact-websocket.service.ts:229 Attempting to connect to WebSocket: ws://localhost:5000/contacts
+contact-websocket.service.ts:233  WebSocket connection to 'ws://localhost:5000/contacts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED
+connect @ contact-websocket.service.ts:233
+contact-websocket.service.ts:260  Contact WebSocket error: Event
+ws.onerror @ contact-websocket.service.ts:260
+contact-websocket.service.ts:249 Contact WebSocket disconnected: 1006 
+contact-websocket.service.ts:286 Scheduling reconnect attempt 2 in 10000ms
+contact-websocket.service.ts:229 Attempting to connect to WebSocket: ws://localhost:5000/contacts
+contact-websocket.service.ts:233  WebSocket connection to 'ws://localhost:5000/contacts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED
+connect @ contact-websocket.service.ts:233
+contact-websocket.service.ts:260  Contact WebSocket error: Event
+ws.onerror @ contact-websocket.service.ts:260
+contact-websocket.service.ts:249 Contact WebSocket disconnected: 1006 
+contact-websocket.service.ts:286 Scheduling reconnect attempt 3 in 20000ms
+contact-websocket.service.ts:229 Attempting to connect to WebSocket: ws://localhost:5000/contacts
+contact-websocket.service.ts:233  WebSocket connection to 'ws://localhost:5000/contacts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED
+connect @ contact-websocket.service.ts:233
+reconnect @ contact-websocket.service.ts:295
+(anonymous) @ contact-websocket.service.ts:289
+contact-websocket.service.ts:260  Contact WebSocket error: Event {isTrusted: true, type: 'error', target: WebSocket, currentTarget: WebSocket, eventPhase: 2, …}
