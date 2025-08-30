@@ -8,6 +8,7 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import ContactDetail from "@/pages/contact-detail";
+import ContactsPage from "@/pages/contacts";
 import WorkflowPage from "@/pages/workflow";
 import { WorkflowDashboard } from "@/components/workflow-dashboard";
 import { NewWorkflow } from "@/components/new-workflow";
@@ -26,6 +27,10 @@ function Router() {
       {/* Testing routes - available without authentication */}
       <Route path="/websocket-test" component={WebSocketTestComponent} />
       <Route path="/cross-tab-test" component={CrossTabValidationTest} />
+      <Route path="/contacts" component={ContactsPage} />
+      <Route path="/workflows" component={WorkflowDashboard} />
+      <Route path="/workflows/new" component={NewWorkflow} />
+      <Route path="/workflows/:id" component={WorkflowPage} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
@@ -33,9 +38,6 @@ function Router() {
         <>
           <Route path="/" component={Home} />
           <Route path="/contacts/:id" component={ContactDetail} />
-          <Route path="/workflows" component={WorkflowDashboard} />
-          <Route path="/workflows/new" component={NewWorkflow} />
-          <Route path="/workflows/:id" component={WorkflowPage} />
           <Route path="/contact-test" component={ContactTest} />
           <Route path="/test-contacts" component={TestContactIntegration} />
           <Route path="/assignment-engine" component={AssignmentEnginePage} />
