@@ -28,14 +28,19 @@ export function CrossTabValidationTest() {
       console.log('Cross-tab validation received message:', message);
       
       if (message.type === 'CONTACT_DELETED') {
-        // Check if deleted contact is assigned to this workflow
-        if (assignedContacts.has(message.contactId!)) {
+        // For testing: show alert for ANY contact deletion, plus check assigned contacts
+        const isAssigned = assignedContacts.has(message.contactId!);
+        
+        // Show alert for any deletion (testing mode) or if contact is assigned
+        if (true || isAssigned) {
           setDeletedContacts(prev => new Set([...prev, message.contactId!]));
 
           setValidationErrors(prev => [...prev, {
             contactId: message.contactId!,
-            message: `Contact ${message.contactId} has been deleted in another tab and must be removed from this workflow`,
-            severity: 'error',
+            message: isAssigned ? 
+              `Contact ${message.contactId} has been deleted in another tab and must be removed from this workflow` :
+              `Contact ${message.data?.name || message.contactId} was deleted (TEST MODE - showing all deletions)`,
+            severity: isAssigned ? 'error' : 'warning',
             timestamp: message.timestamp
           }]);
 
@@ -43,8 +48,10 @@ export function CrossTabValidationTest() {
 
           toast({
             title: "Contact Deleted",
-            description: `A contact assigned to this workflow has been deleted in another tab.`,
-            variant: "destructive",
+            description: isAssigned ? 
+              `A contact assigned to this workflow has been deleted in another tab.` :
+              `Contact "${message.data?.name || 'Unknown'}" was deleted in another tab (TEST MODE)`,
+            variant: isAssigned ? "destructive" : "default",
           });
         }
       }
@@ -247,23 +254,46 @@ export function CrossTabValidationTest() {
           {/* Assigned Contacts */}
           <div>
             <h3 className="font-semibold mb-2">Assigned Contacts ({assignedContacts.size})</h3>
-            <div className="flex flex-wrap gap-2">
-              {Array.from(assignedContacts).map(contactId => (
-                <div key={contactId} className="flex items-center gap-2">
-                  <Badge 
-                    variant={deletedContacts.has(contactId) ? "destructive" : modifiedContacts.has(contactId) ? "secondary" : "default"}
-                    data-testid={`contact-badge-${contactId}`}
-                  >
-                    Contact {contactId}
-                  </Badge>
-                  {deletedContacts.has(contactId) && (
-                    <span className="text-xs text-red-600">(Deleted)</span>
-                  )}
-                  {modifiedContacts.has(contactId) && !deletedContacts.has(contactId) && (
-                    <span className="text-xs text-yellow-600">(Modified)</span>
-                  )}
-                </div>
-              ))}
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {Array.from(assignedContacts).map(contactId => (
+                  <div key={contactId} className="flex items-center gap-2">
+                    <Badge 
+                      variant={deletedContacts.has(contactId) ? "destructive" : modifiedContacts.has(contactId) ? "secondary" : "default"}
+                      data-testid={`contact-badge-${contactId}`}
+                    >
+                      Contact {contactId}
+                    </Badge>
+                    {deletedContacts.has(contactId) && (
+                      <span className="text-xs text-red-600">(Deleted)</span>
+                    )}
+                    {modifiedContacts.has(contactId) && !deletedContacts.has(contactId) && (
+                      <span className="text-xs text-yellow-600">(Modified)</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const testId = '7a8035f3-e269-4e3b-9519-b8f9a04a5569'; // Latest contact ID from logs
+                    setAssignedContacts(prev => new Set([...prev, testId]));
+                  }}
+                  className="text-xs"
+                >
+                  + Assign Latest Contact (for testing)
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAssignedContacts(new Set(['1', '2', '3']))}
+                  className="text-xs"
+                >
+                  Reset to Default
+                </Button>
+              </div>
             </div>
           </div>
 
