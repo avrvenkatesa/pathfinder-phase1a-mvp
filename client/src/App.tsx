@@ -70,3 +70,26 @@ function App() {
         <header className="flex items-center gap-3 p-3 border-b">
           <h1 className="text-lg font-semibold">Pathfinder</h1>
           {isAuthenticated && (
+            <button
+              onClick={() => {
+                fetch('/api/auth/logout', { method: 'POST' })
+                  .then(() => {
+                    broadcastLogout();
+                    window.location.reload();
+                  });
+              }}
+              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+            >
+              Logout
+            </button>
+          )}
+        </header>
+        <main className="flex-1">
+          <Router />
+        </main>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
