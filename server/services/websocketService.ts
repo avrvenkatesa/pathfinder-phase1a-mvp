@@ -133,17 +133,26 @@ export class ContactWebSocketService {
   }
 
   // Public methods for broadcasting contact events
-  public broadcastContactDeleted(contactId: string, contactData?: any): void {
+  public broadcastContactDeleted(
+    contactId: string,
+    contactData?: any,
+    affectedWorkflows: string[] = []
+  ): void {
     this.broadcast({
       type: 'CONTACT_DELETED',
       contactId,
       timestamp: new Date().toISOString(),
       data: contactData,
-      affectedWorkflows: [] // TODO: Query which workflows are affected
+      affectedWorkflows,
     });
   }
 
-  public broadcastContactModified(contactId: string, changes: any, contactData?: any): void {
+  public broadcastContactModified(
+    contactId: string,
+    changes: any,
+    contactData?: any,
+    affectedWorkflows: string[] = []
+  ): void {
     this.broadcast({
       type: 'CONTACT_MODIFIED',
       contactId,
@@ -153,7 +162,7 @@ export class ContactWebSocketService {
         contactName: contactData?.name,
         ...contactData
       },
-      affectedWorkflows: [] // TODO: Query which workflows are affected
+      affectedWorkflows,
     });
   }
 
