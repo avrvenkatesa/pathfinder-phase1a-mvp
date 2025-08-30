@@ -16,6 +16,7 @@ import TestContactIntegration from "@/pages/TestContactIntegration";
 import AssignmentEnginePage from "@/pages/AssignmentEnginePage";
 import DataQualityDashboardPage from "@/pages/data-quality-dashboard";
 import { WebSocketTestComponent } from "@/components/WebSocketTestComponent";
+import { CrossTabValidationTest } from "@/components/CrossTabValidationTest";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -36,6 +37,7 @@ function Router() {
           <Route path="/assignment-engine" component={AssignmentEnginePage} />
           <Route path="/data-quality" component={DataQualityDashboardPage} />
           <Route path="/websocket-test" component={WebSocketTestComponent} />
+          <Route path="/cross-tab-test" component={CrossTabValidationTest} />
         </>
       )}
       <Route component={NotFound} />

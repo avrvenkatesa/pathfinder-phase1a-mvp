@@ -1,0 +1,334 @@
+                                                                                                                              │ │
+│ │ ## Current Status                                                                                                             │ │
+│ │ ✅ Phase 1 Complete: WebSocket events (CONTACT_DELETED, CONTACT_MODIFIED) are successfully broadcasting and being received by  │ │
+│ │  workflows.                                                                                                                   │ │
+│ │                                                                                                                               │ │
+│ │ ## Phase 2 Objective                                                                                                          │ │
+│ │ Implement UI components that respond to these WebSocket events to provide visual feedback and prevent data integrity issues.  │ │
+│ │                                                                                                                               │ │
+│ │ ## Implementation Requirements                                                                                                │ │
+│ │                                                                                                                               │ │
+│ │ ### 1. Update Workflow Component State Management                                                                             │ │
+│ │                                                                                                                               │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // In the component receiving WebSocket messages (likely workflow-contact-assignment.tsx or similar)                          │ │
+│ │                                                                                                                               │ │
+│ │ interface ValidationState {                                                                                                   │ │
+│ │   deletedContacts: Set<string>;                                                                                               │ │
+│ │   modifiedContacts: Map<string, string>; // contactId -> modification reason                                                  │ │
+│ │   validationErrors: Array<{                                                                                                   │ │
+│ │     contactId: string;                                                                                                        │ │
+│ │     message: string;                                                                                                          │ │
+│ │     severity: 'error' | 'warning';                                                                                            │ │
+│ │     timestamp: string;                                                                                                        │ │
+│ │   }>;                                                                                                                         │ │
+│ │ }                                                                                                                             │ │
+│ │                                                                                                                               │ │
+│ │ // Add state hooks                                                                                                            │ │
+│ │ const [deletedContacts, setDeletedContacts] = useState<Set<string>>(new Set());                                               │ │
+│ │ const [validationErrors, setValidationErrors] = useState<ValidationState['validationErrors']>([]);                            │ │
+│ │ const [canSaveWorkflow, setCanSaveWorkflow] = useState(true);                                                                 │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### 2. Handle WebSocket Events with UI Updates                                                                                │ │
+│ │                                                                                                                               │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // Update the message handler to update UI state                                                                              │ │
+│ │ useEffect(() => {                                                                                                             │ │
+│ │   const handleWebSocketMessage = (message: WebSocketMessage) => {                                                             │ │
+│ │     if (message.type === 'CONTACT_DELETED') {                                                                                 │ │
+│ │       // Add to deleted contacts set                                                                                          │ │
+│ │       setDeletedContacts(prev => new Set([...prev, message.contactId]));                                                      │ │
+│ │                                                                                                                               │ │
+│ │       // Add validation error                                                                                                 │ │
+│ │       setValidationErrors(prev => [...prev, {                                                                                 │ │
+│ │         contactId: message.contactId,                                                                                         │ │
+│ │         message: `Contact ${message.contactId} has been deleted and must be removed from this workflow`,                      │ │
+│ │         severity: 'error',                                                                                                    │ │
+│ │         timestamp: message.timestamp                                                                                          │ │
+│ │       }]);                                                                                                                    │ │
+│ │                                                                                                                               │ │
+│ │       // Disable save button                                                                                                  │ │
+│ │       setCanSaveWorkflow(false);                                                                                              │ │
+│ │                                                                                                                               │ │
+│ │       // Show toast notification                                                                                              │ │
+│ │       toast({                                                                                                                 │ │
+│ │         title: "Contact Deleted",                                                                                             │ │
+│ │         description: `A contact assigned to this workflow has been deleted.`,                                                 │ │
+│ │         variant: "destructive",                                                                                               │ │
+│ │       });                                                                                                                     │ │
+│ │     }                                                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │     if (message.type === 'CONTACT_MODIFIED') {                                                                                │ │
+│ │       // Handle modifications with warnings                                                                                   │ │
+│ │       setValidationErrors(prev => [...prev, {                                                                                 │ │
+│ │         contactId: message.contactId,                                                                                         │ │
+│ │         message: `Contact ${message.contactId} has been modified. Please review the assignment.`,                             │ │
+│ │         severity: 'warning',                                                                                                  │ │
+│ │         timestamp: message.timestamp                                                                                          │ │
+│ │       }]);                                                                                                                    │ │
+│ │     }                                                                                                                         │ │
+│ │   };                                                                                                                          │ │
+│ │                                                                                                                               │ │
+│ │   // Subscribe to WebSocket events                                                                                            │ │
+│ │   wsService.subscribe(handleWebSocketMessage);                                                                                │ │
+│ │                                                                                                                               │ │
+│ │   return () => wsService.unsubscribe(handleWebSocketMessage);                                                                 │ │
+│ │ }, []);                                                                                                                       │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### 3. Create Validation Alert Component                                                                                      │ │
+│ │                                                                                                                               │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // Create a new component or add to existing file                                                                             │ │
+│ │ const ValidationAlert = ({ errors, onDismiss, onRemoveContact }) => {                                                         │ │
+│ │   if (errors.length === 0) return null;                                                                                       │ │
+│ │                                                                                                                               │ │
+│ │   return (                                                                                                                    │ │
+│ │     <div className="validation-alerts-container mb-4 space-y-2">                                                              │ │
+│ │       {errors.map((error, index) => (                                                                                         │ │
+│ │         <Alert                                                                                                                │ │
+│ │           key={`${error.contactId}-${error.timestamp}`}                                                                       │ │
+│ │           variant={error.severity === 'error' ? 'destructive' : 'warning'}                                                    │ │
+│ │         >                                                                                                                     │ │
+│ │           <AlertCircle className="h-4 w-4" />                                                                                 │ │
+│ │           <AlertTitle>                                                                                                        │ │
+│ │             {error.severity === 'error' ? 'Validation Error' : 'Warning'}                                                     │ │
+│ │           </AlertTitle>                                                                                                       │ │
+│ │           <AlertDescription className="flex justify-between items-center">                                                    │ │
+│ │             <span>{error.message}</span>                                                                                      │ │
+│ │             <div className="flex gap-2">                                                                                      │ │
+│ │               {error.severity === 'error' && (                                                                                │ │
+│ │                 <Button                                                                                                       │ │
+│ │                   size="sm"                                                                                                   │ │
+│ │                   variant="outline"                                                                                           │ │
+│ │                   onClick={() => onRemoveContact(error.contactId)}                                                            │ │
+│ │                 >                                                                                                             │ │
+│ │                   Remove Contact                                                                                              │ │
+│ │                 </Button>                                                                                                     │ │
+│ │               )}                                                                                                              │ │
+│ │               <Button                                                                                                         │ │
+│ │                 size="sm"                                                                                                     │ │
+│ │                 variant="ghost"                                                                                               │ │
+│ │                 onClick={() => onDismiss(index)}                                                                              │ │
+│ │               >                                                                                                               │ │
+│ │                 Dismiss                                                                                                       │ │
+│ │               </Button>                                                                                                       │ │
+│ │             </div>                                                                                                            │ │
+│ │           </AlertDescription>                                                                                                 │ │
+│ │         </Alert>                                                                                                              │ │
+│ │       ))}                                                                                                                     │ │
+│ │     </div>                                                                                                                    │ │
+│ │   );                                                                                                                          │ │
+│ │ };                                                                                                                            │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### 4. Update Contact Display with Visual Indicators                                                                          │ │
+│ │                                                                                                                               │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // In the contact list/assignment display                                                                                     │ │
+│ │ const ContactAssignmentItem = ({ contact, isDeleted, isModified }) => {                                                       │ │
+│ │   return (                                                                                                                    │ │
+│ │     <div className={cn(                                                                                                       │ │
+│ │       "contact-assignment-item p-3 rounded-lg border transition-all",                                                         │ │
+│ │       {                                                                                                                       │ │
+│ │         "border-red-500 bg-red-50 opacity-75": isDeleted,                                                                     │ │
+│ │         "border-yellow-500 bg-yellow-50": isModified,                                                                         │ │
+│ │         "border-gray-200": !isDeleted && !isModified                                                                          │ │
+│ │       }                                                                                                                       │ │
+│ │     )}>                                                                                                                       │ │
+│ │       <div className="flex items-center justify-between">                                                                     │ │
+│ │         <div className="flex items-center gap-2">                                                                             │ │
+│ │           {isDeleted && (                                                                                                     │ │
+│ │             <Badge variant="destructive" className="gap-1">                                                                   │ │
+│ │               <XCircle className="h-3 w-3" />                                                                                 │ │
+│ │               Deleted                                                                                                         │ │
+│ │             </Badge>                                                                                                          │ │
+│ │           )}                                                                                                                  │ │
+│ │           {isModified && !isDeleted && (                                                                                      │ │
+│ │             <Badge variant="warning" className="gap-1">                                                                       │ │
+│ │               <AlertCircle className="h-3 w-3" />                                                                             │ │
+│ │               Modified                                                                                                        │ │
+│ │             </Badge>                                                                                                          │ │
+│ │           )}                                                                                                                  │ │
+│ │           <span className={cn({ "line-through text-gray-500": isDeleted })}>                                                  │ │
+│ │             {contact.name}                                                                                                    │ │
+│ │           </span>                                                                                                             │ │
+│ │         </div>                                                                                                                │ │
+│ │                                                                                                                               │ │
+│ │         {isDeleted && (                                                                                                       │ │
+│ │           <Button                                                                                                             │ │
+│ │             size="sm"                                                                                                         │ │
+│ │             variant="destructive"                                                                                             │ │
+│ │             onClick={() => handleRemoveContact(contact.id)}                                                                   │ │
+│ │           >                                                                                                                   │ │
+│ │             Remove                                                                                                            │ │
+│ │           </Button>                                                                                                           │ │
+│ │         )}                                                                                                                    │ │
+│ │       </div>                                                                                                                  │ │
+│ │     </div>                                                                                                                    │ │
+│ │   );                                                                                                                          │ │
+│ │ };                                                                                                                            │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### 5. Implement Save Validation                                                                                              │ │
+│ │                                                                                                                               │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ // Update the save workflow function                                                                                          │ │
+│ │ const handleSaveWorkflow = async () => {                                                                                      │ │
+│ │   // Check for deleted contacts                                                                                               │ │
+│ │   if (deletedContacts.size > 0) {                                                                                             │ │
+│ │     toast({                                                                                                                   │ │
+│ │       title: "Cannot Save Workflow",                                                                                          │ │
+│ │       description: "Please remove deleted contacts before saving.",                                                           │ │
+│ │       variant: "destructive",                                                                                                 │ │
+│ │     });                                                                                                                       │ │
+│ │     return;                                                                                                                   │ │
+│ │   }                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │   // Validate all contacts are still active                                                                                   │ │
+│ │   const validationResponse = await fetch('/api/contacts/validate-batch', {                                                    │ │
+│ │     method: 'POST',                                                                                                           │ │
+│ │     headers: { 'Content-Type': 'application/json' },                                                                          │ │
+│ │     body: JSON.stringify({                                                                                                    │ │
+│ │       contactIds: assignedContacts.map(c => c.id)                                                                             │ │
+│ │     })                                                                                                                        │ │
+│ │   });                                                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │   const validation = await validationResponse.json();                                                                         │ │
+│ │   const invalidContacts = validation.filter(v => !v.isValid);                                                                 │ │
+│ │                                                                                                                               │ │
+│ │   if (invalidContacts.length > 0) {                                                                                           │ │
+│ │     toast({                                                                                                                   │ │
+│ │       title: "Validation Failed",                                                                                             │ │
+│ │       description: `${invalidContacts.length} assigned contacts are invalid.`,                                                │ │
+│ │       variant: "destructive",                                                                                                 │ │
+│ │     });                                                                                                                       │ │
+│ │     return;                                                                                                                   │ │
+│ │   }                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │   // Proceed with save                                                                                                        │ │
+│ │   // ... existing save logic                                                                                                  │ │
+│ │ };                                                                                                                            │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### 6. Add CSS Styles                                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │ ```css                                                                                                                        │ │
+│ │ /* Add to the component's CSS file or global styles */                                                                        │ │
+│ │ .validation-alerts-container {                                                                                                │ │
+│ │   animation: slideDown 0.3s ease-out;                                                                                         │ │
+│ │ }                                                                                                                             │ │
+│ │                                                                                                                               │ │
+│ │ @keyframes slideDown {                                                                                                        │ │
+│ │   from {                                                                                                                      │ │
+│ │     opacity: 0;                                                                                                               │ │
+│ │     transform: translateY(-10px);                                                                                             │ │
+│ │   }                                                                                                                           │ │
+│ │   to {                                                                                                                        │ │
+│ │     opacity: 1;                                                                                                               │ │
+│ │     transform: translateY(0);                                                                                                 │ │
+│ │   }                                                                                                                           │ │
+│ │ }                                                                                                                             │ │
+│ │                                                                                                                               │ │
+│ │ .contact-assignment-item {                                                                                                    │ │
+│ │   transition: all 0.3s ease;                                                                                                  │ │
+│ │ }                                                                                                                             │ │
+│ │                                                                                                                               │ │
+│ │ .contact-assignment-item.deleted {                                                                                            │ │
+│ │   animation: pulse-red 2s infinite;                                                                                           │ │
+│ │ }                                                                                                                             │ │
+│ │                                                                                                                               │ │
+│ │ @keyframes pulse-red {                                                                                                        │ │
+│ │   0%, 100% {                                                                                                                  │ │
+│ │     border-color: rgb(239 68 68);                                                                                             │ │
+│ │   }                                                                                                                           │ │
+│ │   50% {                                                                                                                       │ │
+│ │     border-color: rgb(185 28 28);                                                                                             │ │
+│ │   }                                                                                                                           │ │
+│ │ }                                                                                                                             │ │
+│ │                                                                                                                               │ │
+│ │ /* Save button disabled state */                                                                                              │ │
+│ │ .save-button:disabled {                                                                                                       │ │
+│ │   opacity: 0.5;                                                                                                               │ │
+│ │   cursor: not-allowed;                                                                                                        │ │
+│ │ }                                                                                                                             │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### 7. Add Remove Contact Functionality                                                                                       │ │
+│ │                                                                                                                               │ │
+│ │ ```typescript                                                                                                                 │ │
+│ │ const handleRemoveContact = (contactId: string) => {                                                                          │ │
+│ │   // Remove from assigned contacts                                                                                            │ │
+│ │   setAssignedContacts(prev => prev.filter(c => c.id !== contactId));                                                          │ │
+│ │                                                                                                                               │ │
+│ │   // Remove from deleted set                                                                                                  │ │
+│ │   setDeletedContacts(prev => {                                                                                                │ │
+│ │     const newSet = new Set(prev);                                                                                             │ │
+│ │     newSet.delete(contactId);                                                                                                 │ │
+│ │     return newSet;                                                                                                            │ │
+│ │   });                                                                                                                         │ │
+│ │                                                                                                                               │ │
+│ │   // Remove related validation errors                                                                                         │ │
+│ │   setValidationErrors(prev =>                                                                                                 │ │
+│ │     prev.filter(error => error.contactId !== contactId)                                                                       │ │
+│ │   );                                                                                                                          │ │
+│ │                                                                                                                               │ │
+│ │   // Re-enable save if no more errors                                                                                         │ │
+│ │   if (deletedContacts.size === 1) { // Last one being removed                                                                 │ │
+│ │     setCanSaveWorkflow(true);                                                                                                 │ │
+│ │   }                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │   // Show success message                                                                                                     │ │
+│ │   toast({                                                                                                                     │ │
+│ │     title: "Contact Removed",                                                                                                 │ │
+│ │     description: "The invalid contact has been removed from this workflow.",                                                  │ │
+│ │   });                                                                                                                         │ │
+│ │ };                                                                                                                            │ │
+│ │ ```                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ## Testing Instructions                                                                                                       │ │
+│ │                                                                                                                               │ │
+│ │ 1. **Test Real-time Deletion Alert**:                                                                                         │ │
+│ │    - Open workflow in Tab A with assigned contacts                                                                            │ │
+│ │    - Delete a contact in Tab B                                                                                                │ │
+│ │    - Tab A should immediately show red alert banner                                                                           │ │
+│ │    - Deleted contact should be highlighted in red                                                                             │ │
+│ │    - Save button should be disabled                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ 2. **Test Remove Functionality**:                                                                                             │ │
+│ │    - Click "Remove Contact" button on deleted contact                                                                         │ │
+│ │    - Contact should be removed from list                                                                                      │ │
+│ │    - Alert should disappear                                                                                                   │ │
+│ │    - Save button should re-enable if no other errors                                                                          │ │
+│ │                                                                                                                               │ │
+│ │ 3. **Test Save Validation**:                                                                                                  │ │
+│ │    - Try to save with deleted contact assigned                                                                                │ │
+│ │    - Should see error toast preventing save                                                                                   │ │
+│ │    - Remove deleted contact                                                                                                   │ │
+│ │    - Save should now work                                                                                                     │ │
+│ │                                                                                                                               │ │
+│ │ ## Expected Results                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ✅ Immediate visual feedback when contacts are deleted (< 2 seconds)                                                           │ │
+│ │ ✅ Clear error messages with actionable buttons                                                                                │ │
+│ │ ✅ Deleted contacts visually distinguished (red border, strikethrough)                                                         │ │
+│ │ ✅ Save operation blocked when invalid contacts present                                                                        │ │
+│ │ ✅ Easy removal of invalid contacts with one click                                                                             │ │
+│ │ ✅ Toast notifications for important events                                                                                    │ │
+│ │                                                                                                                               │ │
+│ │ ## Files to Modify                                                                                                            │ │
+│ │                                                                                                                               │ │
+│ │ 1. `client/src/components/workflow-contact-assignment.tsx` (or similar workflow component)                                    │ │
+│ │ 2. `client/src/components/ui/alert.tsx` (if not already present)                                                              │ │
+│ │ 3. Component-specific CSS file or `client/src/index.css`                                                                      │ │
+│ │ 4. Any workflow save/submit handler functions                                                                                 │ │
+│ │                                                                                                                               │ │
+│ │ ## Success Criteria                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ The implementation is successful when:                                                                                        │ │
+│ │ 1. Deleting a contact triggers immediate UI updates in all viewing workflows                                                  │ │
+│ │ 2. Users cannot save workflows with deleted contacts                                                                          │ │
+│ │ 3. Visual indicators clearly show which contacts are invalid                                                                  │ │
+│ │ 4. One-click removal of invalid contacts works smoothly                                                                       │ │
+│ │ 5. All validation messages are clear and actionable     
