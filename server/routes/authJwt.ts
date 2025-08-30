@@ -59,4 +59,5 @@ function setAuthCookies(res: Response, accessToken: string, refreshToken: string
 }
 function clearAuthCookies(res: Response) {
   res.clearCookie("access_token", { path: "/" });
-  res.clearCookie("refresh_token", {_
+  res.clearCookie("refresh_token", { path: "/" });
+}
