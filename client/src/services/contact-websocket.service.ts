@@ -48,13 +48,11 @@ export class ContactWebSocketService {
   private onReconnect: (() => void) | null = null;
 
   constructor(config?: Partial<ContactWebSocketConfig>) {
-    const defaultUrl =
+    const defaultUrl = 
       (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_WS_URL) ||
       (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_WS_URL) ||
-      // In development, connect directly to API server
-      (window.location.hostname === 'localhost' || window.location.hostname.includes('replit.dev')
-        ? 'ws://localhost:5000/contacts'
-        : (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/contacts');
+      // Always connect to the current host for WebSocket
+      (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/contacts';
 
     this.config = {
       url: defaultUrl,
