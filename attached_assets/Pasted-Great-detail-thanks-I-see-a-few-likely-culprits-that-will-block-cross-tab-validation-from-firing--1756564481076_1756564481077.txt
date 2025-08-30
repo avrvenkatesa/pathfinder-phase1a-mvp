@@ -1,0 +1,260 @@
+Great detail — thanks! I see a few likely culprits that will block cross-tab validation from firing, plus a couple of clean, targeted fixes. Below are precise patches you can drop in. They do three things:
+
+1. make sure the client is actually connected to the *right* WS endpoint in dev & prod,
+2. include `affectedWorkflows` in the server broadcasts (so the UI knows *which* workflow is impacted), and
+3. deliver those events only to subscribers of the impacted workflow(s) on the client.
+
+I’m also flagging a Vite proxy tweak that commonly causes “it works in prod but not in dev.”
+
+---
+
+# 1) Client → make the WS URL reliable in dev & prod
+
+Right now the client default resolves to `ws(s)://<window.location.host>/contacts`. That’s perfect **in production** (where API + client are served by the same Express server on the same port), but **in development** Vite runs on `5173` and your API on `5000`, so the WS tries to connect to Vite (wrong server) and silently fails to receive your contact events.
+
+## Option A (recommended): Vite proxy for `/contacts` (supports WS)
+
+Add this to your `vite.config.ts`:
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/contacts': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        ws: true,           // <-- critical for WebSocket proxying
+        secure: false,
+      },
+      // (optional) also proxy your /api if you haven’t already
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  }
+})
+```
+
+No code changes needed in your WS client if you do this. In dev, requests to `/contacts` on 5173 will be proxied to the API server (5000), including WebSocket upgrades.
+
+## Option B: explicit env URL (if you prefer not to proxy)
+
+Keep your current code but allow an override:
+
+```ts
+// .env.development
+VITE_WS_URL=ws://localhost:5000/contacts
+
+// .env.production  (only if you terminate TLS elsewhere)
+VITE_WS_URL=wss://your.prod.host/contacts
+```
+
+Then tweak your client code (shown below) to honor `import.meta.env.VITE_WS_URL`.
+
+---
+
+# 2) Server → include `affectedWorkflows` in broadcasts
+
+Your client’s cross-tab logic is wired to show validation if the message tells it *which* workflows are impacted. The server is always sending `affectedWorkflows: []`, so the client can’t route the event to the right subscribers. Fix by:
+
+* allowing `affectedWorkflows` to be passed into the broadcast helpers, and
+* actually querying assignments before broadcasting.
+
+### 2.1 Update the WS service to accept `affectedWorkflows`
+
+**server/services/websocketService.ts** — change the two helpers’ signatures and bodies:
+
+```ts
+// Public methods for broadcasting contact events
+public broadcastContactDeleted(
+  contactId: string,
+  contactData?: any,
+  affectedWorkflows: string[] = []
+): void {
+  this.broadcast({
+    type: 'CONTACT_DELETED',
+    contactId,
+    timestamp: new Date().toISOString(),
+    data: contactData,
+    affectedWorkflows,
+  });
+}
+
+public broadcastContactModified(
+  contactId: string,
+  changes: any,
+  contactData?: any,
+  affectedWorkflows: string[] = []
+): void {
+  this.broadcast({
+    type: 'CONTACT_MODIFIED',
+    contactId,
+    timestamp: new Date().toISOString(),
+    data: {
+      changes,
+      contactName: contactData?.name,
+      ...contactData
+    },
+    affectedWorkflows,
+  });
+}
+```
+
+### 2.2 Pass real affected workflows from routes
+
+In **server/routes.ts**, right before you broadcast in the `PUT /api/contacts/:id` and `DELETE /api/contacts/:id` handlers, fetch the assignments and map their workflow IDs (or names if that’s what your client expects).
+
+> I’ll assume `storage.getWorkflowAssignments(userId, { contactId })` returns items with a `workflowId` field. If it’s a different shape, adapt the mapper.
+
+**PUT /api/contacts/\:id** (only the new bit shown):
+
+```ts
+// after you've computed `changes` and before broadcasting:
+let affectedWorkflowIds: string[] = [];
+try {
+  const assignments = await storage.getWorkflowAssignments(userId, { contactId });
+  affectedWorkflowIds = (assignments || [])
+    .map((a: any) => a.workflowId)
+    .filter(Boolean);
+} catch (e) {
+  console.warn('Failed to compute affected workflows for contact update', e);
+}
+
+if (Object.keys(changes).length > 0) {
+  contactWebSocketService.broadcastContactModified(
+    contactId,
+    changes,
+    { name: contact.name, type: contact.type },
+    affectedWorkflowIds
+  );
+}
+```
+
+**DELETE /api/contacts/\:id**:
+
+```ts
+// BEFORE calling broadcastContactDeleted:
+let affectedWorkflowIds: string[] = [];
+try {
+  const assignments = await storage.getWorkflowAssignments(userId, { contactId });
+  affectedWorkflowIds = (assignments || [])
+    .map((a: any) => a.workflowId)
+    .filter(Boolean);
+} catch (e) {
+  console.warn('Failed to compute affected workflows for contact delete', e);
+}
+
+contactWebSocketService.broadcastContactDeleted(
+  contactId,
+  { name: contactData?.name, type: contactData?.type },
+  affectedWorkflowIds
+);
+```
+
+> (Optional) If you also want to push a *validation* event that actively blocks save flows elsewhere, you can call `contactWebSocketService.broadcastValidationError(contactId, 'Contact removed/modified in use by active workflow(s)')` right after, but most UIs can derive the validation state from `CONTACT_DELETED` / `CONTACT_MODIFIED` + `affectedWorkflows`.
+
+---
+
+# 3) Client → route CONTACT\_\* events to the *right* workflow subscribers
+
+Your client currently forwards `CONTACT_DELETED` / `CONTACT_MODIFIED` to **all** workflow subscribers. That can cause noisy/incorrect alerts or, depending on your UI, no UI response if you’re filtering by workflow later.
+
+Tighten the routing: look at `message.affectedWorkflows` and only notify subscribers whose key matches.
+
+**client/src/services/contact-websocket.service.ts**
+
+Replace the “NEW: Handle deletion/modification events…” block inside `handleMessage` with this:
+
+```ts
+// Handle deletion/modification events for workflow subscribers
+if (message.type === 'CONTACT_DELETED' || message.type === 'CONTACT_MODIFIED') {
+  const targets = Array.isArray(message.affectedWorkflows) ? message.affectedWorkflows : [];
+
+  if (targets.length) {
+    // Notify only the subscribers of impacted workflows
+    targets.forEach((wfId) => {
+      const set = this.workflowSubscribers.get(`workflow:${wfId}`);
+      if (set && set.size) {
+        set.forEach((callback) => {
+          try {
+            callback(message);
+          } catch (error) {
+            console.error('Error in workflow subscriber callback:', error);
+          }
+        });
+      }
+    });
+  } else {
+    // Fallback: if server didn't include affectedWorkflows, notify all workflow subscribers
+    this.workflowSubscribers.forEach((callbacks) => {
+      callbacks.forEach((callback) => {
+        try {
+          callback(message);
+        } catch (error) {
+          console.error('Error in workflow deletion callback:', error);
+        }
+      });
+    });
+  }
+}
+```
+
+This ensures your cross-tab test component subscribed as `subscribeToContactDeletions(workflowId, ...)` only fires when *that* workflow is actually implicated.
+
+---
+
+# 4) Client → honor an explicit WS URL if provided (works with Option B)
+
+A tiny tweak in your constructor to allow `import.meta.env.VITE_WS_URL` to override:
+
+```ts
+constructor(config?: Partial<ContactWebSocketConfig>) {
+  const defaultUrl =
+    (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_WS_URL) ||
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_WS_URL) ||
+    ((typeof window !== 'undefined'
+      ? (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host
+      : 'ws://localhost:5000') + '/contacts');
+
+  this.config = {
+    url: defaultUrl,
+    reconnectInterval: 5000,
+    maxReconnectAttempts: 10,
+    heartbeatInterval: 30000,
+    authToken: this.getAuthToken(),
+    ...config,
+  };
+}
+```
+
+---
+
+# 5) Quick sanity checklist (things that often get missed)
+
+* Make sure **exactly one** `contactWebSocketService.connect()` runs in your app (e.g., do it in your app shell or in the cross-tab test page’s mount effect, not both).
+* In dev, confirm the Vite proxy logs a `WebSocket proxy` line on connect; open DevTools → Network → WS, and verify you see frames for your `CONTACT_*` messages.
+* If you’re behind a platform proxy that strips WS path segments, try removing `path: '/contacts'` on the server and going path-less (`new WebSocketServer({ server })`) *or* configure the platform to pass the path through. Most platforms are fine, but some default ingress rules can be finicky.
+* You’re sending `type: 'AUTH_REQUIRED'` *from the client* to the server; the server currently ignores it (which is OK since your WS is effectively unauthenticated). If you later enforce auth on WS, implement the branch in `handleClientMessage`.
+
+---
+
+## TL;DR of the diffs
+
+* **Server**
+
+  * Accept `affectedWorkflows` in `broadcastContactDeleted` / `broadcastContactModified`.
+  * Compute `affectedWorkflowIds` in the `PUT /api/contacts/:id` and `DELETE /api/contacts/:id` routes and pass them into the broadcasts.
+
+* **Client**
+
+  * Route `CONTACT_DELETED` / `CONTACT_MODIFIED` only to `workflow:<id>` subscribers that are actually affected.
+  * Either add a Vite WS proxy for `/contacts` **or** supply `VITE_WS_URL` so the WS connects to the API in dev.
+
+Apply these and your validation badges/toasts should light up across tabs exactly when a contact tied to that workflow is modified or deleted — and your “prevent save” logic will have the signal it needs.

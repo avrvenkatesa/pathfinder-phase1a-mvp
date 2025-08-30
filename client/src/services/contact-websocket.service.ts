@@ -48,9 +48,16 @@ export class ContactWebSocketService {
   private onReconnect: (() => void) | null = null;
 
   constructor(config?: Partial<ContactWebSocketConfig>) {
+    const defaultUrl =
+      (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_WS_URL) ||
+      (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_WS_URL) ||
+      // In development, connect directly to API server
+      (window.location.hostname === 'localhost' || window.location.hostname.includes('replit.dev')
+        ? 'ws://localhost:5000/contacts'
+        : (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/contacts');
+
     this.config = {
-      url: (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_WS_URL) || 
-           (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/contacts',
+      url: defaultUrl,
       reconnectInterval: 5000,
       maxReconnectAttempts: 10,
       heartbeatInterval: 30000, // 30 seconds
@@ -164,20 +171,38 @@ export class ContactWebSocketService {
         }
       }
 
-      // NEW: Handle deletion/modification events for workflow subscribers
+      // Handle deletion/modification events for workflow subscribers
       if (message.type === 'CONTACT_DELETED' || message.type === 'CONTACT_MODIFIED') {
-        // Notify all workflow subscribers
-        this.workflowSubscribers.forEach((callbacks, key) => {
-          if (key.startsWith('workflow:')) {
-            callbacks.forEach(callback => {
-              try {
-                callback(message);
-              } catch (error) {
-                console.error('Error in workflow deletion callback:', error);
-              }
-            });
-          }
-        });
+        const targets = Array.isArray(message.affectedWorkflows) ? message.affectedWorkflows : [];
+
+        if (targets.length) {
+          // Notify only the subscribers of impacted workflows
+          targets.forEach((wfId) => {
+            const set = this.workflowSubscribers.get(`workflow:${wfId}`);
+            if (set && set.size) {
+              set.forEach((callback) => {
+                try {
+                  callback(message);
+                } catch (error) {
+                  console.error('Error in workflow subscriber callback:', error);
+                }
+              });
+            }
+          });
+        } else {
+          // Fallback: if server didn't include affectedWorkflows, notify all workflow subscribers
+          this.workflowSubscribers.forEach((callbacks, key) => {
+            if (key.startsWith('workflow:')) {
+              callbacks.forEach(callback => {
+                try {
+                  callback(message);
+                } catch (error) {
+                  console.error('Error in workflow deletion callback:', error);
+                }
+              });
+            }
+          });
+        }
       }
 
       // Handle authentication requirements
