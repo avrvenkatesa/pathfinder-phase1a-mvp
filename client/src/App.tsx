@@ -5,7 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
-import { onAuthBroadcast, broadcastLogout } from "@/lib/authChannel"; // ⬅️ NEW
+import { onAuthBroadcast, broadcastLogout } from "@/lib/authChannel";
 
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
@@ -23,6 +23,7 @@ import { WebSocketTestComponent } from "@/components/WebSocketTestComponent";
 import { CrossTabValidationTest } from "@/components/CrossTabValidationTest";
 import { CrossTabTestInterface } from "@/components/CrossTabTestInterface";
 
+/** Router stays under the provider (it uses useAuth inside) */
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -56,37 +57,48 @@ function Router() {
   );
 }
 
-function App() {
+/** AppShell runs under QueryClientProvider, so hooks are safe here */
+function AppShell() {
   const { isAuthenticated } = useAuth();
 
-  // 🔔 Instantly react to logout in another tab
+  // Instantly react to logout in another tab
   useEffect(() => onAuthBroadcast(() => window.location.reload()), []);
 
+  return (
+    <>
+      {/* Simple global header with Logout */}
+      <header className="flex items-center gap-3 p-3 border-b">
+        <h1 className="text-lg font-semibold">Pathfinder</h1>
+        {isAuthenticated && (
+          <div className="ml-auto">
+            <button
+              type="button"
+              className="px-3 py-1 rounded border"
+              onClick={() => {
+                try {
+                  broadcastLogout();
+                } finally {
+                  window.location.href = "/api/logout";
+                }
+              }}
+            >
+              Log out
+            </button>
+          </div>
+        )}
+      </header>
+
+      <Router />
+    </>
+  );
+}
+
+function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        {/* Simple global header with Logout */}
-        <header className="flex items-center gap-3 p-3 border-b">
-          <h1 className="text-lg font-semibold">Pathfinder</h1>
-          {isAuthenticated && (
-            <button
-              onClick={() => {
-                fetch('/api/auth/logout', { method: 'POST' })
-                  .then(() => {
-                    broadcastLogout();
-                    window.location.reload();
-                  });
-              }}
-              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-            >
-              Logout
-            </button>
-          )}
-        </header>
-        <main className="flex-1">
-          <Router />
-        </main>
+        <AppShell />
       </TooltipProvider>
     </QueryClientProvider>
   );
