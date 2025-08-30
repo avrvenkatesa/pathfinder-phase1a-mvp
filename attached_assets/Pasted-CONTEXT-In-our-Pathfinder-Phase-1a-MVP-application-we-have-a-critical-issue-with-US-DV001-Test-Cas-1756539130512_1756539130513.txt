@@ -1,0 +1,68 @@
+CONTEXT: In our Pathfinder Phase 1a MVP application, we have a critical issue with US-DV001 Test Case 1 Step 5. When a contact
+  is deleted or modified in one browser tab, the workflow in another tab doesn't receive real-time validation updates. The
+  deleted contact still appears as valid in the workflow with no warnings.
+
+  ISSUE:
+  - Contact deletions/modifications are not propagated to workflows in real-time
+  - No validation warnings appear when assigned contacts become invalid
+  - WebSocket or event-driven validation appears to be non-functional
+
+  FILES TO CHECK/MODIFY:
+  1. client/src/services/contact-websocket.service.ts - WebSocket connection
+  2. client/src/components/workflow-contact-assignment.tsx - Workflow assignment component
+  3. server/controllers/contacts.ts - Contact deletion endpoint
+  4. server/controllers/workflow.ts - Workflow validation logic
+
+  FIX REQUIREMENTS:
+
+  1. Implement WebSocket Event Broadcasting when a contact is deleted/modified:
+  // In contact deletion endpoint
+  io.emit('contact:deleted', { contactId, timestamp });
+  io.emit('contact:modified', { contactId, changes, timestamp });
+
+  2. Add WebSocket Listeners in the workflow component:
+  // Listen for contact changes
+  socket.on('contact:deleted', (data) => {
+    // Check if deleted contact is assigned to current workflow
+    // Show validation warning
+    // Update workflow state
+  });
+
+  3. Create Validation Warning Component:
+  // Show real-time validation alerts
+  if (deletedContactIds.includes(assignedContactId)) {
+    return <Alert type="error">Assigned contact has been deleted. Please reassign.</Alert>
+  }
+
+  4. Add Referential Integrity Check:
+  // Before workflow save/update
+  const validateContactAssignments = async (workflowId, contactIds) => {
+    const activeContacts = await checkContactsExist(contactIds);
+    return activeContacts.filter(c => c.isActive && !c.deleted);
+  };
+
+  5. Implement Periodic Validation Refresh:
+  // Fallback polling mechanism if WebSocket fails
+  useEffect(() => {
+    const interval = setInterval(() => {
+      validateAssignedContacts();
+    }, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  TESTING THE FIX:
+  1. Open workflow in Tab A
+  2. Assign a contact to the workflow
+  3. Open contacts in Tab B
+  4. Delete the assigned contact in Tab B
+  5. Tab A should immediately show a validation warning
+  6. The workflow should prevent saving with invalid contact
+
+  EXPECTED OUTCOME:
+  - Real-time validation warnings appear within 1-2 seconds
+  - Clear error message: "Assigned contact [Name] has been deleted"
+  - Workflow cannot be saved until invalid assignment is resolved
+  - Visual indicator (red border/highlight) on invalid assignments
+
+  Please implement this fix focusing on establishing proper WebSocket communication between contact and workflow services for
+  real-time validation updates.
