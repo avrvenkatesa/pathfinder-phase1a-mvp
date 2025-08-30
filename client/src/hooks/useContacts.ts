@@ -310,9 +310,7 @@ export function useContactAvailability(
       console.error('Contact WebSocket error:', error);
     });
 
-    contactWebSocketService.connect().catch((error) => {
-      console.error('Failed to connect to contact WebSocket:', error);
-    });
+    contactWebSocketService.connect();
 
     return () => {
       contactWebSocketService.disconnect();
