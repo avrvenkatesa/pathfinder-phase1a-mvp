@@ -49,7 +49,8 @@ export class ContactWebSocketService {
 
   constructor(config?: Partial<ContactWebSocketConfig>) {
     this.config = {
-      url: (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_WS_URL) || 'ws://localhost:5000/contacts',
+      url: (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_WS_URL) || 
+           (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/contacts',
       reconnectInterval: 5000,
       maxReconnectAttempts: 10,
       heartbeatInterval: 30000, // 30 seconds
