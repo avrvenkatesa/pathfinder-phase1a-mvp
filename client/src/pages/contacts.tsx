@@ -32,10 +32,16 @@ export default function ContactsPage() {
     department: ''
   });
 
-  const { data: contacts = [], isLoading } = useQuery({
+  const { data: contacts = [], isLoading, error } = useQuery({
     queryKey: ['/api/contacts'],
     retry: false,
   });
+
+  // Handle errors and show them to user for debugging
+  if (error) {
+    console.error('Contacts API error:', error);
+    // For testing, continue with empty array even if auth fails
+  }
 
   const createMutation = useMutation({
     mutationFn: async (contactData: Partial<Contact>) => {
