@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { contactService } from "./services/contactService";
+import { contactWebSocketService } from "./services/websocketService";
 import { 
   insertContactSchema, 
   updateContactSchema, 
@@ -128,12 +129,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const contactId = req.params.id;
       const contactData = updateContactSchema.parse(req.body);
       
-      const contact = await storage.updateContact(req.params.id, contactData, userId);
+      // Get original contact data to detect changes
+      const originalContact = await storage.getContact(contactId, userId);
+      
+      const contact = await storage.updateContact(contactId, contactData, userId);
       
       if (!contact) {
         return res.status(404).json({ message: "Contact not found" });
+      }
+      
+      // Broadcast contact modification event if there were changes
+      if (originalContact) {
+        const changes: Record<string, any> = {};
+        Object.keys(contactData).forEach(key => {
+          if ((contactData as any)[key] !== (originalContact as any)[key]) {
+            changes[key] = {
+              from: (originalContact as any)[key],
+              to: (contactData as any)[key]
+            };
+          }
+        });
+
+        if (Object.keys(changes).length > 0) {
+          contactWebSocketService.broadcastContactModified(contactId, changes, {
+            name: contact.name,
+            type: contact.type
+          });
+        }
       }
       
       res.json(contact);
@@ -149,11 +174,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const deleted = await storage.deleteContact(req.params.id, userId);
+      const contactId = req.params.id;
+      
+      // Get contact data before deletion for broadcasting
+      const contactData = await storage.getContact(contactId, userId);
+      
+      const deleted = await storage.deleteContact(contactId, userId);
       
       if (!deleted) {
         return res.status(404).json({ message: "Contact not found" });
       }
+      
+      // Broadcast contact deletion event to all connected clients
+      contactWebSocketService.broadcastContactDeleted(contactId, {
+        name: contactData?.name,
+        type: contactData?.type
+      });
       
       res.status(204).send();
     } catch (error) {
@@ -1166,5 +1202,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // Initialize WebSocket service for contact events
+  contactWebSocketService.initialize(httpServer);
+  
   return httpServer;
 }
