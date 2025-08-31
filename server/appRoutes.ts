@@ -38,6 +38,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Keep JWT routes for any other functionality
   app.use("/api/auth", authJwtRoutes);
 
+  // Add validation proxy routes (simplified version for contact creation)
+  app.post("/api/validation/validate-entity", async (req, res) => {
+    try {
+      const { entityType, data } = req.body;
+      
+      if (!entityType || !data) {
+        return res.status(400).json({
+          error: 'Missing required fields: entityType and data'
+        });
+      }
+
+      // Simple validation for contacts - just check required fields
+      if (entityType === 'contact') {
+        const errors = [];
+        const warnings = [];
+
+        // Check required fields based on contact type
+        if (!data.name || !data.name.trim()) {
+          errors.push({
+            field: 'name',
+            message: 'Name is required',
+            code: 'REQUIRED_FIELD',
+            value: data.name
+          });
+        }
+
+        if (!data.type) {
+          errors.push({
+            field: 'type',
+            message: 'Contact type is required',
+            code: 'REQUIRED_FIELD',
+            value: data.type
+          });
+        }
+
+        // Email validation if provided
+        if (data.email && data.email.trim()) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(data.email)) {
+            errors.push({
+              field: 'email',
+              message: 'Invalid email format',
+              code: 'INVALID_FORMAT',
+              value: data.email
+            });
+          }
+        }
+
+        const result = {
+          isValid: errors.length === 0,
+          errors,
+          warnings,
+          metadata: {
+            entityType,
+            entityId: data.id || 'new',
+            validatedAt: new Date().toISOString(),
+            severity: errors.length > 0 ? 'error' : 'info'
+          }
+        };
+
+        return res.json(result);
+      }
+
+      // For other entity types, return basic success
+      return res.json({
+        isValid: true,
+        errors: [],
+        warnings: [],
+        metadata: {
+          entityType,
+          entityId: data.id || 'new',
+          validatedAt: new Date().toISOString(),
+          severity: 'info'
+        }
+      });
+      
+    } catch (error) {
+      console.error('Validation error:', error);
+      return res.status(500).json({
+        error: 'Internal validation service error',
+        details: error.message
+      });
+    }
+  });
+
   // --- Contacts with Optimistic Concurrency (ETag) ---
 
   // GET contact (sends ETag)
