@@ -17,7 +17,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Session/OIDC middleware (required before authJwt routes)
   await setupAuth(app);
 
-  // JWT cookie endpoints under /api/auth
+  // Session-based auth endpoints under /api/auth
+  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!user || !user.claims) {
+        return res.status(401).json({ error: "No active session" });
+      }
+      
+      res.json({ 
+        claims: user.claims,
+        authenticated: true 
+      });
+    } catch (error) {
+      console.error("Error in /api/auth/user:", error);
+      res.status(401).json({ error: "Unauthorized" });
+    }
+  });
+
+  // Keep JWT routes for any other functionality
   app.use("/api/auth", authJwtRoutes);
 
   // --- Contacts with Optimistic Concurrency (ETag) ---
