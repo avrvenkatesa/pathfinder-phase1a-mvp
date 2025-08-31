@@ -143,9 +143,9 @@ export async function setupAuth(app: Express) {
           return res.redirect("/api/login");
         }
         
-        // After successful login, redirect to mint JWT tokens
-        console.log('Authentication successful, redirecting to mint tokens');
-        return res.redirect("/api/auth/mint-from-session");
+        // After successful login, redirect to home page
+        console.log('Authentication successful, redirecting to home');
+        return res.redirect("/");
       });
     })(req, res, next);
   });
