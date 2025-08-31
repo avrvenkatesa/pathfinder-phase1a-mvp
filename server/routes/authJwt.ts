@@ -1,216 +1,132 @@
-// server/routes/authJwt.ts
-import { Router, type Request, type Response, type NextFunction } from "express";
-import cookieParser from "cookie-parser";
-import {
-  issueSession,
-  verifyAccess,
-  verifyRefresh,
-  rotateRefresh,
-  revokeAllForSid,
-  type JwtUser,
-} from "../config/jwt";
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
+import { authJwtRoutes } from "./routes/authJwt"; // ⬅️ CHANGED: named import
+import { contactService } from "./services/contactService";
+import { contactWebSocketService } from "./services/websocketService";
+import { 
+  insertContactSchema, 
+  updateContactSchema, 
+  insertContactSkillSchema,
+  updateContactSkillSchema,
+  insertContactCertificationSchema,
+  updateContactCertificationSchema,
+  insertContactAvailabilitySchema,
+  updateContactAvailabilitySchema,
+  insertWorkflowSchema, 
+  updateWorkflowSchema,
+  insertWorkflowInstanceSchema,
+  insertWorkflowTaskSchema,
+  insertWorkflowTemplateSchema
+} from "@shared/schema";
+import { z } from "zod";
 
-/** small utils */
-const isProd = process.env.NODE_ENV === "production";
-const CSRF_COOKIE = "csrf_token";
-const commonCookie = { httpOnly: true as const, sameSite: "lax" as const, secure: isProd, path: "/" };
+export async function registerRoutes(app: Express): Promise<Server> {
+  // Auth middleware (Replit OIDC session)
+  await setupAuth(app);
 
-function parseCookie(s: string) {
-  const out: Record<string, string> = {};
-  (s || "").split(";").forEach((p) => {
-    const i = p.indexOf("=");
-    if (i > -1) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1));
+  // Mount JWT auth endpoints
+  app.use("/api/auth", authJwtRoutes);
+
+  // Auth routes (Replit session-based user info)
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
   });
-  return out;
-}
-function randomString(n = 32) {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let out = "";
-  for (let i = 0; i < n; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
-}
 
-/** CSRF (double-submit cookie) */
-function ensureCsrfCookie(req: Request, res: Response, next: NextFunction) {
-  const has = (req as any).cookies?.[CSRF_COOKIE];
-  if (!has) {
-    res.cookie(CSRF_COOKIE, randomString(32), { ...commonCookie, httpOnly: false, maxAge: 30 * 24 * 3600 * 1000 });
-  }
-  next();
-}
-function requireCsrf(req: Request, res: Response, next: NextFunction) {
-  if (/^(GET|HEAD|OPTIONS)$/.test(req.method)) return next();
-  const header = req.get("X-CSRF-Token");
-  const cookie = (req as any).cookies?.[CSRF_COOKIE] ?? parseCookie(req.headers.cookie || "")[CSRF_COOKIE];
+  // Contact routes
+  app.get("/api/contacts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      console.log("Fetching contacts for user ID:", userId);
+      const filters = {
+        search: req.query.search as string,
+        type: req.query.type ? (req.query.type as string).split(',') : undefined,
+        tags: req.query.tags ? (req.query.tags as string).split(',') : undefined,
+        location: req.query.location as string,
+        isActive: req.query.isActive ? req.query.isActive === 'true' : true,
+      };
 
-  // allow mint-from-session if a Replit session is already authenticated (same-site)
-  const hasIsAuthFn = typeof (req as any).isAuthenticated === "function";
-  const isAuthedSession = hasIsAuthFn && (req as any).isAuthenticated();
-
-  if (!header || !cookie || header !== cookie) {
-    if (req.path === "/mint-from-session" && isAuthedSession) return next();
-    return res.status(403).json({ ok: false, error: "CSRF invalid/missing" });
-  }
-  next();
-}
-
-/** JWT cookie helpers */
-function setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
-  res.cookie("access_token", accessToken, { ...commonCookie, maxAge: 15 * 60 * 1000 }); // 15m
-  res.cookie("refresh_token", refreshToken, { ...commonCookie, maxAge: 30 * 24 * 60 * 60 * 1000 }); // 30d
-}
-function clearAuthCookies(res: Response) {
-  res.clearCookie("access_token", { path: "/" });
-  res.clearCookie("refresh_token", { path: "/" });
-}
-
-/** helpers to read Replit/Passport user safely */
-function extractReplitUser(req: any) {
-  const u = req?.user;
-  const claims = u?.claims ?? u?.profile ?? u ?? null;
-  const id = claims?.sub || claims?.id || u?.id;
-  const email = claims?.email || u?.email;
-  const name = claims?.name || u?.name;
-  return {
-    id,
-    email,
-    name,
-    ok: !!id,
-    debug: {
-      hasReqUser: !!u,
-      reqUserKeys: u ? Object.keys(u) : [],
-      hasClaims: !!claims,
-      claimKeys: claims ? Object.keys(claims) : [],
-    },
-  };
-}
-
-/** router */
-const router = Router();
-router.use(cookieParser());
-router.use(ensureCsrfCookie);
-
-// prime CSRF (handy in the browser console)
-router.get("/csrf", (req, res) => {
-  const token = (req as any).cookies?.[CSRF_COOKIE] ?? parseCookie(req.headers.cookie || "")[CSRF_COOKIE] ?? "";
-  res.json({ ok: true, csrf: token });
-});
-
-// debug endpoints to see what's on req (temporary but safe to keep)
-router.get("/debug", (req: any, res) => {
-  const hasIsAuthFn = typeof req.isAuthenticated === "function";
-  res.json({
-    ok: true,
-    hasIsAuthFn,
-    isAuthenticated: hasIsAuthFn ? !!req.isAuthenticated() : null,
-    hasReqUser: !!req.user,
-    reqUserKeys: req.user ? Object.keys(req.user) : [],
-    sampleUser: req.user && typeof req.user === "object" ? { ...req.user, tokens: undefined } : null,
+      const contacts = await storage.getContacts(userId, filters);
+      res.json(contacts);
+    } catch (error) {
+      console.error("Error fetching contacts:", error);
+      res.status(500).json({ message: "Failed to fetch contacts" });
+    }
   });
-});
-router.get("/whoami", (req: any, res) => {
-  res.json({ ok: true, user: req.user || null });
-});
 
-router.use(requireCsrf);
+  app.get("/api/contacts/hierarchy", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const hierarchy = await storage.getContactHierarchy(userId);
+      res.json(hierarchy);
+    } catch (error) {
+      console.error("Error fetching contact hierarchy:", error);
+      res.status(500).json({ message: "Failed to fetch contact hierarchy" });
+    }
+  });
 
-/** DEV login (email/password) — optional helper */
-router.post("/login", async (req, res) => {
-  try {
-    const { email, password } = (req.body || {}) as { email?: string; password?: string };
-    if (!email || !password) return res.status(400).json({ ok: false, error: "invalid input" });
+  app.get("/api/contacts/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const stats = await storage.getContactStats(userId);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching contact stats:", error);
+      res.status(500).json({ message: "Failed to fetch contact stats" });
+    }
+  });
 
-    const user: JwtUser = { id: email, email, name: email.split("@")[0] };
-    const { accessToken, refreshToken, sid } = issueSession(user);
-    setAuthCookies(res, accessToken, refreshToken);
-    return res.json({ ok: true, user: { id: user.id, email: user.email }, sid });
-  } catch (err) {
-    console.error("[authJwt] /login error", err);
-    return res.status(500).json({ ok: false, error: "internal" });
-  }
-});
+  // Capacity optimization analysis - must be before :id route
+  app.get("/api/contacts/capacity-analysis", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const analysis = await contactService.getCapacityOptimizationSuggestions(userId);
+      res.json(analysis);
+    } catch (error) {
+      console.error("Error performing capacity analysis:", error);
+      res.status(500).json({ message: "Failed to perform capacity analysis" });
+    }
+  });
 
-/** Mint JWT cookies from Replit OIDC session */
-router.post("/mint-from-session", async (req: any, res) => {
-  const hasIsAuthFn = typeof req.isAuthenticated === "function";
-  const isAuthed = hasIsAuthFn ? !!req.isAuthenticated() : false;
-  const extracted = extractReplitUser(req);
+  app.get("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const contact = await storage.getContactById(req.params.id, userId);
 
-  if (!isAuthed) {
-    return res.status(401).json({
-      ok: false,
-      error: "not authenticated via Replit session",
-      debug: { hasIsAuthFn, isAuthed, ...extracted.debug },
-    });
-  }
-  if (!extracted.ok) {
-    return res.status(400).json({
-      ok: false,
-      error: "could not determine user id from session",
-      debug: extracted.debug,
-    });
-  }
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
 
-  try {
-    const user: JwtUser = { id: extracted.id!, email: extracted.email, name: extracted.name };
-    const { accessToken, refreshToken, sid } = issueSession(user);
-    setAuthCookies(res, accessToken, refreshToken);
-    return res.json({ ok: true, user: { id: user.id, email: user.email }, sid });
-  } catch (err: any) {
-    console.error("[authJwt] /mint-from-session error", err);
-    return res.status(500).json({ ok: false, error: "internal", detail: err?.message });
-  }
-});
+      res.json(contact);
+    } catch (error) {
+      console.error("Error fetching contact:", error);
+      res.status(500).json({ message: "Failed to fetch contact" });
+    }
+  });
 
-/** Single refresh attempt; rotates refresh token */
-router.post("/refresh", async (req: any, res) => {
-  try {
-    const rt = req.cookies?.refresh_token;
-    if (!rt) return res.status(401).json({ ok: false, error: "missing refresh" });
-    const payload = verifyRefresh(rt); // { uid, sid, jti, exp }
-    const { accessToken, refreshToken } = rotateRefresh(payload.jti, payload.uid, payload.sid);
-    setAuthCookies(res, accessToken, refreshToken);
-    return res.json({ ok: true, sid: payload.sid });
-  } catch (err) {
-    console.error("[authJwt] /refresh error", err);
-    return res.status(401).json({ ok: false, error: "refresh failed" });
-  }
-});
+  app.post("/api/contacts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      console.log("Creating contact for user ID:", userId);
+      const contactData = insertContactSchema.parse(req.body);
 
-/** Logout (JWT cookies). Optionally revoke server-side refreshes for this session. */
-router.post("/logout", async (req, res) => {
-  try {
-    const { uid, sid } = (req.body || {}) as { uid?: string; sid?: string };
-    if (uid && sid) revokeAllForSid(uid, sid);
-    clearAuthCookies(res);
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error("[authJwt] /logout error", err);
-    return res.status(500).json({ ok: false, error: "internal" });
-  }
-});
-router.get("/logout", (_req, res) => {
-  clearAuthCookies(res);
-  return res.json({ ok: true });
-});
+      const contact = await storage.createContact(contactData, userId);
+      res.status(201).json(contact);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid contact data", errors: error.errors });
+      }
+      console.error("Error creating contact:", error);
+      res.status(500).json({ message: "Failed to create contact" });
+    }
+  });
 
-/** Session probe via access_token cookie */
-router.get("/session", (req: any, res) => {
-  try {
-    const at = req.cookies?.access_token;
-    if (!at) return res.status(401).json({ error: "No active session" });
-    const payload = verifyAccess(at);
-    const user = { id: payload.id, email: payload.email, name: payload.name };
-    return res.json({ ok: true, authenticated: true, user, sid: payload.sid });
-  } catch {
-    return res.status(401).json({ error: "No active session" });
-  }
-});
-
-/** final JSON error handler */
-router.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("[authJwt] unhandled error", err);
-  res.status(500).json({ ok: false, error: "internal" });
-});
-
-export default router;
+  app.put("/api/co
