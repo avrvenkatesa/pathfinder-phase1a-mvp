@@ -30,18 +30,18 @@ const envSchema = z.object({
   ENCRYPTION_KEY: z.string().min(32),
   
   // API Security
-  API_RATE_LIMIT_GENERAL: z.string().transform(Number).pipe(z.number().int().min(10)).default(100),
-  API_RATE_LIMIT_AUTH: z.string().transform(Number).pipe(z.number().int().min(1)).default(5),
-  API_RATE_LIMIT_BULK: z.string().transform(Number).pipe(z.number().int().min(1)).default(10),
-  API_RATE_LIMIT_READ: z.string().transform(Number).pipe(z.number().int().min(50)).default(200),
+  API_RATE_LIMIT_GENERAL: z.string().transform(Number).pipe(z.number().int().min(10)).default('100'),
+  API_RATE_LIMIT_AUTH: z.string().transform(Number).pipe(z.number().int().min(1)).default('5'),
+  API_RATE_LIMIT_BULK: z.string().transform(Number).pipe(z.number().int().min(1)).default('10'),
+  API_RATE_LIMIT_READ: z.string().transform(Number).pipe(z.number().int().min(50)).default('200'),
   
   // CORS Configuration
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),
   
   // Monitoring and Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
-  ENABLE_REQUEST_LOGGING: z.string().transform(val => val === 'true').default(true),
-  ENABLE_PERFORMANCE_MONITORING: z.string().transform(val => val === 'true').default(true),
+  ENABLE_REQUEST_LOGGING: z.string().transform(val => val === 'true').default('true'),
+  ENABLE_PERFORMANCE_MONITORING: z.string().transform(val => val === 'true').default('true'),
   
   // External Services
   SENTRY_DSN: z.string().url().optional(),
@@ -49,15 +49,15 @@ const envSchema = z.object({
   SLACK_WEBHOOK_URL: z.string().url().optional(),
   
   // File Upload
-  MAX_FILE_SIZE: z.string().transform(Number).pipe(z.number().int().min(1024)).default(10485760), // 10MB
+  MAX_FILE_SIZE: z.string().transform(Number).pipe(z.number().int().min(1024)).default('10485760'), // 10MB
   UPLOAD_DIR: z.string().default('./uploads'),
   
   // Health Check
-  HEALTH_CHECK_TIMEOUT: z.string().transform(Number).pipe(z.number().int().min(1000)).default(5000),
+  HEALTH_CHECK_TIMEOUT: z.string().transform(Number).pipe(z.number().int().min(1000)).default('5000'),
   
   // Application Specific
-  CONTACT_SEARCH_LIMIT: z.string().transform(Number).pipe(z.number().int().min(10).max(1000)).default(100),
-  BULK_OPERATION_LIMIT: z.string().transform(Number).pipe(z.number().int().min(10).max(10000)).default(1000),
+  CONTACT_SEARCH_LIMIT: z.string().transform(Number).pipe(z.number().int().min(10).max(1000)).default('100'),
+  BULK_OPERATION_LIMIT: z.string().transform(Number).pipe(z.number().int().min(10).max(10000)).default('1000'),
 });
 
 // Validate and parse environment variables
