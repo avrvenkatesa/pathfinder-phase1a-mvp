@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import EnhancedContactForm from "@/components/enhanced-contact-form";
 import { apiRequest } from "@/lib/queryClient";
-import { getContact, updateContact, deleteContact, PreconditionFailedError } from "@/services/contactApi";
+import { getContact, updateContact, deleteContact } from "@/lib/contactsClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Contact, WorkflowAssignment, ContactActivity } from "@shared/schema";
 import { 
@@ -77,15 +77,25 @@ export default function ContactDetail() {
       });
       setLocation("/");
     },
-    onError: (error) => {
-      if (error instanceof PreconditionFailedError) {
+    onError: (error: any) => {
+      if (error.code === 428) {
         toast({
-          title: "Conflict",
-          description: "Contact was modified by another user. Please refresh and try again.",
+          title: "Precondition Required", 
+          description: "Please reload this contact before deleting (precondition required).",
           variant: "destructive",
         });
         return;
       }
+      
+      if (error.code === 412) {
+        toast({
+          title: "Contact Changed",
+          description: "This contact changed in another tab. Reload to get the latest, then try again.",
+          variant: "destructive", 
+        });
+        return;
+      }
+      
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",

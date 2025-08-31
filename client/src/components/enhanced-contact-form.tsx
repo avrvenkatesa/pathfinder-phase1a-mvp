@@ -1304,10 +1304,15 @@ export default function EnhancedContactForm({
 
   const createMutation = useMutation({
     mutationFn: async (data: InsertContact) => {
-      const endpoint = isEditMode ? `/api/contacts/${contact!.id}` : "/api/contacts";
-      const method = isEditMode ? "PUT" : "POST";
-      const response = await apiRequest(method, endpoint, data);
-      return response.json();
+      if (isEditMode && contact?.id) {
+        // Use ETag-aware client for updates
+        const { updateContact } = await import("@/lib/contactsClient");
+        return await updateContact(contact.id, data);
+      } else {
+        // Use regular API for creation
+        const response = await apiRequest("POST", "/api/contacts", data);
+        return response.json();
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
@@ -1322,7 +1327,25 @@ export default function EnhancedContactForm({
       form.reset();
       onClose?.();
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      if (error.code === 428) {
+        toast({
+          title: "Precondition Required", 
+          description: "Please reload this contact before saving (precondition required).",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (error.code === 412) {
+        toast({
+          title: "Contact Changed",
+          description: "This contact changed in another tab. Reload to get the latest, then try again.",
+          variant: "destructive", 
+        });
+        return;
+      }
+      
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
