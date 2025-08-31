@@ -240,7 +240,7 @@ export class DatabaseStorage implements IStorage {
     const allContacts = await db
       .select()
       .from(contacts)
-      .where(and(eq(contacts.userId, userId), eq(contacts.isActive, true)))
+      .where(eq(contacts.userId, userId))
       .orderBy(contacts.name);
 
     // Build hierarchy
@@ -275,7 +275,7 @@ export class DatabaseStorage implements IStorage {
     const allContacts = await db
       .select()
       .from(contacts)
-      .where(and(eq(contacts.userId, userId), eq(contacts.isActive, true)));
+      .where(eq(contacts.userId, userId));
 
     const stats = {
       totalCompanies: 0,
