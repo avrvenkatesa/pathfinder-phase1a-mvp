@@ -58,7 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!data.name || !data.name.trim()) {
           errors.push({
             field: 'name',
-            message: 'Name is required',
+            message: 'Full name is required',
             code: 'REQUIRED_FIELD',
             value: data.name
           });
@@ -71,6 +71,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             code: 'REQUIRED_FIELD',
             value: data.type
           });
+        }
+
+        // For person type, check firstName and lastName separately
+        if (data.type === 'person') {
+          if (!data.firstName || !data.firstName.trim()) {
+            errors.push({
+              field: 'firstName',
+              message: 'First name is required for persons',
+              code: 'REQUIRED_FIELD',
+              value: data.firstName
+            });
+          }
+
+          if (!data.lastName || !data.lastName.trim()) {
+            errors.push({
+              field: 'lastName',
+              message: 'Last name is required for persons',
+              code: 'REQUIRED_FIELD',
+              value: data.lastName
+            });
+          }
         }
 
         // Email validation if provided
