@@ -131,9 +131,22 @@ export async function setupAuth(app: Express) {
       : req.hostname;
     console.log(`Callback: hostname=${req.hostname}, using strategy for domain=${domain}`);
     
-    passport.authenticate(`replitauth:${domain}`, {
-      successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
+    passport.authenticate(`replitauth:${domain}`, (err: any, user: any) => {
+      if (err || !user) {
+        console.error('Authentication error:', err);
+        return res.redirect("/api/login");
+      }
+      
+      req.logIn(user, (err) => {
+        if (err) {
+          console.error('Login error:', err);
+          return res.redirect("/api/login");
+        }
+        
+        // After successful login, redirect to home where the frontend will mint JWT tokens
+        console.log('Authentication successful, redirecting to home');
+        return res.redirect("/");
+      });
     })(req, res, next);
   });
 

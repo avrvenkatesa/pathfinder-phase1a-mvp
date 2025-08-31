@@ -103,6 +103,34 @@ router.post("/mint-from-session", async (req: any, res) => {
   }
 });
 
+// GET version for OAuth callback redirect
+router.get("/mint-from-session", async (req: any, res) => {
+  try {
+    const user = req.user;
+    const sub = user?.claims?.sub as string | undefined;
+    if (!sub) {
+      console.error("No user session found in callback");
+      return res.redirect("/api/login");
+    }
+
+    const access = await signAccessToken(sub, {
+      email: user.claims.email,
+      name: user.claims.name,
+    });
+    const refresh = await signRefreshToken(sub);
+
+    // 15m access, 30d refresh
+    res.cookie(ACCESS_TOKEN_COOKIE, access, { ...baseCookieOpts(true), maxAge: 15 * 60 * 1000 });
+    res.cookie(REFRESH_TOKEN_COOKIE, refresh, { ...baseCookieOpts(true), maxAge: 30 * 24 * 60 * 60 * 1000 });
+
+    console.log("JWT tokens minted successfully, redirecting to home");
+    return res.redirect("/");
+  } catch (err) {
+    console.error("mint-from-session error:", err);
+    return res.redirect("/api/login");
+  }
+});
+
 // 3) Refresh access cookie from refresh cookie
 router.post("/refresh", async (req, res) => {
   try {
@@ -130,6 +158,18 @@ router.get("/session", async (req, res) => {
     res.json({ ok: true, authenticated: true, claims: payload });
   } catch {
     res.status(401).json({ ok: true, authenticated: false });
+  }
+});
+
+// Add /user endpoint that the frontend expects
+router.get("/user", async (req, res) => {
+  try {
+    const token = req.cookies?.[ACCESS_TOKEN_COOKIE];
+    if (!token) return res.status(401).json({ error: "No active session" });
+    const payload = await verifyAccess(token);
+    res.json({ claims: payload });
+  } catch {
+    res.status(401).json({ error: "Unauthorized" });
   }
 });
 
