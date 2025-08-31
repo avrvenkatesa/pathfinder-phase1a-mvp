@@ -1,132 +1,235 @@
-import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { authJwtRoutes } from "./routes/authJwt"; // ⬅️ CHANGED: named import
-import { contactService } from "./services/contactService";
-import { contactWebSocketService } from "./services/websocketService";
-import { 
-  insertContactSchema, 
-  updateContactSchema, 
-  insertContactSkillSchema,
-  updateContactSkillSchema,
-  insertContactCertificationSchema,
-  updateContactCertificationSchema,
-  insertContactAvailabilitySchema,
-  updateContactAvailabilitySchema,
-  insertWorkflowSchema, 
-  updateWorkflowSchema,
-  insertWorkflowInstanceSchema,
-  insertWorkflowTaskSchema,
-  insertWorkflowTemplateSchema
-} from "@shared/schema";
-import { z } from "zod";
+import { Router } from "express";
+import type { Request, Response, NextFunction } from "express";
+import { issueSession, verifyAccess, verifyRefresh, rotateRefresh, revokeAllForSid } from "../config/jwt";
+import type { JwtUser } from "../config/jwt";
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware (Replit OIDC session)
-  await setupAuth(app);
+const router = Router();
 
-  // Mount JWT auth endpoints
-  app.use("/api/auth", authJwtRoutes);
+// Middleware to extract access token from cookies or headers
+function extractAccessToken(req: Request): string | null {
+  // Try cookie first (preferred for web apps)
+  if (req.cookies?.accessToken) {
+    return req.cookies.accessToken;
+  }
+  
+  // Try Authorization header
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+  
+  return null;
+}
 
-  // Auth routes (Replit session-based user info)
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+// Middleware to extract refresh token from cookies
+function extractRefreshToken(req: Request): string | null {
+  return req.cookies?.refreshToken || null;
+}
+
+// JWT middleware to verify access tokens
+export function jwtAuth(req: Request, res: Response, next: NextFunction) {
+  const token = extractAccessToken(req);
+  
+  if (!token) {
+    return res.status(401).json({ message: "Access token required" });
+  }
+  
+  try {
+    const payload = verifyAccess(token);
+    (req as any).jwtUser = payload;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Invalid or expired access token" });
+  }
+}
+
+// Development-only login endpoint (for testing without Replit auth)
+if (process.env.NODE_ENV === 'development') {
+  router.post('/login', (req: Request, res: Response) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
-
-  // Contact routes
-  app.get("/api/contacts", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      console.log("Fetching contacts for user ID:", userId);
-      const filters = {
-        search: req.query.search as string,
-        type: req.query.type ? (req.query.type as string).split(',') : undefined,
-        tags: req.query.tags ? (req.query.tags as string).split(',') : undefined,
-        location: req.query.location as string,
-        isActive: req.query.isActive ? req.query.isActive === 'true' : true,
+      const { email, name } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+      
+      const user: JwtUser = {
+        id: email, // Use email as ID for dev
+        email,
+        name: name || email
       };
-
-      const contacts = await storage.getContacts(userId, filters);
-      res.json(contacts);
+      
+      const { accessToken, refreshToken } = issueSession(user);
+      
+      // Set HTTP-only cookies
+      res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 15 * 60 * 1000 // 15 minutes
+      });
+      
+      res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+      });
+      
+      res.json({
+        message: "Login successful",
+        user: { id: user.id, email: user.email, name: user.name }
+      });
     } catch (error) {
-      console.error("Error fetching contacts:", error);
-      res.status(500).json({ message: "Failed to fetch contacts" });
+      console.error("Dev login error:", error);
+      res.status(500).json({ message: "Login failed" });
     }
   });
+}
 
-  app.get("/api/contacts/hierarchy", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const hierarchy = await storage.getContactHierarchy(userId);
-      res.json(hierarchy);
-    } catch (error) {
-      console.error("Error fetching contact hierarchy:", error);
-      res.status(500).json({ message: "Failed to fetch contact hierarchy" });
+// Mint JWT tokens from Replit session
+router.post('/mint-from-session', (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    
+    if (!req.isAuthenticated() || !user) {
+      return res.status(401).json({ message: "Not authenticated with Replit" });
     }
-  });
+    
+    const jwtUser: JwtUser = {
+      id: user.claims.sub,
+      email: user.claims.email,
+      name: user.claims.name || user.claims.preferred_username
+    };
+    
+    const { accessToken, refreshToken } = issueSession(jwtUser);
+    
+    // Set HTTP-only cookies
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+    
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    });
+    
+    res.json({
+      message: "JWT tokens issued successfully",
+      user: { id: jwtUser.id, email: jwtUser.email, name: jwtUser.name }
+    });
+  } catch (error) {
+    console.error("Mint from session error:", error);
+    res.status(500).json({ message: "Failed to mint tokens" });
+  }
+});
 
-  app.get("/api/contacts/stats", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const stats = await storage.getContactStats(userId);
-      res.json(stats);
-    } catch (error) {
-      console.error("Error fetching contact stats:", error);
-      res.status(500).json({ message: "Failed to fetch contact stats" });
+// Refresh access token using refresh token
+router.post('/refresh', (req: Request, res: Response) => {
+  try {
+    const refreshToken = extractRefreshToken(req);
+    
+    if (!refreshToken) {
+      return res.status(401).json({ message: "Refresh token required" });
     }
-  });
+    
+    const payload = verifyRefresh(refreshToken);
+    const { accessToken, refreshToken: newRefreshToken } = rotateRefresh(
+      payload.jti,
+      payload.uid,
+      payload.sid
+    );
+    
+    // Set new cookies
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+    
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    });
+    
+    res.json({ message: "Tokens refreshed successfully" });
+  } catch (error) {
+    console.error("Refresh error:", error);
+    res.status(401).json({ message: "Invalid or expired refresh token" });
+  }
+});
 
-  // Capacity optimization analysis - must be before :id route
-  app.get("/api/contacts/capacity-analysis", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const analysis = await contactService.getCapacityOptimizationSuggestions(userId);
-      res.json(analysis);
-    } catch (error) {
-      console.error("Error performing capacity analysis:", error);
-      res.status(500).json({ message: "Failed to perform capacity analysis" });
-    }
-  });
+// Get current session info (using JWT)
+router.get('/session', jwtAuth, (req: Request, res: Response) => {
+  try {
+    const jwtUser = (req as any).jwtUser;
+    res.json({
+      user: { id: jwtUser.id, email: jwtUser.email, name: jwtUser.name },
+      sessionId: jwtUser.sid
+    });
+  } catch (error) {
+    console.error("Session error:", error);
+    res.status(500).json({ message: "Failed to get session info" });
+  }
+});
 
-  app.get("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const contact = await storage.getContactById(req.params.id, userId);
-
-      if (!contact) {
-        return res.status(404).json({ message: "Contact not found" });
+// Logout (revoke refresh tokens)
+router.post('/logout', (req: Request, res: Response) => {
+  try {
+    const refreshToken = extractRefreshToken(req);
+    
+    if (refreshToken) {
+      try {
+        const payload = verifyRefresh(refreshToken);
+        revokeAllForSid(payload.uid, payload.sid);
+      } catch (error) {
+        // Ignore invalid refresh token during logout
       }
-
-      res.json(contact);
-    } catch (error) {
-      console.error("Error fetching contact:", error);
-      res.status(500).json({ message: "Failed to fetch contact" });
     }
-  });
+    
+    // Clear cookies
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+    
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({ message: "Logout failed" });
+  }
+});
 
-  app.post("/api/contacts", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      console.log("Creating contact for user ID:", userId);
-      const contactData = insertContactSchema.parse(req.body);
-
-      const contact = await storage.createContact(contactData, userId);
-      res.status(201).json(contact);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid contact data", errors: error.errors });
+// GET logout for browser redirects
+router.get('/logout', (req: Request, res: Response) => {
+  try {
+    const refreshToken = extractRefreshToken(req);
+    
+    if (refreshToken) {
+      try {
+        const payload = verifyRefresh(refreshToken);
+        revokeAllForSid(payload.uid, payload.sid);
+      } catch (error) {
+        // Ignore invalid refresh token during logout
       }
-      console.error("Error creating contact:", error);
-      res.status(500).json({ message: "Failed to create contact" });
     }
-  });
+    
+    // Clear cookies
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+    
+    // Redirect to home or login page
+    res.redirect('/');
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.redirect('/');
+  }
+});
 
-  app.put("/api/co
+export default router;

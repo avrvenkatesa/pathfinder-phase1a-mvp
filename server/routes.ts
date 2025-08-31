@@ -35,9 +35,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //  - GET  /api/auth/session
   app.use("/api/auth", authJwtRoutes);
 
+  // Development auth bypass for testing
+  if (process.env.NODE_ENV === 'development') {
+    app.post('/api/auth/dev-login', async (req, res) => {
+      try {
+        const { email = 'test@example.com', name = 'Test User' } = req.body;
+        
+        // Create a fake user session for development
+        const user = {
+          claims: {
+            sub: 'dev-user-' + email.replace('@', '-').replace('.', '-'),
+            email,
+            name,
+            first_name: name.split(' ')[0],
+            last_name: name.split(' ')[1] || '',
+          },
+          expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+        };
+        
+        // Store in session
+        (req as any).login(user, (err: any) => {
+          if (err) {
+            console.error('Dev login error:', err);
+            return res.status(500).json({ message: 'Login failed' });
+          }
+          
+          // Also create/update user in storage
+          storage.upsertUser({
+            id: user.claims.sub,
+            email: user.claims.email,
+            firstName: user.claims.first_name,
+            lastName: user.claims.last_name,
+            profileImageUrl: null,
+          }).catch(console.error);
+          
+          res.json({ message: 'Development login successful', user: user.claims });
+        });
+      } catch (error) {
+        console.error('Dev login error:', error);
+        res.status(500).json({ message: 'Login failed' });
+      }
+    });
+  }
+
   // Auth routes (Replit session-based user info)
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', async (req: any, res) => {
     try {
+      // For development, allow unauthenticated requests with a default user
+      if (process.env.NODE_ENV === 'development' && (!req.isAuthenticated() || !req.user)) {
+        // Auto-login a development user
+        const devUser = {
+          claims: {
+            sub: 'dev-user-default',
+            email: 'dev@pathfinder.com',
+            name: 'Development User',
+            first_name: 'Development',
+            last_name: 'User',
+          },
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        };
+        
+        // Try to get user from storage, create if doesn't exist
+        let user;
+        try {
+          user = await storage.getUser(devUser.claims.sub);
+        } catch {
+          await storage.upsertUser({
+            id: devUser.claims.sub,
+            email: devUser.claims.email,
+            firstName: devUser.claims.first_name,
+            lastName: devUser.claims.last_name,
+            profileImageUrl: null,
+          });
+          user = await storage.getUser(devUser.claims.sub);
+        }
+        
+        return res.json(user);
+      }
+      
+      // Normal authenticated flow
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       res.json(user);
@@ -966,7 +1046,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entityType,
           entityId: data.id || 'new',
           validatedAt: new Date().toISOString(),
-          severity: 'info' as const
+          severity: 'info' as 'info' | 'error'
         }
       };
 
@@ -979,7 +1059,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           code: 'INVALID_EMAIL',
           value: data.email
         });
-        result.metadata.severity = 'error' as 'info' | 'error';
+        result.metadata.severity = 'error' as const;
       }
 
       // Required field validation - entity-aware
