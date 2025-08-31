@@ -22,6 +22,7 @@ import DataQualityDashboardPage from "@/pages/data-quality-dashboard";
 import { WebSocketTestComponent } from "@/components/WebSocketTestComponent";
 import { CrossTabValidationTest } from "@/components/CrossTabValidationTest";
 import { CrossTabTestInterface } from "@/components/CrossTabTestInterface";
+import CrossTabAlerts from "@/components/CrossTabAlerts";
 
 /** Router stays under the provider (it uses useAuth inside) */
 function Router() {
@@ -99,6 +100,7 @@ function App() {
       <TooltipProvider>
         <Toaster />
         <AppShell />
+        <CrossTabAlerts />
       </TooltipProvider>
     </QueryClientProvider>
   );

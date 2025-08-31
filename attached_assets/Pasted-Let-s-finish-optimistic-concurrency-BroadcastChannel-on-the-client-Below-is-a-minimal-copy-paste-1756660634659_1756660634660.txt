@@ -1,0 +1,315 @@
+Let’s finish optimistic concurrency + BroadcastChannel on the client. Below is a minimal, copy-paste set you can drop in now. It does three things:
+
+Caches ETags per contact (so we can send If-Match on write).
+
+Wraps GET/PUT/DELETE to handle 428/412 gracefully and broadcast changes.
+
+Shows a tiny toast when another tab updates/deletes a contact or when your save conflicts.
+
+1) Add an ETag store
+
+client/src/lib/etagStore.ts
+
+// client/src/lib/etagStore.ts
+type Scope = "contact";
+
+type ETagState = {
+  [scope in Scope]?: { [id: string]: string };
+};
+
+const STORAGE_KEY = "etag:v1";
+let state: ETagState = {};
+
+// load once per tab
+try {
+  const raw = sessionStorage.getItem(STORAGE_KEY);
+  if (raw) state = JSON.parse(raw);
+} catch {
+  state = {};
+}
+
+function persist() {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+export const ETagStore = {
+  get(scope: Scope, id: string): string | null {
+    return state[scope]?.[id] ?? null;
+  },
+  set(scope: Scope, id: string, etag: string) {
+    state[scope] ||= {};
+    state[scope]![id] = etag;
+    persist();
+  },
+  remove(scope: Scope, id: string) {
+    if (state[scope]) {
+      delete state[scope]![id];
+      persist();
+    }
+  },
+};
+
+2) Cross-tab message bus (BroadcastChannel)
+
+client/src/lib/crossTabBus.ts
+
+// client/src/lib/crossTabBus.ts
+export type ChannelMessage =
+  | { type: "contact:updated"; id: string }
+  | { type: "contact:deleted"; id: string }
+  | { type: "etag:set"; scope: "contact"; id: string; etag: string }
+  | { type: "conflict"; id: string }; // someone hit a 412
+
+const CHANNEL_NAME = "app-xTab";
+const subs = new Set<(msg: ChannelMessage) => void>();
+
+let chan: BroadcastChannel | null = null;
+if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+  try {
+    chan = new BroadcastChannel(CHANNEL_NAME);
+    chan.onmessage = (ev) => {
+      const msg = ev.data as ChannelMessage;
+      subs.forEach((cb) => {
+        try {
+          cb(msg);
+        } catch {}
+      });
+    };
+  } catch {
+    chan = null;
+  }
+}
+
+export function post(msg: ChannelMessage) {
+  try {
+    chan?.postMessage(msg);
+  } catch {}
+  // also deliver locally so the sender gets it too (and for no-BC fallback)
+  subs.forEach((cb) => {
+    try {
+      cb(msg);
+    } catch {}
+  });
+}
+
+export function subscribe(cb: (msg: ChannelMessage) => void) {
+  subs.add(cb);
+  return () => subs.delete(cb);
+}
+
+3) API wrapper w/ optimistic concurrency
+
+client/src/services/contactApi.ts
+
+// client/src/services/contactApi.ts
+import { ETagStore } from "../lib/etagStore";
+import { post as postBus } from "../lib/crossTabBus";
+
+export class MissingIfMatchError extends Error {
+  constructor() {
+    super("Missing If-Match header");
+    this.name = "MissingIfMatchError";
+  }
+}
+
+export class PreconditionFailedError extends Error {
+  currentETag?: string;
+  constructor(currentETag?: string) {
+    super("ETag precondition failed");
+    this.name = "PreconditionFailedError";
+    this.currentETag = currentETag;
+  }
+}
+
+function withCreds(init?: RequestInit): RequestInit {
+  return { credentials: "include", ...(init || {}) };
+}
+
+export async function getContact(id: string) {
+  const res = await fetch(`/api/contacts/${id}`, withCreds());
+  if (res.status === 404) throw new Error("Not found");
+  if (!res.ok) throw new Error(`GET failed: ${res.status}`);
+  const etag = res.headers.get("etag");
+  if (etag) {
+    ETagStore.set("contact", id, etag);
+    postBus({ type: "etag:set", scope: "contact", id, etag });
+  }
+  return res.json();
+}
+
+export async function updateContact(id: string, data: any) {
+  const etag = ETagStore.get("contact", id);
+  const res = await fetch(
+    `/api/contacts/${id}`,
+    withCreds({
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "If-Match": etag ?? "",
+      },
+      body: JSON.stringify(data),
+    })
+  );
+
+  if (res.status === 428) throw new MissingIfMatchError();
+
+  if (res.status === 412) {
+    let currentETag: string | undefined;
+    try {
+      const j = await res.json();
+      currentETag = j?.currentETag;
+      if (currentETag) {
+        ETagStore.set("contact", id, currentETag);
+        postBus({ type: "etag:set", scope: "contact", id, etag: currentETag });
+      }
+    } catch {}
+    postBus({ type: "conflict", id });
+    throw new PreconditionFailedError(currentETag);
+  }
+
+  if (!res.ok) throw new Error(`PUT failed: ${res.status}`);
+
+  const json = await res.json();
+  const newETag = res.headers.get("etag");
+  if (newETag) {
+    ETagStore.set("contact", id, newETag);
+    postBus({ type: "etag:set", scope: "contact", id, etag: newETag });
+  }
+  postBus({ type: "contact:updated", id });
+  return json;
+}
+
+export async function deleteContact(id: string) {
+  const etag = ETagStore.get("contact", id);
+  const res = await fetch(
+    `/api/contacts/${id}`,
+    withCreds({
+      method: "DELETE",
+      headers: {
+        "If-Match": etag ?? "",
+      },
+    })
+  );
+
+  if (res.status === 428) throw new MissingIfMatchError();
+
+  if (res.status === 412) {
+    let currentETag: string | undefined;
+    try {
+      const j = await res.json();
+      currentETag = j?.currentETag;
+      if (currentETag) {
+        ETagStore.set("contact", id, currentETag);
+        postBus({ type: "etag:set", scope: "contact", id, etag: currentETag });
+      }
+    } catch {}
+    postBus({ type: "conflict", id });
+    throw new PreconditionFailedError(currentETag);
+  }
+
+  if (res.status === 204) {
+    ETagStore.remove("contact", id);
+    postBus({ type: "contact:deleted", id });
+    return;
+  }
+
+  if (!res.ok) throw new Error(`DELETE failed: ${res.status}`);
+}
+
+4) A tiny cross-tab alert component (optional but handy)
+
+Mount this once near the root (e.g., in App.tsx). If you don’t have a global toast system, this provides a simple banner.
+
+client/src/components/CrossTabAlerts.tsx
+
+// client/src/components/CrossTabAlerts.tsx
+import React, { useEffect, useState } from "react";
+import { subscribe, ChannelMessage } from "../lib/crossTabBus";
+
+export default function CrossTabAlerts() {
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const off = subscribe((m: ChannelMessage) => {
+      if (m.type === "contact:updated") {
+        setMsg("This contact was updated in another tab. Refresh to see the latest.");
+      } else if (m.type === "contact:deleted") {
+        setMsg("This contact was deleted in another tab.");
+      } else if (m.type === "conflict") {
+        setMsg("Your copy is stale. Reload before saving again.");
+      }
+      if (msg === null) {
+        // auto-clear
+        setTimeout(() => setMsg(null), 6000);
+      }
+    });
+    return off;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!msg) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: 16,
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "#111",
+        color: "#fff",
+        padding: "10px 14px",
+        borderRadius: 10,
+        boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+        zIndex: 9999,
+        fontSize: 14,
+      }}
+    >
+      {msg}
+    </div>
+  );
+}
+
+
+Then mount it (add one line) in your root:
+
+client/src/App.tsx (or wherever your layout root is)
+
+// ...
+import CrossTabAlerts from "./components/CrossTabAlerts";
+// ...
+export default function App() {
+  return (
+    <>
+      {/* ... your app routes ... */}
+      <CrossTabAlerts />
+    </>
+  );
+}
+
+5) Use the new API in your contact screen
+
+Wherever you currently load/save/delete a contact, switch to:
+
+import { getContact, updateContact, deleteContact, PreconditionFailedError } from "../services/contactApi";
+
+// on load
+const contact = await getContact(contactId);
+
+// on save
+try {
+  const updated = await updateContact(contactId, formValues);
+//  show success
+} catch (e) {
+  if (e instanceof PreconditionFailedError) {
+    // show conflict UI: offer “Reload latest” then re-apply your unsaved edits
+    // e.currentETag is already stored; calling getContact(contactId) will refresh data+etag
+  } else {
+    // generic error
+  }
+}
+
+// on delete
+await deleteContact(contactId);

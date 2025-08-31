@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import EnhancedContactForm from "@/components/enhanced-contact-form";
 import { apiRequest } from "@/lib/queryClient";
+import { getContact, updateContact, deleteContact, PreconditionFailedError } from "@/services/contactApi";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Contact, WorkflowAssignment, ContactActivity } from "@shared/schema";
 import { 
@@ -49,6 +50,10 @@ export default function ContactDetail() {
 
   const { data: contact, isLoading, error } = useQuery<Contact>({
     queryKey: ["/api/contacts", id],
+    queryFn: async () => {
+      if (!id) throw new Error("No contact ID");
+      return await getContact(id);
+    },
     retry: false,
   });
 
@@ -59,8 +64,8 @@ export default function ContactDetail() {
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("DELETE", `/api/contacts/${id}`);
-      return response;
+      if (!id) throw new Error("No contact ID");
+      await deleteContact(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
@@ -73,6 +78,14 @@ export default function ContactDetail() {
       setLocation("/");
     },
     onError: (error) => {
+      if (error instanceof PreconditionFailedError) {
+        toast({
+          title: "Conflict",
+          description: "Contact was modified by another user. Please refresh and try again.",
+          variant: "destructive",
+        });
+        return;
+      }
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
