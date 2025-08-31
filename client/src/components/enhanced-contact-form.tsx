@@ -554,7 +554,7 @@ function FormContent({
                   <FormLabel>Skills</FormLabel>
                   <div className="mt-2 space-y-2">
                     <div className="flex flex-wrap gap-2">
-                      {(form.watch("skills") || []).map((skill) => (
+                      {(form.watch("skills") || []).map((skill: string) => (
                         <Badge key={skill} variant="secondary" className="flex items-center gap-1">
                           {skill}
                           <X className="h-3 w-3 cursor-pointer" onClick={() => removeSkill(skill)} />
@@ -1371,7 +1371,11 @@ export default function EnhancedContactForm({
     const subscription = form.watch((data) => {
       // Debounce validation to avoid too many API calls
       const timeoutId = setTimeout(() => {
-        validateFormData(data);
+        const cleanData = {
+          ...data,
+          skills: (data.skills || []).filter((s): s is string => typeof s === 'string' && s.trim() !== '')
+        };
+        validateFormData(cleanData);
       }, 500);
       
       return () => clearTimeout(timeoutId);
