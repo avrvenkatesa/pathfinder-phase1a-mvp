@@ -74,7 +74,7 @@ app.use(session({
 // API Routes with rate limiting and caching
 
 // Health and monitoring endpoints
-app.get('/health', asyncHandler(async (req, res) => {
+app.get('/health', asyncHandler(async (req: any, res: any) => {
   const health = await healthMonitor.checkHealth();
   res.status(health.status === 'healthy' ? 200 : 503).json(health);
 }));
@@ -345,6 +345,6 @@ API Docs:    http://${config.server.host}:${config.server.port}/api-docs
 };
 
 // Start the server
-startServer();
+// startServer(); // Commented out to prevent port conflict
 
 export { app, server };
