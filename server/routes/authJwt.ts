@@ -97,6 +97,14 @@ const router = Router();
 // Apply cookie parser and CSRF middleware
 router.use(cookieParser());
 router.use(ensureCsrfCookie);
+
+// CSRF endpoint (excluded from CSRF validation)
+router.get("/csrf", (req: Request, res: Response) => {
+  const csrfToken = (req as any).cookies?.[CSRF_COOKIE];
+  res.json({ csrfToken });
+});
+
+// Apply CSRF middleware to all other routes
 router.use(requireCsrf);
 
 // Login endpoint
@@ -168,6 +176,65 @@ router.post("/logout", async (req: Request, res: Response) => {
     res.json({ message: "Logged out successfully" });
   } catch (err) {
     res.status(500).json({ error: "Logout failed" });
+  }
+});
+
+// Mint JWT from Replit session
+router.post("/mint-from-session", (req: Request, res: Response) => {
+  try {
+    // Check if user is authenticated via Replit session
+    const hasIsAuthFn = typeof (req as any).isAuthenticated === "function";
+    const isAuthedSession = hasIsAuthFn && (req as any).isAuthenticated();
+    
+    if (!isAuthedSession) {
+      return res.status(401).json({ error: "Not authenticated via Replit session" });
+    }
+
+    // Get user info from Replit session
+    const replitUser = (req as any).user;
+    if (!replitUser?.claims?.sub) {
+      return res.status(401).json({ error: "Invalid Replit session" });
+    }
+
+    // Create JWT user from Replit user
+    const jwtUser: JwtUser = {
+      id: replitUser.claims.sub,
+      email: replitUser.claims.email,
+      name: replitUser.claims.name || replitUser.claims.preferred_username
+    };
+
+    const { accessToken, refreshToken, sid } = issueSession(jwtUser);
+    
+    // Set refresh token as httpOnly cookie
+    res.cookie("refresh_token", refreshToken, {
+      ...commonCookie,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    res.json({ accessToken, user: jwtUser, sessionId: sid });
+  } catch (err) {
+    console.error("Error minting JWT from session:", err);
+    res.status(500).json({ error: "Failed to mint JWT from session" });
+  }
+});
+
+// Session info endpoint
+router.get("/session", (req: Request, res: Response) => {
+  try {
+    const refreshToken = (req as any).cookies?.refresh_token;
+    if (!refreshToken) {
+      return res.status(401).json({ error: "No active session" });
+    }
+
+    const payload = verifyRefresh(refreshToken);
+    res.json({ 
+      active: true,
+      userId: payload.uid,
+      sessionId: payload.sid,
+      jti: payload.jti
+    });
+  } catch (err) {
+    res.status(401).json({ error: "Invalid session" });
   }
 });
 

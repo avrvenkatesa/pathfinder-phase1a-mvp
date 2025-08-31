@@ -979,7 +979,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           code: 'INVALID_EMAIL',
           value: data.email
         });
-        result.metadata.severity = 'error';
+        result.metadata.severity = 'error' as 'info' | 'error';
       }
 
       // Required field validation - entity-aware
