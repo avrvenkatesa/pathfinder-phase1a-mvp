@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { deleteContact, PreconditionFailedError } from "@/services/contactApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +33,7 @@ export default function ContactsPage() {
     department: ''
   });
 
-  const { data: contacts = [], isLoading, error } = useQuery({
+  const { data: contacts = [], isLoading, error } = useQuery<Contact[]>({
     queryKey: ['/api/contacts'],
     retry: false,
   });
@@ -88,9 +89,7 @@ export default function ContactsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (contactId: string) => {
-      await apiRequest(`/api/contacts/${contactId}`, {
-        method: 'DELETE',
-      });
+      await deleteContact(contactId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
@@ -215,7 +214,7 @@ export default function ContactsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {contacts.map((contact: Contact) => (
+        {(contacts as Contact[]).map((contact: Contact) => (
           <Card key={contact.id} data-testid={`card-contact-${contact.id}`}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg">{contact.name}</CardTitle>
