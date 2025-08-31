@@ -107,14 +107,17 @@ router.post("/mint-from-session", async (req: any, res) => {
 
 // GET version for OAuth callback redirect
 router.get("/mint-from-session", async (req: any, res) => {
+  console.log("GET /api/auth/mint-from-session called");
   try {
     const user = req.user;
+    console.log("User in mint-from-session:", user ? "exists" : "missing");
     const sub = user?.claims?.sub as string | undefined;
     if (!sub) {
       console.error("No user session found in callback");
       return res.redirect("/api/login");
     }
 
+    console.log("Minting tokens for user:", sub);
     const access = await signAccessToken(sub, {
       email: user.claims.email,
       name: user.claims.name,
