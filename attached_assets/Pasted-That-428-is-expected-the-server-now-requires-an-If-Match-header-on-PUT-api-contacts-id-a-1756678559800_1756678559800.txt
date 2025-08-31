@@ -1,0 +1,119 @@
+That 428 is expected: the server now **requires an `If-Match` header** on `PUT /api/contacts/:id` (and `DELETE`) to enforce optimistic concurrency. Your UI isn’t sending it yet, so the server replies **428 Precondition Required**.
+
+Here’s the quickest way to make the client “ETag-aware” so updates succeed.
+
+# 1) Add a tiny ETag-aware client
+
+Create `client/src/lib/contactsClient.ts`:
+
+```ts
+// client/src/lib/contactsClient.ts
+const etagCache = new Map<string, string>();
+
+function saveETag(id: string, res: Response) {
+  const etag = res.headers.get("ETag");
+  if (etag) etagCache.set(id, etag);
+}
+
+export async function getContact(id: string) {
+  const res = await fetch(`/api/contacts/${id}`, { credentials: "include" });
+  if (!res.ok) throw new Error(`GET contact failed: ${res.status}`);
+  saveETag(id, res);
+  return res.json();
+}
+
+export async function updateContact(id: string, patch: any) {
+  const etag = etagCache.get(id);
+  const res = await fetch(`/api/contacts/${id}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(etag ? { "If-Match": etag } : {}), // include If-Match when we have it
+    },
+    body: JSON.stringify(patch),
+  });
+
+  if (res.status === 428) {
+    // We never fetched (or lost) the ETag for this contact
+    throw Object.assign(new Error("PRECONDITION_REQUIRED"), { code: 428 });
+  }
+  if (res.status === 412) {
+    // Someone else changed it; capture the latest ETag so the UI can refetch/merge
+    saveETag(id, res);
+    throw Object.assign(new Error("ETAG_MISMATCH"), { code: 412 });
+  }
+  if (!res.ok) throw new Error(`PUT contact failed: ${res.status}`);
+
+  saveETag(id, res);
+  return res.json();
+}
+
+export async function deleteContact(id: string) {
+  const etag = etagCache.get(id);
+  const res = await fetch(`/api/contacts/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: {
+      ...(etag ? { "If-Match": etag } : {}),
+    },
+  });
+
+  if (res.status === 428) throw Object.assign(new Error("PRECONDITION_REQUIRED"), { code: 428 });
+  if (res.status === 412) {
+    saveETag(id, res);
+    throw Object.assign(new Error("ETAG_MISMATCH"), { code: 412 });
+  }
+  if (!(res.status === 204 || res.ok)) throw new Error(`DELETE failed: ${res.status}`);
+
+  etagCache.delete(id);
+}
+```
+
+# 2) Use it in your contact edit UI
+
+Where you currently load and save a contact, switch to:
+
+```ts
+import { getContact, updateContact } from "@/lib/contactsClient";
+
+// on mount
+const data = await getContact(contactId); // this stores the ETag
+
+// on save
+try {
+  await updateContact(contactId, formValues);
+  toast.success("Saved!");
+} catch (e: any) {
+  if (e.code === 428) {
+    toast.error("Please reload this contact before saving (precondition required).");
+  } else if (e.code === 412) {
+    toast.error("This contact changed in another tab. Reload to get the latest, then try again.");
+  } else {
+    toast.error("Save failed.");
+  }
+}
+```
+
+# 3) Quick sanity check (optional)
+
+* Open DevTools → Network.
+* `GET /api/contacts/:id` should return a **response header `ETag: "..."`**.
+* The subsequent `PUT` should send **request header `If-Match: "..."`** (the same quoted value).
+
+# 4) One-off manual test (optional)
+
+```bash
+# 1) Get the contact and copy the ETag
+curl -i -b cookiejar -c cookiejar http://localhost:5000/api/contacts/<id>
+
+# 2) Update with If-Match
+curl -i -X PUT \
+  -H 'Content-Type: application/json' \
+  -H 'If-Match: "<paste the ETag here exactly as returned, including quotes>"' \
+  -b cookiejar \
+  -d '{"name":"New Name"}' \
+  http://localhost:5000/api/contacts/<id>
+```
+
+Once the client sends `If-Match`, the 428s will disappear. If you see **412 Precondition Failed**, that’s the intended guard: fetch latest (to refresh the cached ETag), show a “stale copy” message, and let the user retry or merge.
