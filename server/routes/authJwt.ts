@@ -25,7 +25,9 @@ const accessKey = () => getKey("ACCESS_TOKEN_SECRET");
 const refreshKey = () => getKey("REFRESH_TOKEN_SECRET");
 
 function baseCookieOpts(httpOnly = true) {
-  return { httpOnly, sameSite: "lax" as const, secure: true, path: "/" };
+  // In development, don't require secure cookies since we're not using HTTPS
+  const secure = process.env.NODE_ENV === 'production';
+  return { httpOnly, sameSite: "lax" as const, secure, path: "/" };
 }
 
 async function signAccessToken(sub: string, extra: Record<string, any> = {}) {
