@@ -10,17 +10,10 @@ import {
   type JwtUser,
 } from "../config/jwt";
 
-/**
- * Small helpers
- */
+/** small utils */
 const isProd = process.env.NODE_ENV === "production";
 const CSRF_COOKIE = "csrf_token";
-const commonCookie = {
-  httpOnly: true as const,
-  sameSite: "lax" as const,
-  secure: isProd,
-  path: "/",
-};
+const commonCookie = { httpOnly: true as const, sameSite: "lax" as const, secure: isProd, path: "/" };
 
 function parseCookie(s: string) {
   const out: Record<string, string> = {};
@@ -30,7 +23,6 @@ function parseCookie(s: string) {
   });
   return out;
 }
-
 function randomString(n = 32) {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let out = "";
@@ -38,209 +30,187 @@ function randomString(n = 32) {
   return out;
 }
 
-/**
- * CSRF (double-submit cookie)
- */
+/** CSRF (double-submit cookie) */
 function ensureCsrfCookie(req: Request, res: Response, next: NextFunction) {
-  // cookie-parser populates req.cookies
   const has = (req as any).cookies?.[CSRF_COOKIE];
   if (!has) {
-    const val = randomString(32);
-    // httpOnly: false so client JS can read and send it in X-CSRF-Token
-    res.cookie(CSRF_COOKIE, val, { ...commonCookie, httpOnly: false, maxAge: 30 * 24 * 3600 * 1000 });
+    res.cookie(CSRF_COOKIE, randomString(32), { ...commonCookie, httpOnly: false, maxAge: 30 * 24 * 3600 * 1000 });
   }
   next();
 }
-
 function requireCsrf(req: Request, res: Response, next: NextFunction) {
   if (/^(GET|HEAD|OPTIONS)$/.test(req.method)) return next();
   const header = req.get("X-CSRF-Token");
   const cookie = (req as any).cookies?.[CSRF_COOKIE] ?? parseCookie(req.headers.cookie || "")[CSRF_COOKIE];
 
-  // Allow POST /mint-from-session to proceed if user is already authenticated via Replit session
+  // allow mint-from-session if a Replit session is already authenticated (same-site)
   const hasIsAuthFn = typeof (req as any).isAuthenticated === "function";
   const isAuthedSession = hasIsAuthFn && (req as any).isAuthenticated();
-  
-  if (req.path === "/mint-from-session" && isAuthedSession) {
-    return next();
-  }
 
   if (!header || !cookie || header !== cookie) {
-    return res.status(403).json({ error: "CSRF token mismatch" });
+    if (req.path === "/mint-from-session" && isAuthedSession) return next();
+    return res.status(403).json({ ok: false, error: "CSRF invalid/missing" });
   }
   next();
 }
 
-/**
- * Auth middleware
- */
-function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const token = req.headers.authorization?.replace("Bearer ", "");
-  if (!token) {
-    return res.status(401).json({ error: "No token provided" });
-  }
-
-  try {
-    const user = verifyAccess(token);
-    (req as any).user = user;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: "Invalid token" });
-  }
+/** JWT cookie helpers */
+function setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
+  res.cookie("access_token", accessToken, { ...commonCookie, maxAge: 15 * 60 * 1000 }); // 15m
+  res.cookie("refresh_token", refreshToken, { ...commonCookie, maxAge: 30 * 24 * 60 * 60 * 1000 }); // 30d
+}
+function clearAuthCookies(res: Response) {
+  res.clearCookie("access_token", { path: "/" });
+  res.clearCookie("refresh_token", { path: "/" });
 }
 
-/**
- * Routes
- */
-const router = Router();
+/** helpers to read Replit/Passport user safely */
+function extractReplitUser(req: any) {
+  const u = req?.user;
+  const claims = u?.claims ?? u?.profile ?? u ?? null;
+  const id = claims?.sub || claims?.id || u?.id;
+  const email = claims?.email || u?.email;
+  const name = claims?.name || u?.name;
+  return {
+    id,
+    email,
+    name,
+    ok: !!id,
+    debug: {
+      hasReqUser: !!u,
+      reqUserKeys: u ? Object.keys(u) : [],
+      hasClaims: !!claims,
+      claimKeys: claims ? Object.keys(claims) : [],
+    },
+  };
+}
 
-// Apply cookie parser and CSRF middleware
+/** router */
+const router = Router();
 router.use(cookieParser());
 router.use(ensureCsrfCookie);
 
-// CSRF endpoint (excluded from CSRF validation)
-router.get("/csrf", (req: Request, res: Response) => {
-  const csrfToken = (req as any).cookies?.[CSRF_COOKIE];
-  res.json({ csrfToken });
+// prime CSRF (handy in the browser console)
+router.get("/csrf", (req, res) => {
+  const token = (req as any).cookies?.[CSRF_COOKIE] ?? parseCookie(req.headers.cookie || "")[CSRF_COOKIE] ?? "";
+  res.json({ ok: true, csrf: token });
 });
 
-// Apply CSRF middleware to all other routes
+// debug endpoints to see what's on req (temporary but safe to keep)
+router.get("/debug", (req: any, res) => {
+  const hasIsAuthFn = typeof req.isAuthenticated === "function";
+  res.json({
+    ok: true,
+    hasIsAuthFn,
+    isAuthenticated: hasIsAuthFn ? !!req.isAuthenticated() : null,
+    hasReqUser: !!req.user,
+    reqUserKeys: req.user ? Object.keys(req.user) : [],
+    sampleUser: req.user && typeof req.user === "object" ? { ...req.user, tokens: undefined } : null,
+  });
+});
+router.get("/whoami", (req: any, res) => {
+  res.json({ ok: true, user: req.user || null });
+});
+
 router.use(requireCsrf);
 
-// Login endpoint
-router.post("/login", async (req: Request, res: Response) => {
+/** DEV login (email/password) — optional helper */
+router.post("/login", async (req, res) => {
   try {
-    // This would typically validate credentials against a database
-    // For now, using a simple hardcoded check
-    const { username, password } = req.body;
-    
-    if (!username || !password) {
-      return res.status(400).json({ error: "Username and password required" });
-    }
+    const { email, password } = (req.body || {}) as { email?: string; password?: string };
+    if (!email || !password) return res.status(400).json({ ok: false, error: "invalid input" });
 
-    // In a real app, you'd verify against your user database
-    // For demo purposes, using simple validation
-    if (username === "admin" && password === "password") {
-      const user: JwtUser = { id: "1", email: username + "@example.com", name: username };
-      const { accessToken, refreshToken, sid } = issueSession(user);
-      
-      // Set refresh token as httpOnly cookie
-      res.cookie("refresh_token", refreshToken, {
-        ...commonCookie,
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
-
-      res.json({ accessToken, user, sessionId: sid });
-    } else {
-      res.status(401).json({ error: "Invalid credentials" });
-    }
+    const user: JwtUser = { id: email, email, name: email.split("@")[0] };
+    const { accessToken, refreshToken, sid } = issueSession(user);
+    setAuthCookies(res, accessToken, refreshToken);
+    return res.json({ ok: true, user: { id: user.id, email: user.email }, sid });
   } catch (err) {
-    res.status(500).json({ error: "Login failed" });
+    console.error("[authJwt] /login error", err);
+    return res.status(500).json({ ok: false, error: "internal" });
   }
 });
 
-// Refresh token endpoint
-router.post("/refresh", async (req: Request, res: Response) => {
-  try {
-    const refreshToken = (req as any).cookies?.refresh_token;
-    if (!refreshToken) {
-      return res.status(401).json({ error: "No refresh token" });
-    }
+/** Mint JWT cookies from Replit OIDC session */
+router.post("/mint-from-session", async (req: any, res) => {
+  const hasIsAuthFn = typeof req.isAuthenticated === "function";
+  const isAuthed = hasIsAuthFn ? !!req.isAuthenticated() : false;
+  const extracted = extractReplitUser(req);
 
-    const refreshPayload = verifyRefresh(refreshToken);
-    const { accessToken, refreshToken: newRefreshToken } = rotateRefresh(refreshPayload.jti, refreshPayload.uid, refreshPayload.sid);
-    
-    // Update refresh token cookie
-    res.cookie("refresh_token", newRefreshToken, {
-      ...commonCookie,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  if (!isAuthed) {
+    return res.status(401).json({
+      ok: false,
+      error: "not authenticated via Replit session",
+      debug: { hasIsAuthFn, isAuthed, ...extracted.debug },
     });
-
-    res.json({ accessToken });
-  } catch (err) {
-    res.status(401).json({ error: "Invalid refresh token" });
   }
-});
-
-// Logout endpoint
-router.post("/logout", async (req: Request, res: Response) => {
-  try {
-    const refreshToken = (req as any).cookies?.refresh_token;
-    if (refreshToken) {
-      const payload = verifyRefresh(refreshToken);
-      revokeAllForSid(payload.uid, payload.sid);
-    }
-    
-    // Clear refresh token cookie
-    res.clearCookie("refresh_token", commonCookie);
-    res.json({ message: "Logged out successfully" });
-  } catch (err) {
-    res.status(500).json({ error: "Logout failed" });
-  }
-});
-
-// Mint JWT from Replit session
-router.post("/mint-from-session", (req: Request, res: Response) => {
-  try {
-    // Check if user is authenticated via Replit session
-    const hasIsAuthFn = typeof (req as any).isAuthenticated === "function";
-    const isAuthedSession = hasIsAuthFn && (req as any).isAuthenticated();
-    
-    if (!isAuthedSession) {
-      return res.status(401).json({ error: "Not authenticated via Replit session" });
-    }
-
-    // Get user info from Replit session
-    const replitUser = (req as any).user;
-    if (!replitUser?.claims?.sub) {
-      return res.status(401).json({ error: "Invalid Replit session" });
-    }
-
-    // Create JWT user from Replit user
-    const jwtUser: JwtUser = {
-      id: replitUser.claims.sub,
-      email: replitUser.claims.email,
-      name: replitUser.claims.name || replitUser.claims.preferred_username
-    };
-
-    const { accessToken, refreshToken, sid } = issueSession(jwtUser);
-    
-    // Set refresh token as httpOnly cookie
-    res.cookie("refresh_token", refreshToken, {
-      ...commonCookie,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  if (!extracted.ok) {
+    return res.status(400).json({
+      ok: false,
+      error: "could not determine user id from session",
+      debug: extracted.debug,
     });
-
-    res.json({ accessToken, user: jwtUser, sessionId: sid });
-  } catch (err) {
-    console.error("Error minting JWT from session:", err);
-    res.status(500).json({ error: "Failed to mint JWT from session" });
   }
-});
 
-// Session info endpoint
-router.get("/session", (req: Request, res: Response) => {
   try {
-    const refreshToken = (req as any).cookies?.refresh_token;
-    if (!refreshToken) {
-      return res.status(401).json({ error: "No active session" });
-    }
-
-    const payload = verifyRefresh(refreshToken);
-    res.json({ 
-      active: true,
-      userId: payload.uid,
-      sessionId: payload.sid,
-      jti: payload.jti
-    });
-  } catch (err) {
-    res.status(401).json({ error: "Invalid session" });
+    const user: JwtUser = { id: extracted.id!, email: extracted.email, name: extracted.name };
+    const { accessToken, refreshToken, sid } = issueSession(user);
+    setAuthCookies(res, accessToken, refreshToken);
+    return res.json({ ok: true, user: { id: user.id, email: user.email }, sid });
+  } catch (err: any) {
+    console.error("[authJwt] /mint-from-session error", err);
+    return res.status(500).json({ ok: false, error: "internal", detail: err?.message });
   }
 });
 
-// Protected route example
-router.get("/profile", requireAuth, (req: Request, res: Response) => {
-  res.json({ user: (req as any).user });
+/** Single refresh attempt; rotates refresh token */
+router.post("/refresh", async (req: any, res) => {
+  try {
+    const rt = req.cookies?.refresh_token;
+    if (!rt) return res.status(401).json({ ok: false, error: "missing refresh" });
+    const payload = verifyRefresh(rt); // { uid, sid, jti, exp }
+    const { accessToken, refreshToken } = rotateRefresh(payload.jti, payload.uid, payload.sid);
+    setAuthCookies(res, accessToken, refreshToken);
+    return res.json({ ok: true, sid: payload.sid });
+  } catch (err) {
+    console.error("[authJwt] /refresh error", err);
+    return res.status(401).json({ ok: false, error: "refresh failed" });
+  }
+});
+
+/** Logout (JWT cookies). Optionally revoke server-side refreshes for this session. */
+router.post("/logout", async (req, res) => {
+  try {
+    const { uid, sid } = (req.body || {}) as { uid?: string; sid?: string };
+    if (uid && sid) revokeAllForSid(uid, sid);
+    clearAuthCookies(res);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[authJwt] /logout error", err);
+    return res.status(500).json({ ok: false, error: "internal" });
+  }
+});
+router.get("/logout", (_req, res) => {
+  clearAuthCookies(res);
+  return res.json({ ok: true });
+});
+
+/** Session probe via access_token cookie */
+router.get("/session", (req: any, res) => {
+  try {
+    const at = req.cookies?.access_token;
+    if (!at) return res.status(401).json({ error: "No active session" });
+    const payload = verifyAccess(at);
+    const user = { id: payload.id, email: payload.email, name: payload.name };
+    return res.json({ ok: true, authenticated: true, user, sid: payload.sid });
+  } catch {
+    return res.status(401).json({ error: "No active session" });
+  }
+});
+
+/** final JSON error handler */
+router.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("[authJwt] unhandled error", err);
+  res.status(500).json({ ok: false, error: "internal" });
 });
 
 export default router;
