@@ -59,4 +59,121 @@ function requireCsrf(req: Request, res: Response, next: NextFunction) {
 
   // Allow POST /mint-from-session to proceed if user is already authenticated via Replit session
   const hasIsAuthFn = typeof (req as any).isAuthenticated === "function";
-  const isAuthedSession = hasIsAuthFn && (req as any).isAuthe
+  const isAuthedSession = hasIsAuthFn && (req as any).isAuthenticated();
+  
+  if (req.path === "/mint-from-session" && isAuthedSession) {
+    return next();
+  }
+
+  if (!header || !cookie || header !== cookie) {
+    return res.status(403).json({ error: "CSRF token mismatch" });
+  }
+  next();
+}
+
+/**
+ * Auth middleware
+ */
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token) {
+    return res.status(401).json({ error: "No token provided" });
+  }
+
+  try {
+    const user = verifyAccess(token);
+    (req as any).user = user;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+}
+
+/**
+ * Routes
+ */
+const router = Router();
+
+// Apply cookie parser and CSRF middleware
+router.use(cookieParser());
+router.use(ensureCsrfCookie);
+router.use(requireCsrf);
+
+// Login endpoint
+router.post("/login", async (req: Request, res: Response) => {
+  try {
+    // This would typically validate credentials against a database
+    // For now, using a simple hardcoded check
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: "Username and password required" });
+    }
+
+    // In a real app, you'd verify against your user database
+    // For demo purposes, using simple validation
+    if (username === "admin" && password === "password") {
+      const user: JwtUser = { id: "1", email: username + "@example.com", name: username };
+      const { accessToken, refreshToken, sid } = issueSession(user);
+      
+      // Set refresh token as httpOnly cookie
+      res.cookie("refresh_token", refreshToken, {
+        ...commonCookie,
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+
+      res.json({ accessToken, user, sessionId: sid });
+    } else {
+      res.status(401).json({ error: "Invalid credentials" });
+    }
+  } catch (err) {
+    res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// Refresh token endpoint
+router.post("/refresh", async (req: Request, res: Response) => {
+  try {
+    const refreshToken = (req as any).cookies?.refresh_token;
+    if (!refreshToken) {
+      return res.status(401).json({ error: "No refresh token" });
+    }
+
+    const refreshPayload = verifyRefresh(refreshToken);
+    const { accessToken, refreshToken: newRefreshToken } = rotateRefresh(refreshPayload.jti, refreshPayload.uid, refreshPayload.sid);
+    
+    // Update refresh token cookie
+    res.cookie("refresh_token", newRefreshToken, {
+      ...commonCookie,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    res.json({ accessToken });
+  } catch (err) {
+    res.status(401).json({ error: "Invalid refresh token" });
+  }
+});
+
+// Logout endpoint
+router.post("/logout", async (req: Request, res: Response) => {
+  try {
+    const refreshToken = (req as any).cookies?.refresh_token;
+    if (refreshToken) {
+      const payload = verifyRefresh(refreshToken);
+      revokeAllForSid(payload.uid, payload.sid);
+    }
+    
+    // Clear refresh token cookie
+    res.clearCookie("refresh_token", commonCookie);
+    res.json({ message: "Logged out successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Logout failed" });
+  }
+});
+
+// Protected route example
+router.get("/profile", requireAuth, (req: Request, res: Response) => {
+  res.json({ user: (req as any).user });
+});
+
+export default router;
