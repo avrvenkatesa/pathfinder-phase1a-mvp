@@ -36,7 +36,8 @@ const refreshStore = new Map<string, RefreshRow>(); // jti -> row
 export function issueSession(user: JwtUser) {
   const sid = randomUUID();
   const accessToken = signAccess({ ...user, sid });
-  const { refreshToken, jti, exp } = signRefresh({ uid: user.id, sid });
+  const jti = randomUUID();
+  const { refreshToken, exp } = signRefresh({ uid: user.id, sid, jti });
   refreshStore.set(jti, { uid: user.id, sid, expMs: exp * 1000 });
   return { accessToken, refreshToken, sid };
 }
@@ -47,7 +48,8 @@ export function issueSession(user: JwtUser) {
 export function rotateRefresh(oldJti: string, uid: string, sid: string) {
   refreshStore.delete(oldJti);
   const accessToken = signAccess({ id: uid, sid });
-  const { refreshToken, jti, exp } = signRefresh({ uid, sid });
+  const jti = randomUUID();
+  const { refreshToken, exp } = signRefresh({ uid, sid, jti });
   refreshStore.set(jti, { uid, sid, expMs: exp * 1000 });
   return { accessToken, refreshToken, jti, exp };
 }
@@ -93,13 +95,11 @@ function signAccess(payload: AccessPayload): string {
 }
 function signRefresh(payload: RefreshPayload): {
   refreshToken: string;
-  jti: string;
   exp: number;
 } {
-  const jti = randomUUID();
-  const refreshToken = jwt.sign({ ...payload, jti }, REFRESH_SECRET, {
+  const refreshToken = jwt.sign(payload, REFRESH_SECRET, {
     expiresIn: REFRESH_TTL_SEC,
   });
   const decoded = jwt.decode(refreshToken) as jwt.JwtPayload;
-  return { refreshToken, jti, exp: (decoded.exp as number) ?? 0 };
+  return { refreshToken, exp: (decoded.exp as number) ?? 0 };
 }
