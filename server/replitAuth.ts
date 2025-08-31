@@ -150,6 +150,27 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // In development mode, be more permissive
+  if (process.env.NODE_ENV === 'development') {
+    // If no session exists, create a fake one for development
+    if (!req.isAuthenticated() || !req.user) {
+      const devUser = {
+        claims: {
+          sub: 'dev-user-middleware',
+          email: 'dev@pathfinder.com',
+          name: 'Development User',
+          first_name: 'Development',
+          last_name: 'User',
+        },
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      };
+      
+      (req as any).user = devUser;
+    }
+    return next();
+  }
+
+  // Production authentication logic
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {
