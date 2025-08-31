@@ -258,6 +258,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET contact stats
+  app.get("/api/contacts/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const stats = await storage.getContactStats(userId);
+      res.json(stats);
+    } catch (err) {
+      console.error("Error fetching contact stats:", err);
+      return res.status(404).json({ message: "Contact not found" });
+    }
+  });
+
+  // GET contact hierarchy
+  app.get("/api/contacts/hierarchy", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const hierarchy = await storage.getContactHierarchy(userId);
+      res.json(hierarchy);
+    } catch (err) {
+      console.error("Error fetching contact hierarchy:", err);
+      return res.status(404).json({ message: "Contact not found" });
+    }
+  });
+
   // Simple health check
   app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
