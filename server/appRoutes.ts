@@ -51,8 +51,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Simple validation for contacts - just check required fields
       if (entityType === 'contact') {
-        const errors = [];
-        const warnings = [];
+        const errors: any[] = [];
+        const warnings: any[] = [];
 
         // Check required fields based on contact type
         if (!data.name || !data.name.trim()) {
@@ -104,8 +104,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // For other entity types, return basic success
       return res.json({
         isValid: true,
-        errors: [],
-        warnings: [],
+        errors: [] as any[],
+        warnings: [] as any[],
         metadata: {
           entityType,
           entityId: data.id || 'new',
@@ -118,7 +118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Validation error:', error);
       return res.status(500).json({
         error: 'Internal validation service error',
-        details: error.message
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
