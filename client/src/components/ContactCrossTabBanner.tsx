@@ -1,6 +1,6 @@
 // client/src/components/ContactCrossTabBanner.tsx
 import React from "react";
-import { subscribe, CrossTabEvent } from "@/lib/crossTab";
+import crossTab from "@/lib/crossTab";
 import { getContact } from "@/lib/contactsClient";
 
 type Props = {
@@ -14,7 +14,7 @@ export default function ContactCrossTabBanner({ contactId, onReload, onDeleted }
   const [deleted, setDeleted] = React.useState(false);
 
   React.useEffect(() => {
-    return subscribe((evt: CrossTabEvent) => {
+    return crossTab.onAny((evt: any) => {
       if (evt.type === "contact:changed" && evt.id === contactId) {
         setChanged({ when: new Date() });
       }

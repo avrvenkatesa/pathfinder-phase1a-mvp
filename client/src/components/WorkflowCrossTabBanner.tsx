@@ -1,5 +1,5 @@
 import React from "react";
-import { subscribe, type CrossTabEvent } from "@/lib/crossTab";
+import crossTab from "@/lib/crossTab";
 
 type ContactInfo = { name?: string; type?: string };
 
@@ -31,7 +31,7 @@ export default function WorkflowCrossTabBanner({
   const [deletedIds, setDeletedIds] = React.useState<string[]>([]);
 
   React.useEffect(() => {
-    return subscribe((evt: CrossTabEvent) => {
+    return crossTab.onAny((evt: any) => {
       if (evt.type === "contact:changed" && contactSet.has(evt.id)) {
         setChangedIds((prev) => (prev.includes(evt.id) ? prev : [...prev, evt.id]));
       }

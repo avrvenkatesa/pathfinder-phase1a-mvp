@@ -29,7 +29,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import type { Contact } from '@shared/schema';
-import { subscribe, CrossTabEvent } from '@/lib/crossTab';
+// CrossTab events now handled by bootstrap - no direct import needed
 import WorkflowCrossTabBanner from '@/components/WorkflowCrossTabBanner';
 
 // Mock contact data with workflow-specific properties
@@ -744,23 +744,38 @@ export function WorkflowContactAssignment({
       }
     };
 
-    // Subscribe to BroadcastChannel events for this workflow
-    console.log('🔧 WorkflowAssignment: Setting up BroadcastChannel subscription');
-    const { subscribe } = require('@/lib/crossTab');
+    // Cross-tab events now handled by bootstrap registration
+    console.log('✅ WorkflowAssignment: Cross-tab handlers registered at app bootstrap');
     
-    const unsubscribe = subscribe((event: CrossTabEvent) => {
-      console.log('✉️ WorkflowAssignment: Received BroadcastChannel event:', event);
-      handleWebSocketMessage({
-        type: event.type === 'contact:deleted' ? 'CONTACT_DELETED' : 'CONTACT_MODIFIED',
-        contactId: event.id,
-        data: event.summary,
-        timestamp: new Date(event.ts).toISOString()
+    // Register component-specific handlers for this workflow
+    import('@/lib/crossTab').then((crossTab) => {
+      const unsubscribe1 = crossTab.default.on('contact:deleted', (event: any) => {
+        console.log('✉️ WorkflowAssignment: Received contact:deleted event:', event);
+        handleWebSocketMessage({
+          type: 'CONTACT_DELETED',
+          contactId: event.id,
+          data: event.summary,
+          timestamp: new Date(event.ts || Date.now()).toISOString()
+        });
       });
+      
+      const unsubscribe2 = crossTab.default.on('contact:changed', (event: any) => {
+        console.log('✉️ WorkflowAssignment: Received contact:changed event:', event);
+        handleWebSocketMessage({
+          type: 'CONTACT_MODIFIED',
+          contactId: event.id,
+          data: event.summary,
+          timestamp: new Date(event.ts || Date.now()).toISOString()
+        });
+      });
+      
+      return () => {
+        unsubscribe1();
+        unsubscribe2();
+      };
     });
-    
-    console.log('✅ WorkflowAssignment: BroadcastChannel subscription established');
 
-    return () => unsubscribe();
+    return () => {};
   }, [taskType, taskName, toast]);
   
   // Mock query - replace with actual API call

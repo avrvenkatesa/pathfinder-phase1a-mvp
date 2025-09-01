@@ -1,5 +1,5 @@
 // client/src/lib/contactsClient.ts
-import { announceContactChanged, announceContactDeleted } from "./crossTab";
+import { emitContactChanged, emitContactDeleted } from "@/features/contacts/events";
 
 const etagCache = new Map<string, string>();
 
@@ -46,7 +46,7 @@ export async function updateContact(id: string, patch: any) {
   const updated = await res.json();
 
   // Announce to other tabs (ignore our own via origin in crossTab)
-  announceContactChanged(id, etagCache.get(id), { name: updated?.name, type: updated?.type });
+  emitContactChanged({ id, summary: { name: updated?.name, type: updated?.type } });
   return updated;
 }
 
@@ -84,6 +84,6 @@ export async function deleteContact(id: string) {
   if (!(res.status === 204 || res.ok)) throw new Error(`DELETE failed: ${res.status}`);
 
   // Announce deletion after success (contact info not available post-deletion)
-  announceContactDeleted(id, { name: 'Deleted Contact', type: 'person' });
+  emitContactDeleted({ id, summary: { name: 'Deleted Contact', type: 'person' } });
   etagCache.delete(id);
 }

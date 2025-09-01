@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, AlertTriangle, Users, RefreshCw, Trash2 } from 'lucide-react';
-import { subscribe, announceContactDeleted, announceContactChanged, CrossTabEvent } from '@/lib/crossTab';
+import crossTab from '@/lib/crossTab';
 import { useToast } from '@/hooks/use-toast';
 
 interface TestResult {
@@ -24,7 +24,7 @@ export function EventDrivenValidationTest() {
     { step: 'Contact Update Event', status: 'pending', message: 'Testing contact update broadcasts...' }
   ]);
   
-  const [receivedEvents, setReceivedEvents] = useState<CrossTabEvent[]>([]);
+  const [receivedEvents, setReceivedEvents] = useState<any[]>([]);
   const [isTestRunning, setIsTestRunning] = useState(false);
 
   // Update test result
@@ -53,7 +53,7 @@ export function EventDrivenValidationTest() {
   useEffect(() => {
     let eventCount = 0;
     
-    const unsubscribe = subscribe((event: CrossTabEvent) => {
+    const unsubscribe = crossTab.onAny((event: any) => {
       console.log('📡 Received cross-tab event:', event);
       setReceivedEvents(prev => [...prev.slice(-9), event]);
       eventCount++;
@@ -82,14 +82,14 @@ export function EventDrivenValidationTest() {
     // Test 1: Contact Deletion Event
     setTimeout(() => {
       console.log('🧪 Broadcasting test deletion event...');
-      announceContactDeleted('test-contact-tc4-delete', { name: 'Test Contact', type: 'person' });
+      crossTab.emit('contact:deleted', { id: 'test-contact-tc4-delete', summary: { name: 'Test Contact', type: 'person' } });
       updateTestResult('Cross-Tab Event Broadcasting', 'passed', 'Successfully broadcasting deletion event');
     }, 500);
 
     // Test 2: Contact Update Event  
     setTimeout(() => {
       console.log('🧪 Broadcasting test update event...');
-      announceContactChanged('test-contact-tc4-update', 'etag-abc123', { name: 'Updated Test Contact', type: 'person' });
+      crossTab.emit('contact:changed', { id: 'test-contact-tc4-update', summary: { name: 'Updated Test Contact', type: 'person' } });
     }, 1000);
 
     setTimeout(() => {
