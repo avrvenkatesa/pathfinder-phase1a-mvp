@@ -1,4 +1,5 @@
 import { ContactAvailabilityUpdate, Contact } from '@/types/contact';
+import { announceContactChanged, announceContactDeleted } from '@/lib/crossTab';
 
 export enum WebSocketState {
   CONNECTING = 'CONNECTING',
@@ -171,6 +172,20 @@ export class ContactWebSocketService {
 
       // Handle deletion/modification events for workflow subscribers
       if (message.type === 'CONTACT_DELETED' || message.type === 'CONTACT_MODIFIED') {
+        // Bridge to cross-tab system for workflow notifications
+        if (message.type === 'CONTACT_DELETED' && message.contactId) {
+          announceContactDeleted(message.contactId, {
+            name: message.data?.contactName || message.data?.name,
+            type: message.data?.type
+          });
+        }
+        if (message.type === 'CONTACT_MODIFIED' && message.contactId) {
+          announceContactChanged(message.contactId, undefined, {
+            name: message.data?.contactName || message.data?.name,
+            type: message.data?.type
+          });
+        }
+
         const targets = Array.isArray(message.affectedWorkflows) ? message.affectedWorkflows : [];
 
         if (targets.length) {

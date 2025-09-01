@@ -268,6 +268,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Contact not found" });
       }
 
+      // Broadcast contact modification to all connected clients
+      contactWebSocketService.broadcastContactModified(contactId, req.body, updated);
+
       const newETag = computeContactETag(updated);
       res.setHeader("ETag", newETag);
       res.setHeader("Cache-Control", "no-store");
@@ -311,6 +314,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!deleted) {
         return res.status(404).json({ message: "Contact not found" });
       }
+
+      // Broadcast contact deletion to all connected clients
+      contactWebSocketService.broadcastContactDeleted(contactId, current);
 
       return res.status(204).end();
     } catch (err) {
