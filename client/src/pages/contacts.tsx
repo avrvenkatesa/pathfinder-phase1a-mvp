@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { deleteContact, PreconditionFailedError } from "@/services/contactApi";
+import { deleteContact, checkContactCanDelete, PreconditionFailedError } from "@/services/contactApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, Edit } from "lucide-react";
+import { Plus, Trash2, Edit, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,12 @@ interface Contact {
 export default function ContactsPage() {
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean;
+    contact?: Contact;
+    assignmentData?: any;
+    isChecking?: boolean;
+  }>({ isOpen: false });
   const [newContact, setNewContact] = useState({
     name: '',
     type: 'person' as Contact['type'],
@@ -93,19 +99,51 @@ export default function ContactsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+      setDeleteDialog({ isOpen: false });
       toast({
         title: "Success",
         description: "Contact deleted successfully",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      let description = "Failed to delete contact";
+      
+      if (error.code === 409) {
+        description = error.message;
+        if (error.suggestions?.length > 0) {
+          description += ". " + error.suggestions[0];
+        }
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to delete contact",
+        title: "Cannot Delete Contact",
+        description,
         variant: "destructive",
       });
     },
   });
+
+  const handleDeleteClick = async (contact: Contact) => {
+    setDeleteDialog({ isOpen: true, contact, isChecking: true });
+    
+    try {
+      const assignmentData = await checkContactCanDelete(contact.id);
+      setDeleteDialog({ isOpen: true, contact, assignmentData, isChecking: false });
+    } catch (error) {
+      setDeleteDialog({ isOpen: false });
+      toast({
+        title: "Error",
+        description: "Failed to check contact assignments",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteDialog.contact) {
+      deleteMutation.mutate(deleteDialog.contact.id);
+    }
+  };
 
   const handleCreateContact = () => {
     if (!newContact.name.trim()) {
@@ -226,7 +264,7 @@ export default function ContactsPage() {
                   variant="ghost" 
                   size="sm" 
                   data-testid={`button-delete-${contact.id}`}
-                  onClick={() => deleteMutation.mutate(contact.id)}
+                  onClick={() => handleDeleteClick(contact)}
                   disabled={deleteMutation.isPending}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -262,6 +300,100 @@ export default function ContactsPage() {
           <p className="text-muted-foreground">No contacts found. Create your first contact to get started.</p>
         </div>
       )}
+
+      {/* Enhanced Delete Confirmation Dialog */}
+      <Dialog open={deleteDialog.isOpen} onOpenChange={(open) => setDeleteDialog({ isOpen: open })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Confirm Deletion
+            </DialogTitle>
+          </DialogHeader>
+          
+          {deleteDialog.isChecking ? (
+            <div className="py-4 text-center">
+              <div className="text-sm text-muted-foreground">Checking contact assignments...</div>
+            </div>
+          ) : deleteDialog.assignmentData ? (
+            <div className="space-y-4">
+              <p className="text-sm">
+                Are you sure you want to delete <strong>{deleteDialog.contact?.name}</strong>?
+              </p>
+              
+              {!deleteDialog.assignmentData.canDelete && (
+                <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                        Cannot Delete Contact
+                      </p>
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        {deleteDialog.assignmentData.reasons?.[0] || "Contact has active assignments"}
+                      </p>
+                      {deleteDialog.assignmentData.assignments?.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">
+                            Active Assignments:
+                          </p>
+                          {deleteDialog.assignmentData.assignments.map((assignment: any) => (
+                            <div key={assignment.id} className="text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900 rounded px-2 py-1 mb-1">
+                              {assignment.workflowName} ({assignment.status})
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {deleteDialog.assignmentData.suggestions?.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">
+                            Suggestions:
+                          </p>
+                          <ul className="text-xs text-red-600 dark:text-red-400 space-y-1">
+                            {deleteDialog.assignmentData.suggestions.map((suggestion: string, i: number) => (
+                              <li key={i} className="flex items-start gap-1">
+                                <span className="text-red-500">•</span>
+                                {suggestion}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {deleteDialog.assignmentData.canDelete && (
+                <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 bg-green-500 rounded-full flex-shrink-0" />
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      Contact can be safely deleted (no active assignments)
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex justify-end space-x-2 pt-2">
+                <Button variant="outline" onClick={() => setDeleteDialog({ isOpen: false })}>
+                  Cancel
+                </Button>
+                {deleteDialog.assignmentData.canDelete && (
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleConfirmDelete}
+                    disabled={deleteMutation.isPending}
+                    data-testid="button-confirm-delete"
+                  >
+                    {deleteMutation.isPending ? 'Deleting...' : 'Delete Contact'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

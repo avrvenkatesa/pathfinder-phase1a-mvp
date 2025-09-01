@@ -76,6 +76,12 @@ export async function updateContact(id: string, data: any) {
   return json;
 }
 
+export async function checkContactCanDelete(id: string) {
+  const res = await fetch(`/api/contacts/${id}/can-delete`, withCreds());
+  if (!res.ok) throw new Error(`Check deletion failed: ${res.status}`);
+  return res.json();
+}
+
 export async function deleteContact(id: string) {
   const etag = ETagStore.get("contact", id);
   const res = await fetch(
@@ -102,6 +108,17 @@ export async function deleteContact(id: string) {
     } catch {}
     postBus({ type: "conflict", id });
     throw new PreconditionFailedError(currentETag);
+  }
+
+  if (res.status === 409) {
+    const errorData = await res.json();
+    const error = new Error(errorData.message);
+    Object.assign(error, { 
+      code: 409, 
+      details: errorData.details,
+      suggestions: errorData.suggestions 
+    });
+    throw error;
   }
 
   if (res.status === 204) {

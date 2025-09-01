@@ -116,7 +116,7 @@ export const contacts = pgTable("contacts", {
 // Workflow assignments table for tracking contact workflow history
 export const workflowAssignments = pgTable("workflow_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  contactId: varchar("contact_id").notNull(),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: "restrict" }),
   workflowName: varchar("workflow_name").notNull(),
   status: varchar("status").notNull().default("active"), // active, completed, cancelled
   assignedAt: timestamp("assigned_at").defaultNow(),
@@ -127,18 +127,18 @@ export const workflowAssignments = pgTable("workflow_assignments", {
 // Contact activity log for tracking interactions and updates
 export const contactActivities = pgTable("contact_activities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  contactId: varchar("contact_id").notNull(),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
   activityType: varchar("activity_type").notNull(), // created, updated, assigned, contacted, etc.
   description: text("description").notNull(),
   metadata: jsonb("metadata"), // JSON data for additional context
   createdAt: timestamp("created_at").defaultNow(),
-  userId: varchar("user_id").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
 });
 
 // Contact skills with proficiency levels
 export const contactSkills = pgTable("contact_skills", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  contactId: varchar("contact_id").notNull(),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
   skillName: varchar("skill_name").notNull(),
   proficiencyLevel: proficiencyLevelEnum("proficiency_level").notNull().default("intermediate"),
   yearsExperience: integer("years_experience"),
@@ -151,7 +151,7 @@ export const contactSkills = pgTable("contact_skills", {
 // Contact certifications
 export const contactCertifications = pgTable("contact_certifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  contactId: varchar("contact_id").notNull(),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
   name: varchar("name").notNull(),
   issuer: varchar("issuer").notNull(),
   issueDate: timestamp("issue_date"),
@@ -166,7 +166,7 @@ export const contactCertifications = pgTable("contact_certifications", {
 // Contact weekly availability schedule
 export const contactAvailability = pgTable("contact_availability", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  contactId: varchar("contact_id").notNull(),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
   dayOfWeek: integer("day_of_week").notNull(), // 0 = Sunday, 1 = Monday, etc.
   startTime: varchar("start_time").notNull(), // "09:00"
   endTime: varchar("end_time").notNull(), // "17:00"
@@ -184,8 +184,8 @@ export const relationshipTypeEnum = pgEnum("relationship_type", [
 // Contact relationships table for advanced relationship management
 export const contactRelationships = pgTable("contact_relationships", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  fromContactId: varchar("from_contact_id").notNull(),
-  toContactId: varchar("to_contact_id").notNull(),
+  fromContactId: varchar("from_contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  toContactId: varchar("to_contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
   relationshipType: relationshipTypeEnum("relationship_type").notNull(),
   isActive: boolean("is_active").default(true),
   startDate: timestamp("start_date").defaultNow(),
@@ -199,7 +199,7 @@ export const contactRelationships = pgTable("contact_relationships", {
 // Hierarchy change history for tracking organization moves
 export const hierarchyChanges = pgTable("hierarchy_changes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  contactId: varchar("contact_id").notNull(),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
   oldParentId: varchar("old_parent_id"),
   newParentId: varchar("new_parent_id"),
   changeReason: text("change_reason"),

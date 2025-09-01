@@ -50,6 +50,14 @@ export async function updateContact(id: string, patch: any) {
   return updated;
 }
 
+export async function checkContactCanDelete(id: string) {
+  const res = await fetch(`/api/contacts/${id}/can-delete`, { 
+    credentials: "include" 
+  });
+  if (!res.ok) throw new Error(`Check deletion failed: ${res.status}`);
+  return res.json();
+}
+
 export async function deleteContact(id: string) {
   const etag = etagCache.get(id);
   const res = await fetch(`/api/contacts/${id}`, {
@@ -64,6 +72,14 @@ export async function deleteContact(id: string) {
   if (res.status === 412) {
     saveETag(id, res);
     throw Object.assign(new Error("ETAG_MISMATCH"), { code: 412 });
+  }
+  if (res.status === 409) {
+    const errorData = await res.json();
+    throw Object.assign(new Error(errorData.message), { 
+      code: 409, 
+      details: errorData.details,
+      suggestions: errorData.suggestions 
+    });
   }
   if (!(res.status === 204 || res.ok)) throw new Error(`DELETE failed: ${res.status}`);
 

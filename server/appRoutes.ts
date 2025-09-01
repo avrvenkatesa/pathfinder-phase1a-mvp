@@ -310,6 +310,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
       }
 
+      // CRITICAL: Check for active workflow assignments before deletion
+      const activeAssignments = await storage.checkContactAssignments(contactId, userId);
+      if (activeAssignments.length > 0) {
+        return res.status(409).json({
+          message: "Cannot delete contact with active workflow assignments",
+          code: "CONTACT_HAS_ACTIVE_ASSIGNMENTS",
+          details: {
+            assignmentCount: activeAssignments.length,
+            assignments: activeAssignments.map(a => ({
+              id: a.id,
+              workflowName: a.workflowName,
+              status: a.status,
+              assignedAt: a.assignedAt
+            }))
+          },
+          suggestions: [
+            "Complete or cancel the assigned workflow tasks",
+            "Reassign tasks to another contact",
+            "Remove contact from workflow assignments"
+          ]
+        });
+      }
+
       const deleted = await storage.deleteContact(contactId, userId);
       if (!deleted) {
         return res.status(404).json({ message: "Contact not found" });
@@ -319,9 +342,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       contactWebSocketService.broadcastContactDeleted(contactId, current);
 
       return res.status(204).end();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error deleting contact:", err);
+      
+      // Handle database foreign key constraint violations
+      if (err.code === '23503') {
+        return res.status(409).json({
+          message: "Cannot delete contact due to existing references",
+          code: "REFERENTIAL_INTEGRITY_VIOLATION",
+          hint: "Remove all workflow assignments before deleting this contact"
+        });
+      }
+      
       return res.status(500).json({ message: "Failed to delete contact" });
+    }
+  });
+
+  // Check if contact can be deleted (pre-deletion validation)
+  app.get("/api/contacts/:id/can-delete", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const contactId = req.params.id;
+
+      const current = await storage.getContactById(contactId, userId);
+      if (!current) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const activeAssignments = await storage.checkContactAssignments(contactId, userId);
+      
+      res.json({
+        canDelete: activeAssignments.length === 0,
+        contact: {
+          id: current.id,
+          name: current.name,
+          type: current.type
+        },
+        assignmentCount: activeAssignments.length,
+        assignments: activeAssignments,
+        reasons: activeAssignments.length > 0 ? [
+          `Contact has ${activeAssignments.length} active workflow assignments`
+        ] : [],
+        suggestions: activeAssignments.length > 0 ? [
+          "Complete or cancel active assignments",
+          "Reassign tasks to another contact",
+          "Use workflow management to remove assignments"
+        ] : []
+      });
+    } catch (err) {
+      console.error("Error checking contact dependencies:", err);
+      return res.status(500).json({ message: "Failed to check contact dependencies" });
     }
   });
 
