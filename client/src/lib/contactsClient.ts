@@ -1,5 +1,11 @@
 // client/src/lib/contactsClient.ts
+import { announceContactChanged, announceContactDeleted } from "./crossTab";
+
 const etagCache = new Map<string, string>();
+
+export function getCachedETag(id: string) {
+  return etagCache.get(id);
+}
 
 function saveETag(id: string, res: Response) {
   const etag = res.headers.get("ETag");
@@ -37,7 +43,11 @@ export async function updateContact(id: string, patch: any) {
   if (!res.ok) throw new Error(`PUT contact failed: ${res.status}`);
 
   saveETag(id, res);
-  return res.json();
+  const updated = await res.json();
+
+  // Announce to other tabs (ignore our own via origin in crossTab)
+  announceContactChanged(id, etagCache.get(id), { name: updated?.name, type: updated?.type });
+  return updated;
 }
 
 export async function deleteContact(id: string) {
@@ -57,5 +67,7 @@ export async function deleteContact(id: string) {
   }
   if (!(res.status === 204 || res.ok)) throw new Error(`DELETE failed: ${res.status}`);
 
+  // Announce deletion after success
+  announceContactDeleted(id);
   etagCache.delete(id);
 }
