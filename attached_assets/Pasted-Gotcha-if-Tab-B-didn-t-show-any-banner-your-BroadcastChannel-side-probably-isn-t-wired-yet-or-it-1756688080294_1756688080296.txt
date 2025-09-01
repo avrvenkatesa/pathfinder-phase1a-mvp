@@ -1,0 +1,343 @@
+Gotcha — if Tab B didn’t show any banner, your BroadcastChannel side probably isn’t wired yet (or it’s publishing on save/delete but nothing is listening). Let’s drop in a **known-good** client setup that:
+
+* publishes cross-tab events on **update** and **delete**
+* listens in every tab and shows a **banner** for the same contact
+* ignores events from the **same tab** (no self-echo)
+* still relies on ETags, so a stale save triggers **412** and your banner stays relevant
+
+Below are copy-paste files. You only need to add imports and render the banner on your contact detail page.
+
+---
+
+# 1) Cross-tab bus (BroadcastChannel + safe fallback)
+
+**`client/src/lib/crossTab.ts`**
+
+```ts
+// client/src/lib/crossTab.ts
+// A tiny cross-tab event bus for contact changes.
+
+export type ContactChangedEvent = {
+  type: "contact:changed";
+  id: string;
+  etag?: string;
+  summary?: { name?: string; type?: string };
+  origin: string;
+  ts: number;
+};
+
+export type ContactDeletedEvent = {
+  type: "contact:deleted";
+  id: string;
+  summary?: { name?: string; type?: string };
+  origin: string;
+  ts: number;
+};
+
+export type CrossTabEvent = ContactChangedEvent | ContactDeletedEvent;
+
+const CHANNEL = "contacts-x-tab-v1";
+const STORAGE_KEY = "__ct_event__";
+
+const TAB_ID =
+  sessionStorage.getItem("tabId") ||
+  (() => {
+    const id = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`).toString();
+    sessionStorage.setItem("tabId", id);
+    return id;
+  })();
+
+let bc: BroadcastChannel | null = null;
+if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+  bc = new BroadcastChannel(CHANNEL);
+}
+
+type Handler = (evt: CrossTabEvent) => void;
+const handlers = new Set<Handler>();
+
+function emit(evt: CrossTabEvent) {
+  handlers.forEach((h) => {
+    try {
+      h(evt);
+    } catch {}
+  });
+}
+
+function onBCMessage(e: MessageEvent<CrossTabEvent>) {
+  const evt = e.data;
+  if (!evt || evt.origin === TAB_ID) return; // ignore self
+  emit(evt);
+}
+
+function onStorage(e: StorageEvent) {
+  if (e.key !== STORAGE_KEY || !e.newValue) return;
+  try {
+    const evt = JSON.parse(e.newValue) as CrossTabEvent;
+    if (!evt || evt.origin === TAB_ID) return; // ignore self
+    emit(evt);
+  } catch {}
+}
+
+if (bc) bc.addEventListener("message", onBCMessage);
+if (typeof window !== "undefined") window.addEventListener("storage", onStorage);
+
+export function subscribe(handler: Handler): () => void {
+  handlers.add(handler);
+  return () => handlers.delete(handler);
+}
+
+export function publish(evt: Omit<CrossTabEvent, "origin" | "ts">) {
+  const full: CrossTabEvent = { ...evt, origin: TAB_ID, ts: Date.now() };
+  if (bc) {
+    bc.postMessage(full);
+  } else {
+    // localStorage fallback works across tabs in same origin
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(full));
+    // write-then-remove to trigger 'storage' reliably
+    localStorage.removeItem(STORAGE_KEY);
+  }
+}
+
+// Convenience helpers
+export function announceContactChanged(id: string, etag?: string, summary?: { name?: string; type?: string }) {
+  publish({ type: "contact:changed", id, etag, summary });
+}
+export function announceContactDeleted(id: string, summary?: { name?: string; type?: string }) {
+  publish({ type: "contact:deleted", id, summary });
+}
+```
+
+---
+
+# 2) ETag-aware contacts client that **publishes** cross-tab events
+
+Replace your previous helper with this one (or merge the diffs):
+
+**`client/src/lib/contactsClient.ts`**
+
+```ts
+// client/src/lib/contactsClient.ts
+import { announceContactChanged, announceContactDeleted } from "./crossTab";
+
+const etagCache = new Map<string, string>();
+
+export function getCachedETag(id: string) {
+  return etagCache.get(id);
+}
+function saveETag(id: string, res: Response) {
+  const etag = res.headers.get("ETag");
+  if (etag) etagCache.set(id, etag);
+}
+
+export async function getContact(id: string) {
+  const res = await fetch(`/api/contacts/${id}`, { credentials: "include" });
+  if (!res.ok) throw new Error(`GET contact failed: ${res.status}`);
+  saveETag(id, res);
+  return res.json();
+}
+
+export async function updateContact(id: string, patch: any) {
+  const etag = etagCache.get(id);
+  const res = await fetch(`/api/contacts/${id}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(etag ? { "If-Match": etag } : {}),
+    },
+    body: JSON.stringify(patch),
+  });
+
+  if (res.status === 428) {
+    throw Object.assign(new Error("PRECONDITION_REQUIRED"), { code: 428 });
+  }
+  if (res.status === 412) {
+    // stale copy; server might return currentETag in body, but we also re-read response ETag if present
+    const body = await res.json().catch(() => ({}));
+    if (body?.currentETag) etagCache.set(id, body.currentETag);
+    // don’t publish (we failed) — let UI handle stale banner
+    throw Object.assign(new Error("ETAG_MISMATCH"), { code: 412 });
+  }
+  if (!res.ok) throw new Error(`PUT contact failed: ${res.status}`);
+
+  saveETag(id, res);
+  const updated = await res.json();
+
+  // Announce to other tabs (ignore our own via origin in crossTab)
+  announceContactChanged(id, getCachedETag(id), { name: updated?.name, type: updated?.type });
+  return updated;
+}
+
+export async function deleteContact(id: string) {
+  const etag = etagCache.get(id);
+  const res = await fetch(`/api/contacts/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: {
+      ...(etag ? { "If-Match": etag } : {}),
+    },
+  });
+
+  if (res.status === 428) throw Object.assign(new Error("PRECONDITION_REQUIRED"), { code: 428 });
+  if (res.status === 412) {
+    const body = await res.json().catch(() => ({}));
+    if (body?.currentETag) etagCache.set(id, body.currentETag);
+    throw Object.assign(new Error("ETAG_MISMATCH"), { code: 412 });
+  }
+  if (!(res.status === 204 || res.ok)) throw new Error(`DELETE failed: ${res.status}`);
+
+  // Announce deletion after success
+  announceContactDeleted(id);
+  etagCache.delete(id);
+}
+```
+
+---
+
+# 3) A tiny banner component that listens & reacts
+
+**`client/src/components/ContactCrossTabBanner.tsx`**
+
+```tsx
+// client/src/components/ContactCrossTabBanner.tsx
+import React from "react";
+import { subscribe, CrossTabEvent } from "@/lib/crossTab";
+import { getContact } from "@/lib/contactsClient";
+
+type Props = {
+  contactId: string;
+  onReload?: (fresh: any) => void;  // pass fresh data to parent form if you like
+  onDeleted?: () => void;           // let parent disable the editor if deleted
+};
+
+export default function ContactCrossTabBanner({ contactId, onReload, onDeleted }: Props) {
+  const [changed, setChanged] = React.useState<null | { when: Date }>(null);
+  const [deleted, setDeleted] = React.useState(false);
+
+  React.useEffect(() => {
+    return subscribe((evt: CrossTabEvent) => {
+      if (evt.type === "contact:changed" && evt.id === contactId) {
+        setChanged({ when: new Date() });
+      }
+      if (evt.type === "contact:deleted" && evt.id === contactId) {
+        setDeleted(true);
+        onDeleted?.();
+      }
+    });
+  }, [contactId, onDeleted]);
+
+  if (deleted) {
+    return (
+      <div className="w-full p-3 rounded-md bg-red-100 text-red-800 mb-3 border border-red-200">
+        This contact was <strong>deleted in another tab</strong>. The form is now read-only.
+      </div>
+    );
+  }
+
+  if (changed) {
+    return (
+      <div className="w-full p-3 rounded-md bg-amber-100 text-amber-900 mb-3 border border-amber-200 flex items-center justify-between gap-3">
+        <div>
+          This contact was <strong>updated in another tab</strong>. Reload to get the latest before saving.
+        </div>
+        <div className="flex gap-2">
+          <button
+            className="px-3 py-1 rounded bg-amber-200 hover:bg-amber-300"
+            onClick={async () => {
+              try {
+                const fresh = await getContact(contactId);
+                onReload?.(fresh);
+                setChanged(null);
+              } catch {
+                // no-op: let parent show a toast if desired
+              }
+            }}
+          >
+            Reload
+          </button>
+          <button
+            className="px-3 py-1 rounded border border-amber-300 hover:bg-amber-50"
+            onClick={() => setChanged(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+```
+
+---
+
+# 4) Wire it into your contact detail/editor page
+
+Where you render the contact form, import and mount the banner **above the form**. Example:
+
+```tsx
+import ContactCrossTabBanner from "@/components/ContactCrossTabBanner";
+import { updateContact, getContact } from "@/lib/contactsClient";
+
+export default function ContactDetailPage() {
+  const contactId = /* from router or props */;
+  const [form, setForm] = useState<any>(/* loaded contact */);
+  const [disabled, setDisabled] = useState(false);
+
+  // on page mount, be sure you load via getContact(contactId) at least once
+  useEffect(() => {
+    getContact(contactId).then(setForm).catch(() => {/* handle */});
+  }, [contactId]);
+
+  return (
+    <div>
+      <ContactCrossTabBanner
+        contactId={contactId}
+        onReload={setForm}
+        onDeleted={() => setDisabled(true)}
+      />
+      <form onSubmit={async (e) => {
+        e.preventDefault();
+        try {
+          const updated = await updateContact(contactId, form);
+          setForm(updated);
+          // toast.success("Saved");
+        } catch (err: any) {
+          if (err.code === 428) {
+            // toast.error("Please reload this contact before saving.");
+          } else if (err.code === 412) {
+            // toast.error("This contact changed in another tab. Reload, then retry.");
+          } else {
+            // toast.error("Save failed");
+          }
+        }
+      }}>
+        {/* your fields bound to `form` */}
+        <fieldset disabled={disabled}>
+          {/* inputs... */}
+        </fieldset>
+      </form>
+    </div>
+  );
+}
+```
+
+---
+
+## Quick debug checks
+
+1. In **Tab A**, open DevTools → Console and run (replace the ID):
+
+```js
+new BroadcastChannel('contacts-x-tab-v1')
+  .postMessage({ type: 'contact:changed', id: '<contact-id>', origin: 'debug', ts: Date.now() })
+```
+
+Tab B should immediately show the “updated in another tab” banner.
+
+2. Saving in Tab A should also trigger the banner in Tab B because `updateContact()` publishes `contact:changed` after a successful PUT.
+
+3. Deleting in Tab A should trigger the “deleted in another tab” banner in Tab B because `deleteContact()` publishes `contact:deleted`.
+
+If that still doesn’t show up, verify both tabs share the **same origin** (protocol + host + port), because BroadcastChannel and the localStorage fallback are origin-scoped.

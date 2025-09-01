@@ -19,6 +19,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import EnhancedContactForm from "@/components/enhanced-contact-form";
+import ContactCrossTabBanner from "@/components/ContactCrossTabBanner";
 import { apiRequest } from "@/lib/queryClient";
 import { getContact, updateContact, deleteContact } from "@/lib/contactsClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -298,6 +299,23 @@ export default function ContactDetail() {
             </div>
           </div>
         </div>
+
+        {/* Cross-tab Banner */}
+        {id && (
+          <ContactCrossTabBanner
+            contactId={id}
+            onReload={(freshContact) => {
+              queryClient.setQueryData(["/api/contacts", id], freshContact);
+            }}
+            onDeleted={() => {
+              toast({
+                title: "Contact Deleted",
+                description: "This contact was deleted in another tab.",
+                variant: "destructive",
+              });
+            }}
+          />
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}

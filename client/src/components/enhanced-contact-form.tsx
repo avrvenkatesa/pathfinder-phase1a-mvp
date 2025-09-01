@@ -40,6 +40,7 @@ import { z } from "zod";
 import { X, Plus, Save, User, Building, Settings, Clock, Briefcase } from "lucide-react";
 import { ValidationFeedback } from "@/components/validation/ValidationFeedback";
 import { validationService, ValidationResult } from "@/services/validationService";
+import ContactCrossTabBanner from "@/components/ContactCrossTabBanner";
 
 const enhancedFormSchema = insertContactSchema.extend({
   name: z.string().min(1, "Name is required"),
@@ -1538,6 +1539,32 @@ export default function EnhancedContactForm({
             </Button>
           )}
         </div>
+
+        {/* Cross-tab Banner for Edit Mode */}
+        {isEditMode && contact?.id && (
+          <ContactCrossTabBanner
+            contactId={contact.id}
+            onReload={(freshContact) => {
+              // Update form with fresh data
+              form.reset({
+                name: freshContact.name || "",
+                type: freshContact.type || "person",
+                email: freshContact.email || "",
+                phone: freshContact.phone || "",
+                company: freshContact.company || "",
+                jobTitle: freshContact.jobTitle || "",
+                description: freshContact.description || "",
+                parentId: freshContact.parentId || undefined,
+                ...freshContact
+              });
+            }}
+            onDeleted={() => {
+              // Disable form when contact is deleted
+              onClose?.();
+            }}
+          />
+        )}
+
         <div className="flex items-center space-x-2">
           <Progress value={progress} className="flex-1" />
           <span className="text-sm text-gray-500">{progress}% Complete</span>
