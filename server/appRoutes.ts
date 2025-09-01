@@ -269,7 +269,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Broadcast contact modification to all connected clients
+      console.log(`[DEBUG] Broadcasting contact modification for ${contactId}`);
       contactWebSocketService.broadcastContactModified(contactId, req.body, updated);
+      console.log(`[DEBUG] Broadcast complete for ${contactId}`);
 
       const newETag = computeContactETag(updated);
       res.setHeader("ETag", newETag);
@@ -316,7 +318,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Broadcast contact deletion to all connected clients
+      console.log(`[DEBUG] Broadcasting contact deletion for ${contactId}`);
       contactWebSocketService.broadcastContactDeleted(contactId, current);
+      console.log(`[DEBUG] Delete broadcast complete for ${contactId}`);
 
       return res.status(204).end();
     } catch (err) {
