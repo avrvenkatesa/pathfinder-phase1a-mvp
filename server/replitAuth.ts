@@ -12,10 +12,20 @@ if (!process.env.REPLIT_DOMAINS) {
   throw new Error("Environment variable REPLIT_DOMAINS not provided");
 }
 
+if (!process.env.REPL_ID) {
+  throw new Error("Environment variable REPL_ID not provided");
+}
+
+if (!process.env.SESSION_SECRET) {
+  throw new Error("Environment variable SESSION_SECRET not provided");
+}
+
 const getOidcConfig = memoize(
   async () => {
+    const issuerUrl = process.env.ISSUER_URL || "https://replit.com/oidc";
+    console.log("Using OIDC issuer URL:", issuerUrl);
     return await client.discovery(
-      new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
+      new URL(issuerUrl),
       process.env.REPL_ID!
     );
   },
@@ -38,7 +48,7 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       maxAge: sessionTtl,
     },
   });
@@ -102,32 +112,73 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    // Use the first configured domain instead of req.hostname for localhost development
+    const domain = req.hostname === '127.0.0.1' || req.hostname === 'localhost' 
+      ? process.env.REPLIT_DOMAINS!.split(",")[0] 
+      : req.hostname;
+    console.log(`Login attempt: hostname=${req.hostname}, using strategy for domain=${domain}`);
+    
+    passport.authenticate(`replitauth:${domain}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
 
   app.get("/api/callback", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
+    // Use the first configured domain instead of req.hostname for localhost development
+    const domain = req.hostname === '127.0.0.1' || req.hostname === 'localhost' 
+      ? process.env.REPLIT_DOMAINS!.split(",")[0] 
+      : req.hostname;
+    console.log(`Callback: hostname=${req.hostname}, using strategy for domain=${domain}`);
+    
+    passport.authenticate(`replitauth:${domain}`, (err: any, user: any) => {
+      if (err || !user) {
+        console.error('Authentication error:', err);
+        return res.redirect("/api/login");
+      }
+      
+      req.logIn(user, (err) => {
+        if (err) {
+          console.error('Login error:', err);
+          return res.redirect("/api/login");
+        }
+        
+        // After successful login, redirect to home page
+        console.log('Authentication successful, redirecting to home');
+        return res.redirect("/");
+      });
     })(req, res, next);
   });
 
   app.get("/api/logout", (req, res) => {
     req.logout(() => {
-      res.redirect(
-        client.buildEndSessionUrl(config, {
-          client_id: process.env.REPL_ID!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
-        }).href
-      );
+      // Clear the session completely
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Session destruction error:', err);
+        }
+        // Clear the session cookie
+        res.clearCookie('connect.sid');
+        
+        // Redirect to Replit's logout endpoint
+        res.redirect(
+          client.buildEndSessionUrl(config, {
+            client_id: process.env.REPL_ID!,
+            post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
+          }).href
+        );
+      });
     });
   });
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // Check authentication for both development and production
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Production authentication logic
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {

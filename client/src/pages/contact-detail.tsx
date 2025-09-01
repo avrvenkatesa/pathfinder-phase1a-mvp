@@ -19,7 +19,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import EnhancedContactForm from "@/components/enhanced-contact-form";
+import ContactCrossTabBanner from "@/components/ContactCrossTabBanner";
 import { apiRequest } from "@/lib/queryClient";
+import { getContact, updateContact, deleteContact } from "@/lib/contactsClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Contact, WorkflowAssignment, ContactActivity } from "@shared/schema";
 import { 
@@ -49,6 +51,10 @@ export default function ContactDetail() {
 
   const { data: contact, isLoading, error } = useQuery<Contact>({
     queryKey: ["/api/contacts", id],
+    queryFn: async () => {
+      if (!id) throw new Error("No contact ID");
+      return await getContact(id);
+    },
     retry: false,
   });
 
@@ -59,8 +65,8 @@ export default function ContactDetail() {
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("DELETE", `/api/contacts/${id}`);
-      return response;
+      if (!id) throw new Error("No contact ID");
+      await deleteContact(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
@@ -72,7 +78,25 @@ export default function ContactDetail() {
       });
       setLocation("/");
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      if (error.code === 428) {
+        toast({
+          title: "Precondition Required", 
+          description: "Please reload this contact before deleting (precondition required).",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (error.code === 412) {
+        toast({
+          title: "Contact Changed",
+          description: "This contact changed in another tab. Reload to get the latest, then try again.",
+          variant: "destructive", 
+        });
+        return;
+      }
+      
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
@@ -275,6 +299,23 @@ export default function ContactDetail() {
             </div>
           </div>
         </div>
+
+        {/* Cross-tab Banner */}
+        {id && (
+          <ContactCrossTabBanner
+            contactId={id}
+            onReload={(freshContact) => {
+              queryClient.setQueryData(["/api/contacts", id], freshContact);
+            }}
+            onDeleted={() => {
+              toast({
+                title: "Contact Deleted",
+                description: "This contact was deleted in another tab.",
+                variant: "destructive",
+              });
+            }}
+          />
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}

@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Search, 
   User, 
@@ -22,9 +24,13 @@ import {
   Star,
   Filter,
   UserCheck,
-  Calendar
+  Calendar,
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import type { Contact } from '@shared/schema';
+// CrossTab events now handled by bootstrap - no direct import needed
+import WorkflowCrossTabBanner from '@/components/WorkflowCrossTabBanner';
 
 // Mock contact data with workflow-specific properties
 const mockContacts: Contact[] = [
@@ -290,24 +296,35 @@ function SkillsMatch({ contactSkills, requiredSkills }: { contactSkills: string[
   );
 }
 
-// Contact card component
+// Contact card component with validation state
 function ContactCard({ 
   contact, 
   onSelect, 
   isSelected, 
-  requiredSkills = [] 
+  requiredSkills = [],
+  isDeleted = false,
+  isModified = false,
+  modificationReason = ''
 }: { 
   contact: Contact;
   onSelect: (contact: Contact) => void;
   isSelected: boolean;
   requiredSkills?: string[];
+  isDeleted?: boolean;
+  isModified?: boolean;
+  modificationReason?: string;
 }) {
   return (
     <Card 
       className={`cursor-pointer transition-all hover:shadow-md ${
         isSelected ? 'ring-2 ring-blue-500 shadow-md' : ''
+      } ${
+        isDeleted ? 'ring-2 ring-red-500 opacity-50' : ''
+      } ${
+        isModified ? 'ring-2 ring-yellow-500' : ''
       }`}
       onClick={() => onSelect(contact)}
+      data-testid={`contact-card-${contact.id}`}
     >
       <CardContent className="p-4">
         <div className="flex items-start space-x-3">
@@ -326,9 +343,29 @@ function ContactCard({
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-              <h3 className="font-medium truncate">{contact.name}</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-medium truncate">{contact.name}</h3>
+                {/* NEW: Validation status indicators */}
+                {isDeleted && (
+                  <Badge variant="destructive" className="text-xs" data-testid={`badge-deleted-${contact.id}`}>
+                    Deleted
+                  </Badge>
+                )}
+                {isModified && !isDeleted && (
+                  <Badge variant="secondary" className="text-xs" data-testid={`badge-modified-${contact.id}`}>
+                    Modified
+                  </Badge>
+                )}
+              </div>
               <AvailabilityBadge status={contact.availabilityStatus || 'unavailable'} />
             </div>
+            
+            {/* NEW: Show modification reason if available */}
+            {isModified && modificationReason && (
+              <p className="text-xs text-yellow-600 mt-1" data-testid={`modification-reason-${contact.id}`}>
+                {modificationReason}
+              </p>
+            )}
             
             {contact.jobTitle && (
               <p className="text-sm text-gray-600">{contact.jobTitle}</p>
@@ -415,6 +452,9 @@ function AssignmentSuggestions({
             onSelect={onSelect}
             isSelected={false}
             requiredSkills={requiredSkills}
+            isDeleted={false}
+            isModified={false}
+            modificationReason=""
           />
           <Badge 
             className="absolute top-2 right-2 bg-green-500 text-white"
@@ -558,6 +598,79 @@ interface WorkflowContactAssignmentProps {
   children: React.ReactNode;
 }
 
+// Validation state interface
+interface ValidationState {
+  deletedContacts: Set<string>;
+  modifiedContacts: Map<string, string>; // contactId -> modification reason
+  validationErrors: Array<{
+    contactId: string;
+    message: string;
+    severity: 'error' | 'warning';
+    timestamp: string;
+  }>;
+}
+
+// Validation Alert Component
+interface ValidationAlertProps {
+  errors: ValidationState['validationErrors'];
+  onDismiss: (contactId: string) => void;
+  onRemoveContact: (contactId: string) => void;
+}
+
+const ValidationAlert: React.FC<ValidationAlertProps> = ({ errors, onDismiss, onRemoveContact }) => {
+  if (errors.length === 0) return null;
+
+  return (
+    <div className="validation-alerts-container mb-4 space-y-2" data-testid="validation-alerts">
+      {errors.map((error, index) => (
+        <Alert 
+          key={`${error.contactId}-${index}`}
+          className={`relative ${
+            error.severity === 'error' 
+              ? 'border-red-200 bg-red-50 text-red-800' 
+              : 'border-yellow-200 bg-yellow-50 text-yellow-800'
+          }`}
+          data-testid={`validation-alert-${error.contactId}`}
+        >
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex-1">
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <strong>{error.severity === 'error' ? 'Error' : 'Warning'}:</strong> {error.message}
+                <div className="text-xs mt-1 opacity-75">
+                  {new Date(error.timestamp).toLocaleString()}
+                </div>
+              </div>
+              <div className="flex gap-2 ml-4">
+                {error.severity === 'error' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onRemoveContact(error.contactId)}
+                    className="h-6 px-2 text-xs"
+                    data-testid={`button-remove-contact-${error.contactId}`}
+                  >
+                    Remove Contact
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onDismiss(error.contactId)}
+                  className="h-6 w-6 p-0"
+                  data-testid={`button-dismiss-alert-${error.contactId}`}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      ))}
+    </div>
+  );
+};
+
 export function WorkflowContactAssignment({
   taskType,
   taskName,
@@ -566,11 +679,104 @@ export function WorkflowContactAssignment({
   onAssign,
   children
 }: WorkflowContactAssignmentProps) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>(currentAssignees);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [availabilityFilter, setAvailabilityFilter] = useState<string>('all');
+  
+  // NEW: Validation state management
+  const [deletedContacts, setDeletedContacts] = useState<Set<string>>(new Set());
+  const [modifiedContacts, setModifiedContacts] = useState<Map<string, string>>(new Map());
+  const [validationErrors, setValidationErrors] = useState<ValidationState['validationErrors']>([]);
+  const [canSaveWorkflow, setCanSaveWorkflow] = useState(true);
+
+  // NEW: WebSocket event handling for cross-tab validation
+  useEffect(() => {
+    const workflowId = `${taskType}-${taskName}`;
+    
+    const handleWebSocketMessage = (message: any) => {
+      if (message.type === 'CONTACT_DELETED') {
+        // Add to deleted contacts set
+        setDeletedContacts(prev => new Set([...prev, message.contactId!]));
+
+        // Add validation error
+        setValidationErrors(prev => [...prev, {
+          contactId: message.contactId!,
+          message: `Contact ${message.contactId} has been deleted and must be removed from this workflow`,
+          severity: 'error',
+          timestamp: message.timestamp
+        }]);
+
+        // Disable save button
+        setCanSaveWorkflow(false);
+
+        // Show toast notification
+        toast({
+          title: "Contact Deleted",
+          description: `A contact assigned to this workflow has been deleted.`,
+          variant: "destructive",
+        });
+      }
+
+      if (message.type === 'CONTACT_MODIFIED') {
+        // Handle modifications with warnings
+        const modificationReason = message.data?.changes ? 
+          `Modified: ${Object.keys(message.data.changes).join(', ')}` : 
+          'Contact details updated';
+          
+        setModifiedContacts(prev => new Map([...prev, [message.contactId!, modificationReason]]));
+        
+        setValidationErrors(prev => [...prev, {
+          contactId: message.contactId!,
+          message: `Contact ${message.contactId} has been modified. Please review the assignment.`,
+          severity: 'warning',
+          timestamp: message.timestamp
+        }]);
+
+        // Show warning toast
+        toast({
+          title: "Contact Modified",
+          description: `A contact assigned to this workflow has been updated.`,
+          variant: "default",
+        });
+      }
+    };
+
+    // Cross-tab events now handled by bootstrap registration
+    console.log('✅ WorkflowAssignment: Cross-tab handlers registered at app bootstrap');
+    
+    // Register component-specific handlers for this workflow
+    import('@/lib/crossTab').then((crossTab) => {
+      const unsubscribe1 = crossTab.default.on('contact:deleted', (event: any) => {
+        console.log('✉️ WorkflowAssignment: Received contact:deleted event:', event);
+        handleWebSocketMessage({
+          type: 'CONTACT_DELETED',
+          contactId: event.id,
+          data: event.summary,
+          timestamp: new Date(event.ts || Date.now()).toISOString()
+        });
+      });
+      
+      const unsubscribe2 = crossTab.default.on('contact:changed', (event: any) => {
+        console.log('✉️ WorkflowAssignment: Received contact:changed event:', event);
+        handleWebSocketMessage({
+          type: 'CONTACT_MODIFIED',
+          contactId: event.id,
+          data: event.summary,
+          timestamp: new Date(event.ts || Date.now()).toISOString()
+        });
+      });
+      
+      return () => {
+        unsubscribe1();
+        unsubscribe2();
+      };
+    });
+
+    return () => {};
+  }, [taskType, taskName, toast]);
   
   // Mock query - replace with actual API call
   const { data: contacts = [] } = useQuery({
@@ -603,7 +809,63 @@ export function WorkflowContactAssignment({
   const selectedIds = selectedContacts.map(c => c.id);
   
   const departments = [...new Set(mockContacts.map(c => c.department).filter((dept): dept is string => Boolean(dept)))];
+
+  // Validation alert handlers
+  const handleDismissAlert = (contactId: string) => {
+    setValidationErrors(prev => prev.filter(error => error.contactId !== contactId));
+    
+    // Re-enable save if no critical errors remain
+    const remainingErrors = validationErrors.filter(error => 
+      error.contactId !== contactId && error.severity === 'error'
+    );
+    if (remainingErrors.length === 0) {
+      setCanSaveWorkflow(true);
+    }
+  };
+
+  const handleRemoveContact = (contactId: string) => {
+    // Remove from selected contacts
+    setSelectedContacts(prev => prev.filter(c => c.id !== contactId));
+    
+    // Remove from deleted contacts set
+    setDeletedContacts(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(contactId);
+      return newSet;
+    });
+    
+    // Remove from modified contacts map
+    setModifiedContacts(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(contactId);
+      return newMap;
+    });
+    
+    // Remove validation errors for this contact
+    handleDismissAlert(contactId);
+    
+    toast({
+      title: "Contact Removed",
+      description: `Contact has been removed from the assignment.`,
+      variant: "default",
+    });
+  };
   
+  // Extract assigned contact IDs for banner
+  const assignedContactIds = selectedContacts.map(contact => contact.id);
+  
+  // Create contact lookup for banner
+  const contactLookup = React.useMemo(() => {
+    const lookup: Record<string, { name?: string; type?: string }> = {};
+    selectedContacts.forEach(contact => {
+      lookup[contact.id] = { 
+        name: contact.name || `${contact.firstName} ${contact.lastName}`.trim(),
+        type: contact.type 
+      };
+    });
+    return lookup;
+  }, [selectedContacts]);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -622,6 +884,42 @@ export function WorkflowContactAssignment({
             )}
           </DialogDescription>
         </DialogHeader>
+        
+        {/* Cross-tab Banner for assigned contacts */}
+        <div className="mb-4">
+          <WorkflowCrossTabBanner
+            contactIds={assignedContactIds}
+            contactLookup={contactLookup}
+            onReloadWorkflow={() => {
+              // Refresh contact selection
+              setSelectedContacts(currentAssignees);
+              toast({
+                title: "Assignment Refreshed",
+                description: "Contact assignments have been refreshed due to changes.",
+              });
+            }}
+            onAnyContactChanged={(ids) => {
+              console.log("Assigned contacts changed:", ids);
+            }}
+            onAnyContactDeleted={(ids) => {
+              console.log("Assigned contacts deleted:", ids);
+              // Remove deleted contacts from selection
+              setSelectedContacts(prev => prev.filter(contact => !ids.includes(contact.id)));
+              toast({
+                title: "Assignment Updated",
+                description: `Deleted contact(s) removed from assignment: ${ids.join(", ")}`,
+                variant: "destructive",
+              });
+            }}
+          />
+        </div>
+        
+        {/* NEW: Validation Alerts */}
+        <ValidationAlert 
+          errors={validationErrors}
+          onDismiss={handleDismissAlert}
+          onRemoveContact={handleRemoveContact}
+        />
         
         <Tabs defaultValue="search" className="flex-1 flex flex-col">
           <TabsList className="grid w-full grid-cols-3">
@@ -677,6 +975,9 @@ export function WorkflowContactAssignment({
                       onSelect={handleSelectContact}
                       isSelected={selectedIds.includes(contact.id)}
                       requiredSkills={requiredSkills}
+                      isDeleted={deletedContacts.has(contact.id)}
+                      isModified={modifiedContacts.has(contact.id)}
+                      modificationReason={modifiedContacts.get(contact.id) || ''}
                     />
                   ))}
                 </div>
@@ -731,9 +1032,11 @@ export function WorkflowContactAssignment({
               </Button>
               <Button 
                 onClick={handleAssign}
-                disabled={selectedContacts.length === 0}
+                disabled={selectedContacts.length === 0 || !canSaveWorkflow}
+                className={!canSaveWorkflow ? 'opacity-50 cursor-not-allowed' : ''}
+                data-testid="button-assign-contacts"
               >
-                Assign {selectedContacts.length > 0 ? `(${selectedContacts.length})` : ''}
+                {!canSaveWorkflow ? 'Fix Errors to Assign' : `Assign ${selectedContacts.length > 0 ? `(${selectedContacts.length})` : ''}`}
               </Button>
             </div>
           </div>

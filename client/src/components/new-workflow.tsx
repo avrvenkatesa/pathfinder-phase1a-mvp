@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
+import { contactWebSocketService } from '@/services/contact-websocket.service';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -82,6 +84,36 @@ export function NewWorkflow() {
   const [workflow, setWorkflow] = useState<WorkflowDefinition>(createBlankWorkflow());
   const [formValid, setFormValid] = useState(false);
   const [completedTabs, setCompletedTabs] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
+
+  // WebSocket connection for cross-tab validation
+  useEffect(() => {
+    console.log('NewWorkflow: Connecting to WebSocket for cross-tab validation');
+    contactWebSocketService.connect();
+    
+    const unsubscribe = contactWebSocketService.subscribeToContactDeletions('test-workflow-cross-tab', (message) => {
+      console.log('NewWorkflow: Received WebSocket message:', message);
+      
+      if (message.type === 'CONTACT_DELETED') {
+        toast({
+          title: "Contact Deleted",
+          description: `Contact "${message.data?.name || 'Unknown'}" was deleted in another tab. This may affect workflow assignments.`,
+          variant: "destructive",
+        });
+      } else if (message.type === 'CONTACT_MODIFIED') {
+        toast({
+          title: "Contact Modified", 
+          description: `Contact "${message.data?.name || 'Unknown'}" was updated in another tab. Review assignments if needed.`,
+          variant: "default",
+        });
+      }
+    });
+
+    return () => {
+      console.log('NewWorkflow: Cleaning up WebSocket subscription');
+      unsubscribe();
+    };
+  }, [toast]);
 
   // Validation effect
   useEffect(() => {

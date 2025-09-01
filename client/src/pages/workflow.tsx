@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,6 +21,8 @@ import { WorkflowDesigner } from '@/components/workflow-designer';
 import { BpmnValidator, BpmnValidationDisplay } from '@/components/bpmn-validator';
 import { WorkflowContactAssignment } from '@/components/workflow-contact-assignment';
 import { WorkflowExecutionMonitor } from '@/components/workflow-execution-engine';
+import WorkflowCrossTabBanner from '@/components/WorkflowCrossTabBanner';
+import { useWorkflowCrossTab } from "@/workflow/useWorkflowCrossTab";
 import type { WorkflowDefinition, WorkflowInstance, Contact } from '@shared/schema';
 
 // Mock workflow data
@@ -39,7 +43,7 @@ const mockWorkflow: WorkflowDefinition = {
       type: 'user_task',
       name: 'Collect Client Information',
       position: { x: 250, y: 200 },
-      properties: { assignee: 'john_smith' }
+      properties: { assignee: '181d031f-acb0-40e9-8656-2c1c54e5ebda' }
     },
     {
       id: 'gateway_1',
@@ -53,7 +57,7 @@ const mockWorkflow: WorkflowDefinition = {
       type: 'user_task',
       name: 'Review and Approve',
       position: { x: 550, y: 200 },
-      properties: { assignee: 'sarah_johnson' }
+      properties: { assignee: '3f1ab40c-d269-4ba3-ac20-fba3bf9ad589' }
     },
     {
       id: 'end_1',
@@ -129,11 +133,17 @@ const mockInstance: WorkflowInstance = {
 };
 
 export function WorkflowPage() {
+  // Register workflow cross-tab handlers (route-scoped)
+  useWorkflowCrossTab();
+  
   const params = useParams();
   const [location, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState('designer');
   const [workflow, setWorkflow] = useState<WorkflowDefinition>(mockWorkflow);
   const [instance, setInstance] = useState<WorkflowInstance>(mockInstance);
+  const { toast } = useToast();
+
+  // Cross-tab notifications now handled by useWorkflowCrossTab hook
   const [validationOpen, setValidationOpen] = useState(false);
 
   // Validate workflow
@@ -180,6 +190,35 @@ export function WorkflowPage() {
     // Scroll to element in designer
     console.log('Selecting element:', elementId);
   };
+
+  // Extract assigned contact IDs from workflow elements
+  const assignedContactIds = React.useMemo(() => {
+    return workflow.elements
+      .filter(element => element.properties?.assignee)
+      .map(element => element.properties?.assignee)
+      .filter(Boolean) as string[];
+  }, [workflow.elements]);
+
+  // Fetch contact details for assigned contacts
+  const { data: contactsData } = useQuery({
+    queryKey: ['/api/contacts'],
+    enabled: assignedContactIds.length > 0
+  });
+
+  // Create contact lookup for banner
+  const contactLookup = React.useMemo(() => {
+    const lookup: Record<string, { name?: string; type?: string }> = {};
+    if (contactsData && Array.isArray(contactsData)) {
+      assignedContactIds.forEach(id => {
+        const contact = contactsData.find((c: Contact) => c.id === id);
+        lookup[id] = { 
+          name: contact?.name || (contact?.firstName ? `${contact.firstName} ${contact.lastName}`.trim() : id), 
+          type: contact?.type || 'person' 
+        };
+      });
+    }
+    return lookup;
+  }, [assignedContactIds, contactsData]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -242,6 +281,32 @@ export function WorkflowPage() {
               Execute
             </Button>
           </div>
+        </div>
+
+        {/* Workflow Cross-tab Banner */}
+        <div className="mt-4 px-0">
+          <WorkflowCrossTabBanner
+            contactIds={assignedContactIds}
+            contactLookup={contactLookup}
+            onReloadWorkflow={() => {
+              // Refresh workflow data
+              toast({
+                title: "Workflow Refreshed",
+                description: "Workflow data has been reloaded due to contact changes.",
+              });
+            }}
+            onAnyContactChanged={(ids) => {
+              console.log("Workflow assignees changed:", ids);
+            }}
+            onAnyContactDeleted={(ids) => {
+              console.log("Workflow assignees deleted:", ids);
+              toast({
+                title: "Assignment Issue",
+                description: `Contact(s) deleted: ${ids.join(", ")}. Please review assignments.`,
+                variant: "destructive",
+              });
+            }}
+          />
         </div>
 
         {/* Tab Navigation */}

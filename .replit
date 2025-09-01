@@ -4,7 +4,7 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["nano", "lsof", "psmisc"]
+packages = ["nano", "lsof", "psmisc", "jq"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -58,3 +58,5 @@ externalPort = 80
 [[ports]]
 localPort = 5001
 externalPort = 3000
+
+[agent]

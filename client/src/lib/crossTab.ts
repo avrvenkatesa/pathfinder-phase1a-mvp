@@ -1,0 +1,137 @@
+type CrossTabEvent = {
+  type: string;
+  ts?: number;
+  origin?: string;
+  [k: string]: any;
+};
+
+type Handler<T = CrossTabEvent> = (event: T) => void;
+
+class CrossTabBus {
+  private channel: BroadcastChannel;
+  private handlers = new Map<string, Set<Handler>>();
+  private anyHandlers = new Set<Handler<CrossTabEvent>>();
+  private lastByType = new Map<string, CrossTabEvent>();
+  private readonly selfOrigin: string;
+
+  constructor(channelName: string) {
+    this.channel = new BroadcastChannel(channelName);
+    this.selfOrigin = this.ensureSessionOrigin();
+
+    this.channel.addEventListener("message", (e: MessageEvent) => {
+      const msg = e.data as CrossTabEvent;
+      // Ignore self if desired; remove this if you want same-tab processing only via dispatch below
+      if (msg && msg.origin && msg.origin === this.selfOrigin) return;
+
+      console.debug("📨 CrossTab: Received BroadcastChannel message:", msg);
+      this.dispatch(msg);
+    });
+  }
+
+  // Added opts: { dispatchLocal?: boolean }
+  emit<T extends object>(type: string, payload?: T, opts?: { dispatchLocal?: boolean }) {
+    const msg: CrossTabEvent = {
+      type,
+      ...(payload as object),
+      origin: this.selfOrigin,
+      ts: Date.now(),
+    };
+    this.channel.postMessage(msg);
+
+    // Default: do NOT dispatch locally to avoid handling own event in the sender tab.
+    if (opts?.dispatchLocal) {
+      this.dispatch(msg);
+    }
+  }
+
+  on<T extends CrossTabEvent>(
+    type: string,
+    handler: Handler<T>,
+    opts?: { replayLast?: boolean }
+  ) {
+    let set = this.handlers.get(type);
+    if (!set) {
+      set = new Set();
+      this.handlers.set(type, set);
+    }
+    set.add(handler as Handler);
+
+    if (opts?.replayLast) {
+      const last = this.lastByType.get(type);
+      if (last) {
+        try {
+          (handler as Handler)(last as unknown as T);
+        } catch (e) {
+          console.error("CrossTab: error replaying last event to handler", e);
+        }
+      }
+    }
+    return () => this.off(type, handler as Handler);
+  }
+
+  onAny(handler: Handler<CrossTabEvent>) {
+    this.anyHandlers.add(handler);
+    return () => this.anyHandlers.delete(handler);
+  }
+
+  off(type: string, handler: Handler) {
+    const set = this.handlers.get(type);
+    if (set) set.delete(handler);
+  }
+
+  private dispatch(msg: CrossTabEvent) {
+    this.lastByType.set(msg.type, msg);
+
+    const set = this.handlers.get(msg.type);
+    const count = set?.size ?? 0;
+    console.debug(`✅ CrossTab: Processing message for ${count} handlers`);
+    console.debug(`🎯 CrossTab: Emitting to ${count} handlers: ${msg.type}`);
+
+    if (set) {
+      set.forEach((h) => {
+        try {
+          h(msg);
+        } catch (e) {
+          console.error("CrossTab handler error", e);
+        }
+      });
+    }
+
+    if (this.anyHandlers.size) {
+      this.anyHandlers.forEach((h) => {
+        try {
+          h(msg);
+        } catch (e) {
+          console.error("CrossTab any-handler error", e);
+        }
+      });
+    }
+  }
+
+  private ensureSessionOrigin(): string {
+    try {
+      const key = "__cross_tab_origin__";
+      let id = sessionStorage.getItem(key);
+      if (!id) {
+        id =
+          "randomUUID" in crypto
+            ? (crypto as any).randomUUID()
+            : `${Date.now()}-${Math.random()}`;
+        sessionStorage.setItem(key, id);
+      }
+      return id;
+    } catch {
+      return `${Date.now()}-${Math.random()}`;
+    }
+  }
+}
+
+// Global singleton (prevents multiple instances under HMR)
+const GLOBAL_KEY = "__app_cross_tab_bus_singleton__";
+const CHANNEL_NAME = "pathfinder-cross-tab";
+
+const bus: CrossTabBus =
+  (globalThis as any)[GLOBAL_KEY] ||
+  ((globalThis as any)[GLOBAL_KEY] = new CrossTabBus(CHANNEL_NAME));
+
+export default bus;

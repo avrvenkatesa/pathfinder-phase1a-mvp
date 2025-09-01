@@ -3,6 +3,7 @@ import {
   contactSkills,
   contactCertifications,
   contactAvailability,
+  workflowAssignments,
   users,
   workflows,
   workflowInstances,
@@ -48,6 +49,7 @@ export interface IStorage {
   createContact(contact: InsertContact, userId: string): Promise<Contact>;
   updateContact(id: string, contact: UpdateContact, userId: string): Promise<Contact | undefined>;
   deleteContact(id: string, userId: string): Promise<boolean>;
+  checkContactAssignments(contactId: string, userId: string): Promise<any[]>;
   getContactHierarchy(userId: string): Promise<Contact[]>;
   getContactStats(userId: string): Promise<ContactStats>;
   
@@ -235,12 +237,31 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
+  async checkContactAssignments(contactId: string, userId: string): Promise<any[]> {
+    // Check for active workflow assignments
+    const assignments = await db
+      .select({
+        id: workflowAssignments.id,
+        workflowName: workflowAssignments.workflowName,
+        status: workflowAssignments.status,
+        assignedAt: workflowAssignments.assignedAt,
+        notes: workflowAssignments.notes,
+      })
+      .from(workflowAssignments)
+      .where(and(
+        eq(workflowAssignments.contactId, contactId),
+        eq(workflowAssignments.status, "active")
+      ));
+    
+    return assignments;
+  }
+
   async getContactHierarchy(userId: string): Promise<Contact[]> {
     // Get all contacts for the user
     const allContacts = await db
       .select()
       .from(contacts)
-      .where(and(eq(contacts.userId, userId), eq(contacts.isActive, true)))
+      .where(eq(contacts.userId, userId))
       .orderBy(contacts.name);
 
     // Build hierarchy
@@ -275,7 +296,7 @@ export class DatabaseStorage implements IStorage {
     const allContacts = await db
       .select()
       .from(contacts)
-      .where(and(eq(contacts.userId, userId), eq(contacts.isActive, true)));
+      .where(eq(contacts.userId, userId));
 
     const stats = {
       totalCompanies: 0,

@@ -17,10 +17,11 @@ export interface ContactWebSocketConfig {
 }
 
 export interface WebSocketMessage {
-  type: 'CONTACT_AVAILABILITY_UPDATE' | 'CONTACT_WORKLOAD_UPDATE' | 'CONTACT_STATUS_CHANGE' | 'HEARTBEAT' | 'AUTH_REQUIRED' | 'ERROR';
+  type: 'CONTACT_AVAILABILITY_UPDATE' | 'CONTACT_WORKLOAD_UPDATE' | 'CONTACT_STATUS_CHANGE' | 'CONTACT_DELETED' | 'CONTACT_MODIFIED' | 'CONTACT_VALIDATION_ERROR' | 'HEARTBEAT' | 'AUTH_REQUIRED' | 'ERROR';
   data?: any;
   timestamp: string;
   contactId?: string;
+  affectedWorkflows?: string[];
 }
 
 export interface ContactAvailabilitySubscription {
@@ -37,6 +38,7 @@ export class ContactWebSocketService {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private subscriptions = new Map<string, Set<(update: ContactAvailabilityUpdate) => void>>();
   private globalListeners = new Set<(message: WebSocketMessage) => void>();
+  private workflowSubscribers = new Map<string, Set<(msg: WebSocketMessage) => void>>();
   private messageQueue: WebSocketMessage[] = [];
   private lastHeartbeat: number = 0;
 
@@ -46,12 +48,15 @@ export class ContactWebSocketService {
   private onReconnect: (() => void) | null = null;
 
   constructor(config?: Partial<ContactWebSocketConfig>) {
+    // DISABLED: WebSocket service - using BroadcastChannel instead
+    console.log('⚠️ ContactWebSocketService: WebSocket disabled in favor of BroadcastChannel');
+    
     this.config = {
-      url: (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_WS_URL) || 'ws://localhost:3001/contacts',
+      url: '',
       reconnectInterval: 5000,
-      maxReconnectAttempts: 10,
-      heartbeatInterval: 30000, // 30 seconds
-      authToken: this.getAuthToken(),
+      maxReconnectAttempts: 0, // Prevent reconnection attempts
+      heartbeatInterval: 30000,
+      authToken: undefined,
       ...config
     };
   }
@@ -75,13 +80,19 @@ export class ContactWebSocketService {
 
   private setState(newState: WebSocketState): void {
     if (this.state !== newState) {
+      const oldState = this.state;
       this.state = newState;
       this.onStateChange?.(newState);
+      
+      // Handle reconnection success
+      if (oldState === WebSocketState.RECONNECTING && newState === WebSocketState.CONNECTED) {
+        this.onReconnect?.();
+      }
     }
   }
 
   private authenticate(): void {
-    if (this.config.authToken && this.ws) {
+    if (this.config.authToken && this.state === WebSocketState.CONNECTED) {
       this.sendMessage({
         type: 'AUTH_REQUIRED',
         data: { token: this.config.authToken },
@@ -90,25 +101,30 @@ export class ContactWebSocketService {
     }
   }
 
-  private sendMessage(message: WebSocketMessage): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      try {
-        this.ws.send(JSON.stringify(message));
-      } catch (error) {
-        console.error('Failed to send WebSocket message:', error);
-        this.messageQueue.push(message);
+  private setupHeartbeat(): void {
+    this.clearHeartbeat();
+    
+    this.heartbeatInterval = setInterval(() => {
+      if (this.state === WebSocketState.CONNECTED) {
+        this.sendMessage({
+          type: 'HEARTBEAT',
+          timestamp: new Date().toISOString()
+        });
+        
+        // Check if we missed heartbeats (connection might be dead)
+        const now = Date.now();
+        if (this.lastHeartbeat > 0 && (now - this.lastHeartbeat) > this.config.heartbeatInterval * 2) {
+          console.warn('Heartbeat timeout detected, reconnecting...');
+          this.reconnect();
+        }
       }
-    } else {
-      this.messageQueue.push(message);
-    }
+    }, this.config.heartbeatInterval);
   }
 
-  private processMessageQueue(): void {
-    while (this.messageQueue.length > 0 && this.ws?.readyState === WebSocket.OPEN) {
-      const message = this.messageQueue.shift();
-      if (message) {
-        this.sendMessage(message);
-      }
+  private clearHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
   }
 
@@ -150,6 +166,40 @@ export class ContactWebSocketService {
         }
       }
 
+      // Handle deletion/modification events for workflow subscribers
+      if (message.type === 'CONTACT_DELETED' || message.type === 'CONTACT_MODIFIED') {
+        const targets = Array.isArray(message.affectedWorkflows) ? message.affectedWorkflows : [];
+
+        if (targets.length) {
+          // Notify only the subscribers of impacted workflows
+          targets.forEach((wfId) => {
+            const set = this.workflowSubscribers.get(`workflow:${wfId}`);
+            if (set && set.size) {
+              set.forEach((callback) => {
+                try {
+                  callback(message);
+                } catch (error) {
+                  console.error('Error in workflow subscriber callback:', error);
+                }
+              });
+            }
+          });
+        } else {
+          // Fallback: if server didn't include affectedWorkflows, notify all workflow subscribers
+          this.workflowSubscribers.forEach((callbacks, key) => {
+            if (key.startsWith('workflow:')) {
+              callbacks.forEach(callback => {
+                try {
+                  callback(message);
+                } catch (error) {
+                  console.error('Error in workflow deletion callback:', error);
+                }
+              });
+            }
+          });
+        }
+      }
+
       // Handle authentication requirements
       if (message.type === 'AUTH_REQUIRED') {
         this.authenticate();
@@ -167,141 +217,72 @@ export class ContactWebSocketService {
     }
   }
 
-  private startHeartbeat(): void {
-    this.stopHeartbeat();
-    this.heartbeatInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.sendMessage({
-          type: 'HEARTBEAT',
-          timestamp: new Date().toISOString()
-        });
-
-        // Check if we've missed heartbeats (connection might be stale)
-        const now = Date.now();
-        if (this.lastHeartbeat > 0 && now - this.lastHeartbeat > this.config.heartbeatInterval * 2) {
-          console.warn('WebSocket heartbeat timeout, reconnecting...');
-          this.reconnect();
-        }
+  private processMessageQueue(): void {
+    while (this.messageQueue.length > 0 && this.state === WebSocketState.CONNECTED) {
+      const message = this.messageQueue.shift();
+      if (message) {
+        this.sendMessage(message);
       }
-    }, this.config.heartbeatInterval);
-
-    this.lastHeartbeat = Date.now();
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
     }
   }
 
-  public connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.state === WebSocketState.CONNECTED) {
-        resolve();
-        return;
-      }
-
-      this.setState(WebSocketState.CONNECTING);
-
+  private sendMessage(message: WebSocketMessage): void {
+    if (this.state === WebSocketState.CONNECTED && this.ws) {
       try {
-        this.ws = new WebSocket(this.config.url);
-
-        const onOpen = () => {
-          this.setState(WebSocketState.CONNECTED);
-          this.reconnectAttempts = 0;
-          this.authenticate();
-          this.startHeartbeat();
-          this.processMessageQueue();
-          this.ws?.removeEventListener('open', onOpen);
-          resolve();
-        };
-
-        const onError = (error: Event) => {
-          this.setState(WebSocketState.ERROR);
-          this.ws?.removeEventListener('error', onError);
-          reject(new Error('WebSocket connection failed'));
-        };
-
-        this.ws.addEventListener('open', onOpen);
-        this.ws.addEventListener('error', onError);
-
-        this.ws.addEventListener('message', this.handleMessage.bind(this));
-
-        this.ws.addEventListener('close', (event) => {
-          this.setState(WebSocketState.DISCONNECTED);
-          this.stopHeartbeat();
-
-          if (!event.wasClean && this.reconnectAttempts < this.config.maxReconnectAttempts) {
-            this.scheduleReconnect();
-          }
-        });
-
+        this.ws.send(JSON.stringify(message));
       } catch (error) {
-        this.setState(WebSocketState.ERROR);
-        reject(error);
+        console.error('Failed to send WebSocket message:', error);
+        this.messageQueue.push(message);
+        this.reconnect();
       }
-    });
+    } else {
+      // Queue message for when connection is restored
+      this.messageQueue.push(message);
+    }
+  }
+
+  public connect(): void {
+    // DISABLED: WebSocket connections disabled - using BroadcastChannel instead
+    console.log('⚠️ ContactWebSocketService.connect() called but WebSocket is disabled');
+    console.log('✅ Using BroadcastChannel for cross-tab communication instead');
+    this.setState(WebSocketState.CONNECTED); // Mock connected state for UI
+    return;
+  }
+
+  private scheduleReconnect(): void {
+    // DISABLED: WebSocket reconnection disabled - using BroadcastChannel instead
+    console.log('⚠️ ContactWebSocketService.scheduleReconnect() called but WebSocket is disabled');
+    return;
+  }
+
+  public reconnect(): void {
+    // DISABLED: WebSocket reconnection disabled - using BroadcastChannel instead
+    console.log('⚠️ ContactWebSocketService.reconnect() called but WebSocket is disabled');
+    return;
   }
 
   public disconnect(): void {
-    this.stopHeartbeat();
-    
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
 
+    this.clearHeartbeat();
+
     if (this.ws) {
-      this.ws.close(1000, 'Normal closure');
+      this.ws.close(1000, 'Client disconnect');
       this.ws = null;
     }
 
     this.setState(WebSocketState.DISCONNECTED);
   }
 
-  private scheduleReconnect(): void {
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-    }
-
-    const delay = Math.min(
-      this.config.reconnectInterval * Math.pow(2, this.reconnectAttempts),
-      30000 // Max 30 seconds
-    );
-
-    this.setState(WebSocketState.RECONNECTING);
-
-    this.reconnectTimeout = setTimeout(() => {
-      this.reconnectAttempts++;
-      this.connect().then(() => {
-        this.onReconnect?.();
-      }).catch((error) => {
-        console.error('Reconnection attempt failed:', error);
-        if (this.reconnectAttempts < this.config.maxReconnectAttempts) {
-          this.scheduleReconnect();
-        } else {
-          this.setState(WebSocketState.ERROR);
-          this.onError?.(new Error('Max reconnection attempts reached'));
-        }
-      });
-    }, delay);
-  }
-
-  public reconnect(): void {
-    this.disconnect();
-    this.reconnectAttempts = 0;
-    this.connect();
-  }
-
-  // Subscription management
-
   public subscribeToContact(contactId: string, callback: (update: ContactAvailabilityUpdate) => void): () => void {
     if (!this.subscriptions.has(contactId)) {
       this.subscriptions.set(contactId, new Set());
     }
-
-    this.subscriptions.get(contactId)!.add(callback);
+    
+    this.subscriptions.get(contactId)?.add(callback);
 
     // Send subscription message if connected
     if (this.state === WebSocketState.CONNECTED) {
@@ -394,6 +375,23 @@ export class ContactWebSocketService {
       subscriptions: this.subscriptions.size,
       queuedMessages: this.messageQueue.length,
       lastHeartbeat: this.lastHeartbeat
+    };
+  }
+
+  // NEW: Workflow-specific subscription method for contact deletion/modification events
+  public subscribeToContactDeletions(workflowId: string, callback: (msg: WebSocketMessage) => void): () => void {
+    const key = `workflow:${workflowId}`;
+    if (!this.workflowSubscribers.has(key)) {
+      this.workflowSubscribers.set(key, new Set());
+    }
+    this.workflowSubscribers.get(key)?.add(callback);
+
+    // Return unsubscribe function
+    return () => {
+      this.workflowSubscribers.get(key)?.delete(callback);
+      if (this.workflowSubscribers.get(key)?.size === 0) {
+        this.workflowSubscribers.delete(key);
+      }
     };
   }
 }

@@ -305,14 +305,12 @@ export function useContactAvailability(
 
   // Initialize WebSocket connection
   useEffect(() => {
-    contactWebSocketService.onStateChanged(setConnectionState);
+    // DISABLED: contactWebSocketService.onStateChanged(setConnectionState);
     contactWebSocketService.onErrorOccurred((error) => {
       console.error('Contact WebSocket error:', error);
     });
 
-    contactWebSocketService.connect().catch((error) => {
-      console.error('Failed to connect to contact WebSocket:', error);
-    });
+    // DISABLED: contactWebSocketService.connect(); // Using BroadcastChannel instead
 
     return () => {
       contactWebSocketService.disconnect();

@@ -38,6 +38,9 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Contact, InsertContact } from "@shared/schema";
 import { z } from "zod";
 import { X, Plus, Save, User, Building, Settings, Clock, Briefcase } from "lucide-react";
+import { ValidationFeedback } from "@/components/validation/ValidationFeedback";
+import { validationService, ValidationResult } from "@/services/validationService";
+import ContactCrossTabBanner from "@/components/ContactCrossTabBanner";
 
 const enhancedFormSchema = insertContactSchema.extend({
   name: z.string().min(1, "Name is required"),
@@ -121,6 +124,10 @@ type FormContentProps = {
   handlePrevious: () => void;
   handleNext: () => void;
   onSubmit: (data: EnhancedFormData) => void;
+  customSkillInput: string;
+  setCustomSkillInput: (value: string) => void;
+  validationResults: ValidationResult;
+  isValidating: boolean;
 };
 
 /**
@@ -144,10 +151,23 @@ function FormContent({
   handlePrevious,
   handleNext,
   onSubmit,
+  validationResults,
+  isValidating,
+  customSkillInput,
+  setCustomSkillInput,
 }: FormContentProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Real-time validation feedback */}
+        <ValidationFeedback
+          errors={validationResults.errors}
+          warnings={validationResults.warnings}
+          isValid={validationResults.isValid}
+          isValidating={isValidating}
+          className="mb-4"
+        />
+
         <Tabs value={currentStep} onValueChange={setCurrentStep}>
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="basic" className="flex items-center gap-1">
@@ -535,7 +555,7 @@ function FormContent({
                   <FormLabel>Skills</FormLabel>
                   <div className="mt-2 space-y-2">
                     <div className="flex flex-wrap gap-2">
-                      {(form.watch("skills") || []).map((skill) => (
+                      {(form.watch("skills") || []).map((skill: string) => (
                         <Badge key={skill} variant="secondary" className="flex items-center gap-1">
                           {skill}
                           <X className="h-3 w-3 cursor-pointer" onClick={() => removeSkill(skill)} />
@@ -559,6 +579,40 @@ function FormContent({
                             {skill}
                           </Button>
                         ))}
+                    </div>
+                    
+                    {/* Custom Skill Input */}
+                    <div className="flex gap-2 mt-3">
+                      <Input
+                        placeholder="Type a custom skill..."
+                        value={customSkillInput}
+                        onChange={(e) => setCustomSkillInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const skillName = customSkillInput.trim();
+                            if (skillName && !(form.watch("skills") || []).includes(skillName)) {
+                              addSkill(skillName);
+                              setCustomSkillInput('');
+                            }
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const skillName = customSkillInput.trim();
+                          if (skillName && !(form.watch("skills") || []).includes(skillName)) {
+                            addSkill(skillName);
+                            setCustomSkillInput('');
+                          }
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
 
@@ -1071,6 +1125,13 @@ export default function EnhancedContactForm({
   const [open, setOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState("basic");
   const [isDraft, setIsDraft] = useState(false);
+  const [customSkillInput, setCustomSkillInput] = useState("");
+  const [validationResults, setValidationResults] = useState<ValidationResult>({
+    isValid: true,
+    errors: [],
+    warnings: []
+  });
+  const [isValidating, setIsValidating] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -1192,12 +1253,67 @@ export default function EnhancedContactForm({
     }
   }, [form, isEditMode]);
 
+  // Reset form when dialog opens for new contacts
+  useEffect(() => {
+    if (!isEditMode && open) {
+      // Clear localStorage draft and reset form to defaults
+      localStorage.removeItem("contactDraft");
+      form.reset({
+        name: "",
+        type: "company",
+        firstName: "",
+        lastName: "",
+        jobTitle: "",
+        department: "",
+        email: "",
+        phone: "",
+        secondaryPhone: "",
+        address: "",
+        website: "",
+        description: "",
+        parentId: "",
+        skills: [],
+        availabilityStatus: "available",
+        preferredWorkHours: "",
+        workStartTime: "09:00",
+        workEndTime: "17:00",
+        workTimezone: "UTC",
+        rolePreference: "any",
+        projectTypes: [],
+        assignmentCapacity: "normal",
+        workflowRole: undefined,
+        maxConcurrentTasks: 5,
+        costPerHour: undefined,
+        timezone: "UTC",
+        languages: ["English"],
+        currentWorkload: 0,
+        skillProficiency: {},
+        certifications: [],
+        tags: [],
+        notes: "",
+        isActive: true,
+      });
+      setIsDraft(false);
+      setCurrentStep("basic");
+      setValidationResults({
+        isValid: true,
+        errors: [],
+        warnings: []
+      });
+    }
+  }, [open, isEditMode, form]);
+
   const createMutation = useMutation({
     mutationFn: async (data: InsertContact) => {
-      const endpoint = isEditMode ? `/api/contacts/${contact!.id}` : "/api/contacts";
-      const method = isEditMode ? "PUT" : "POST";
-      const response = await apiRequest(method, endpoint, data);
-      return response.json();
+      if (isEditMode && contact?.id) {
+        // Use ETag-aware client for updates
+        const { updateContact } = await import("@/lib/contactsClient");
+        return await updateContact(contact.id, data);
+      } else {
+        // Use regular API for creation
+        const response = await apiRequest("POST", "/api/contacts", data);
+        return response.json();
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
@@ -1212,7 +1328,25 @@ export default function EnhancedContactForm({
       form.reset();
       onClose?.();
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      if (error.code === 428) {
+        toast({
+          title: "Precondition Required", 
+          description: "Please reload this contact before saving (precondition required).",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (error.code === 412) {
+        toast({
+          title: "Contact Changed",
+          description: "This contact changed in another tab. Reload to get the latest, then try again.",
+          variant: "destructive", 
+        });
+        return;
+      }
+      
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
@@ -1232,7 +1366,63 @@ export default function EnhancedContactForm({
     },
   });
 
-  const onSubmit = (data: EnhancedFormData) => {
+  // Real-time validation function
+  const validateFormData = useCallback(async (data: Partial<EnhancedFormData>) => {
+    if (!data.name && !data.email && !data.type) return; // Skip validation for empty forms
+    
+    setIsValidating(true);
+    try {
+      const result = await validationService.validateEntity('contact', data);
+      setValidationResults(result);
+      
+      // Show validation warnings in toast if any
+      if (result.warnings.length > 0) {
+        toast({
+          title: "Validation Warnings",
+          description: `${result.warnings.length} warning(s) found`,
+          variant: "default",
+        });
+      }
+    } catch (error) {
+      console.error('Validation error:', error);
+    } finally {
+      setIsValidating(false);
+    }
+  }, [toast]);
+
+  // Watch for form changes and validate
+  useEffect(() => {
+    const subscription = form.watch((data) => {
+      // Debounce validation to avoid too many API calls
+      const timeoutId = setTimeout(() => {
+        const cleanData = {
+          ...data,
+          skills: (data.skills || []).filter((s): s is string => typeof s === 'string' && s.trim() !== '')
+        };
+        validateFormData(cleanData);
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form, validateFormData]);
+
+  const onSubmit = async (data: EnhancedFormData) => {
+    // Final validation before submission
+    setIsValidating(true);
+    const finalValidation = await validationService.validateEntity('contact', data);
+    setIsValidating(false);
+    
+    if (!finalValidation.isValid) {
+      toast({
+        title: "Validation Failed",
+        description: "Please fix the validation errors before submitting",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const submitData: InsertContact = {
       ...data,
       parentId: data.parentId && data.parentId !== "none" ? data.parentId : undefined,
@@ -1349,6 +1539,32 @@ export default function EnhancedContactForm({
             </Button>
           )}
         </div>
+
+        {/* Cross-tab Banner for Edit Mode */}
+        {isEditMode && contact?.id && (
+          <ContactCrossTabBanner
+            contactId={contact.id}
+            onReload={(freshContact) => {
+              // Update form with fresh data
+              form.reset({
+                name: freshContact.name || "",
+                type: freshContact.type || "person",
+                email: freshContact.email || "",
+                phone: freshContact.phone || "",
+                company: freshContact.company || "",
+                jobTitle: freshContact.jobTitle || "",
+                description: freshContact.description || "",
+                parentId: freshContact.parentId || undefined,
+                ...freshContact
+              });
+            }}
+            onDeleted={() => {
+              // Disable form when contact is deleted
+              onClose?.();
+            }}
+          />
+        )}
+
         <div className="flex items-center space-x-2">
           <Progress value={progress} className="flex-1" />
           <span className="text-sm text-gray-500">{progress}% Complete</span>
@@ -1372,6 +1588,10 @@ export default function EnhancedContactForm({
           handlePrevious={handlePrevious}
           handleNext={handleNext}
           onSubmit={onSubmit}
+          validationResults={validationResults}
+          isValidating={isValidating}
+          customSkillInput={customSkillInput}
+          setCustomSkillInput={setCustomSkillInput}
         />
       </div>
     );
@@ -1427,6 +1647,10 @@ export default function EnhancedContactForm({
           handlePrevious={handlePrevious}
           handleNext={handleNext}
           onSubmit={onSubmit}
+          validationResults={validationResults}
+          isValidating={isValidating}
+          customSkillInput={customSkillInput}
+          setCustomSkillInput={setCustomSkillInput}
         />
       </DialogContent>
     </Dialog>
