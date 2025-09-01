@@ -29,7 +29,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import type { Contact } from '@shared/schema';
-import { contactWebSocketService, WebSocketMessage } from '@/services/contact-websocket.service';
+import { subscribe, CrossTabEvent } from '@/lib/crossTab';
 import WorkflowCrossTabBanner from '@/components/WorkflowCrossTabBanner';
 
 // Mock contact data with workflow-specific properties
@@ -696,7 +696,7 @@ export function WorkflowContactAssignment({
   useEffect(() => {
     const workflowId = `${taskType}-${taskName}`;
     
-    const handleWebSocketMessage = (message: WebSocketMessage) => {
+    const handleWebSocketMessage = (message: any) => {
       if (message.type === 'CONTACT_DELETED') {
         // Add to deleted contacts set
         setDeletedContacts(prev => new Set([...prev, message.contactId!]));
@@ -744,8 +744,15 @@ export function WorkflowContactAssignment({
       }
     };
 
-    // Subscribe to WebSocket events for this workflow
-    const unsubscribe = contactWebSocketService.subscribeToContactDeletions(workflowId, handleWebSocketMessage);
+    // Subscribe to BroadcastChannel events for this workflow
+    const unsubscribe = subscribe((event: CrossTabEvent) => {
+      handleWebSocketMessage({
+        type: event.type === 'contact:deleted' ? 'CONTACT_DELETED' : 'CONTACT_MODIFIED',
+        contactId: event.id,
+        data: event.summary,
+        timestamp: new Date(event.ts).toISOString()
+      });
+    });
 
     return () => unsubscribe();
   }, [taskType, taskName, toast]);

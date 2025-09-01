@@ -83,7 +83,7 @@ export async function deleteContact(id: string) {
   }
   if (!(res.status === 204 || res.ok)) throw new Error(`DELETE failed: ${res.status}`);
 
-  // Announce deletion after success
-  announceContactDeleted(id);
+  // Announce deletion after success (contact info not available post-deletion)
+  announceContactDeleted(id, { name: 'Deleted Contact', type: 'person' });
   etagCache.delete(id);
 }

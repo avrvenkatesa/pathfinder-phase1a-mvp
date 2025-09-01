@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { contactWebSocketService } from '@/services/contact-websocket.service';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -140,31 +139,32 @@ export function WorkflowPage() {
   const [instance, setInstance] = useState<WorkflowInstance>(mockInstance);
   const { toast } = useToast();
 
-  // WebSocket connection for cross-tab validation
+  // BroadcastChannel connection for cross-tab validation
   useEffect(() => {
-    console.log('WorkflowPage: Connecting to WebSocket for cross-tab validation');
-    contactWebSocketService.connect();
+    console.log('WorkflowPage: Setting up BroadcastChannel for cross-tab validation');
     
-    const unsubscribe = contactWebSocketService.subscribeToContactDeletions('test-workflow-cross-tab', (message) => {
-      console.log('WorkflowPage: Received WebSocket message:', message);
+    const { subscribe } = require('@/lib/crossTab');
+    
+    const unsubscribe = subscribe((event: any) => {
+      console.log('WorkflowPage: Received BroadcastChannel event:', event);
       
-      if (message.type === 'CONTACT_DELETED') {
+      if (event.type === 'contact:deleted') {
         toast({
           title: "Contact Deleted",
-          description: `Contact "${message.data?.name || 'Unknown'}" was deleted in another tab. This may affect workflow assignments.`,
+          description: `Contact "${event.summary?.name || 'Unknown'}" was deleted in another tab. This may affect workflow assignments.`,
           variant: "destructive",
         });
-      } else if (message.type === 'CONTACT_MODIFIED') {
+      } else if (event.type === 'contact:changed') {
         toast({
           title: "Contact Modified",
-          description: `Contact "${message.data?.name || 'Unknown'}" was updated in another tab. Review assignments if needed.`,
+          description: `Contact "${event.summary?.name || 'Unknown'}" was updated in another tab. Review assignments if needed.`,
           variant: "default",
         });
       }
     });
 
     return () => {
-      console.log('WorkflowPage: Cleaning up WebSocket subscription');
+      console.log('WorkflowPage: Cleaning up BroadcastChannel subscription');
       unsubscribe();
     };
   }, [toast]);
