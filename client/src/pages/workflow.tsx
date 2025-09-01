@@ -21,6 +21,7 @@ import { WorkflowDesigner } from '@/components/workflow-designer';
 import { BpmnValidator, BpmnValidationDisplay } from '@/components/bpmn-validator';
 import { WorkflowContactAssignment } from '@/components/workflow-contact-assignment';
 import { WorkflowExecutionMonitor } from '@/components/workflow-execution-engine';
+import WorkflowCrossTabBanner from '@/components/WorkflowCrossTabBanner';
 import type { WorkflowDefinition, WorkflowInstance, Contact } from '@shared/schema';
 
 // Mock workflow data
@@ -213,6 +214,24 @@ export function WorkflowPage() {
     console.log('Selecting element:', elementId);
   };
 
+  // Extract assigned contact IDs from workflow elements
+  const assignedContactIds = React.useMemo(() => {
+    return workflow.elements
+      .filter(element => element.properties?.assignee)
+      .map(element => element.properties.assignee)
+      .filter(Boolean) as string[];
+  }, [workflow.elements]);
+
+  // Create contact lookup for banner
+  const contactLookup = React.useMemo(() => {
+    const lookup: Record<string, { name?: string; type?: string }> = {};
+    assignedContactIds.forEach(id => {
+      // For now use the ID as name, in real implementation this would fetch contact details
+      lookup[id] = { name: id, type: 'person' };
+    });
+    return lookup;
+  }, [assignedContactIds]);
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
@@ -274,6 +293,32 @@ export function WorkflowPage() {
               Execute
             </Button>
           </div>
+        </div>
+
+        {/* Workflow Cross-tab Banner */}
+        <div className="mt-4 px-0">
+          <WorkflowCrossTabBanner
+            contactIds={assignedContactIds}
+            contactLookup={contactLookup}
+            onReloadWorkflow={() => {
+              // Refresh workflow data
+              toast({
+                title: "Workflow Refreshed",
+                description: "Workflow data has been reloaded due to contact changes.",
+              });
+            }}
+            onAnyContactChanged={(ids) => {
+              console.log("Workflow assignees changed:", ids);
+            }}
+            onAnyContactDeleted={(ids) => {
+              console.log("Workflow assignees deleted:", ids);
+              toast({
+                title: "Assignment Issue",
+                description: `Contact(s) deleted: ${ids.join(", ")}. Please review assignments.`,
+                variant: "destructive",
+              });
+            }}
+          />
         </div>
 
         {/* Tab Navigation */}

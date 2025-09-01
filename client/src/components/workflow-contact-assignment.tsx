@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import type { Contact } from '@shared/schema';
 import { contactWebSocketService, WebSocketMessage } from '@/services/contact-websocket.service';
+import WorkflowCrossTabBanner from '@/components/WorkflowCrossTabBanner';
 
 // Mock contact data with workflow-specific properties
 const mockContacts: Contact[] = [
@@ -822,6 +823,21 @@ export function WorkflowContactAssignment({
     });
   };
   
+  // Extract assigned contact IDs for banner
+  const assignedContactIds = selectedContacts.map(contact => contact.id);
+  
+  // Create contact lookup for banner
+  const contactLookup = React.useMemo(() => {
+    const lookup: Record<string, { name?: string; type?: string }> = {};
+    selectedContacts.forEach(contact => {
+      lookup[contact.id] = { 
+        name: contact.name || `${contact.firstName} ${contact.lastName}`.trim(),
+        type: contact.type 
+      };
+    });
+    return lookup;
+  }, [selectedContacts]);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -840,6 +856,35 @@ export function WorkflowContactAssignment({
             )}
           </DialogDescription>
         </DialogHeader>
+        
+        {/* Cross-tab Banner for assigned contacts */}
+        <div className="mb-4">
+          <WorkflowCrossTabBanner
+            contactIds={assignedContactIds}
+            contactLookup={contactLookup}
+            onReloadWorkflow={() => {
+              // Refresh contact selection
+              setSelectedContacts(currentAssignees);
+              toast({
+                title: "Assignment Refreshed",
+                description: "Contact assignments have been refreshed due to changes.",
+              });
+            }}
+            onAnyContactChanged={(ids) => {
+              console.log("Assigned contacts changed:", ids);
+            }}
+            onAnyContactDeleted={(ids) => {
+              console.log("Assigned contacts deleted:", ids);
+              // Remove deleted contacts from selection
+              setSelectedContacts(prev => prev.filter(contact => !ids.includes(contact.id)));
+              toast({
+                title: "Assignment Updated",
+                description: `Deleted contact(s) removed from assignment: ${ids.join(", ")}`,
+                variant: "destructive",
+              });
+            }}
+          />
+        </div>
         
         {/* NEW: Validation Alerts */}
         <ValidationAlert 
