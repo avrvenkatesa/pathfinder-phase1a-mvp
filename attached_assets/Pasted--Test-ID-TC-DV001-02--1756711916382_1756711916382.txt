@@ -1,0 +1,91 @@
+## Test ID: TC-DV001-02                                                                                                       │ │
+│ │ ## Acceptance Criteria: AC2 - Workflow definition validation against contact assignments                                      │ │
+│ │ ## Status: **NOT TESTED**                                                                                                     │ │
+│ │                                                                                                                               │ │
+│ │ ## Test Objective                                                                                                             │ │
+│ │ Verify that workflow definitions validate assigned contacts based on skills, availability, and active status.                 │ │
+│ │                                                                                                                               │ │
+│ │ ## Pre-Test Setup                                                                                                             │ │
+│ │ Please confirm before starting:                                                                                               │ │
+│ │ - [ ] You have access to the application                                                                                      │ │
+│ │ - [ ] You have multiple contacts with different skills in the system                                                          │ │
+│ │ - [ ] You can create/edit workflows                                                                                           │ │
+│ │ - [ ] Some contacts have skills defined, others don't                                                                         │ │
+│ │                                                                                                                               │ │
+│ │ ---                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ## Test Steps                                                                                                                 │ │
+│ │                                                                                                                               │ │
+│ │ ### Step 1: Create Workflow with Skill Requirements                                                                           │ │
+│ │ 1. Navigate to Workflows page                                                                                                 │ │
+│ │ 2. Create a new workflow named "Test Skill Validation"                                                                        │ │
+│ │ 3. Look for a "Required Skills" or "Skill Requirements" field                                                                 │ │
+│ │ 4. Add required skills:                                                                                                       │ │
+│ │    - JavaScript                                                                                                               │ │
+│ │    - React                                                                                                                    │ │
+│ │    - Node.js                                                                                                                  │ │
+│ │                                                                                                                               │ │
+│ │ **Question 1**: Can you add skill requirements to the workflow? What UI is available for this?                                │ │
+│ │                                                                                                                               │ │
+│ │ ---                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### Step 2: Attempt to Assign Contact WITHOUT Required Skills                                                                 │ │
+│ │ 1. In the workflow, click "Assign Contact" or similar                                                                         │ │
+│ │ 2. Look for a contact that does NOT have JavaScript, React, or Node.js skills                                                 │ │
+│ │ 3. Try to assign this contact to the workflow                                                                                 │ │
+│ │ 4. Attempt to save                                                                                                            │ │
+│ │                                                                                                                               │ │
+│ │ **Question 2**:                                                                                                               │ │
+│ │ - What happens when you try to assign a contact without required skills?                                                      │ │
+│ │ - Do you see any validation messages?                                                                                         │ │
+│ │ - Can you still save the workflow?                                                                                            │ │
+│ │                                                                                                                               │ │
+│ │ ---                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### Step 3: Assign Contact WITH Required Skills                                                                               │ │
+│ │ 1. Find or create a contact with the required skills (JavaScript, React, Node.js)                                             │ │
+│ │ 2. Assign this contact to the workflow                                                                                        │ │
+│ │ 3. Save the workflow                                                                                                          │ │
+│ │                                                                                                                               │ │
+│ │ **Question 3**:                                                                                                               │ │
+│ │ - Does the assignment work with matching skills?                                                                              │ │
+│ │ - Any validation messages (positive or negative)?                                                                             │ │
+│ │ - Does the save succeed?                                                                                                      │ │
+│ │                                                                                                                               │ │
+│ │ ---                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### Step 4: Test Inactive Contact Assignment                                                                                  │ │
+│ │ 1. In a separate tab, navigate to Contacts                                                                                    │ │
+│ │ 2. Find the contact you just assigned                                                                                         │ │
+│ │ 3. Deactivate or mark the contact as inactive/unavailable                                                                     │ │
+│ │ 4. Return to the workflow tab                                                                                                 │ │
+│ │ 5. Try to save the workflow again                                                                                             │ │
+│ │                                                                                                                               │ │
+│ │ **Question 4**:                                                                                                               │ │
+│ │ - Can you assign an inactive contact?                                                                                         │ │
+│ │ - Does the system prevent saving with inactive contacts?                                                                      │ │
+│ │ - Any real-time validation warnings?                                                                                          │ │
+│ │                                                                                                                               │ │
+│ │ ---                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### Step 5: Test Skill Mismatch Validation                                                                                    │ │
+│ │ 1. Edit the workflow's required skills                                                                                        │ │
+│ │ 2. Add a new required skill that your assigned contact doesn't have (e.g., "Python")                                          │ │
+│ │ 3. Try to save the workflow                                                                                                   │ │
+│ │                                                                                                                               │ │
+│ │ **Question 5**:                                                                                                               │ │
+│ │ - Does the system validate existing assignments when requirements change?                                                     │ │
+│ │ - What validation messages appear?                                                                                            │ │
+│ │ - Can you save with mismatched skills?                                                                                        │ │
+│ │                                                                                                                               │ │
+│ │ ---                                                                                                                           │ │
+│ │                                                                                                                               │ │
+│ │ ### Step 6: Test Experience Level Validation (if available)                                                                   │ │
+│ │ 1. Look for "Minimum Experience" or "Experience Level" field in workflow                                                      │ │
+│ │ 2. Set it to "Senior" or "5+ years"                                                                                           │ │
+│ │ 3. Try to assign a junior contact                                                                                             │ │
+│ │ 4. Observe validation behavior                                                                                                │ │
+│ │                                                                                                                               │ │
+│ │ **Question 6**:                                                                                                               │ │
+│ │ - Is experience level validation available?                                                                                   │ │
+│ │ - How does it behave with mismatched experience?      
