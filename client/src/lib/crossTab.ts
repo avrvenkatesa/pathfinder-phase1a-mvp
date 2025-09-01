@@ -93,9 +93,8 @@ export function publish(evt: Omit<CrossTabEvent, "origin" | "ts">) {
     localStorage.removeItem(STORAGE_KEY);
   }
   
-  // Also emit locally to test handlers
-  console.log('🔄 CrossTab: Emitting to local handlers:', handlers.size);
-  emit(full);
+  // DON'T emit locally - only broadcast to other tabs
+  console.log('🚫 CrossTab: NOT emitting locally (only broadcasting to other tabs)');
 }
 
 // Convenience helpers
