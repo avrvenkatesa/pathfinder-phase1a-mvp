@@ -40,16 +40,24 @@ type Handler = (evt: CrossTabEvent) => void;
 const handlers = new Set<Handler>();
 
 function emit(evt: CrossTabEvent) {
+  console.log('🎯 CrossTab: Emitting to', handlers.size, 'handlers:', evt.type);
   handlers.forEach((h) => {
     try {
       h(evt);
-    } catch {}
+    } catch (err) {
+      console.error('❌ CrossTab: Handler error:', err);
+    }
   });
 }
 
 function onBCMessage(e: MessageEvent<CrossTabEvent>) {
   const evt = e.data;
-  if (!evt || evt.origin === TAB_ID) return; // ignore self
+  console.log('📨 CrossTab: Received BroadcastChannel message:', evt);
+  if (!evt || evt.origin === TAB_ID) {
+    console.log('🚫 CrossTab: Ignoring self-originated message');
+    return; // ignore self
+  }
+  console.log('✅ CrossTab: Processing message for', handlers.size, 'handlers');
   emit(evt);
 }
 
@@ -72,18 +80,27 @@ export function subscribe(handler: Handler): () => void {
 
 export function publish(evt: Omit<CrossTabEvent, "origin" | "ts">) {
   const full: CrossTabEvent = { ...evt, origin: TAB_ID, ts: Date.now() };
+  console.log('🚀 CrossTab: Publishing event:', full);
+  
   if (bc) {
+    console.log('📡 CrossTab: Using BroadcastChannel');
     bc.postMessage(full);
   } else {
+    console.log('📦 CrossTab: Using localStorage fallback');
     // localStorage fallback works across tabs in same origin
     localStorage.setItem(STORAGE_KEY, JSON.stringify(full));
     // write-then-remove to trigger 'storage' reliably
     localStorage.removeItem(STORAGE_KEY);
   }
+  
+  // Also emit locally to test handlers
+  console.log('🔄 CrossTab: Emitting to local handlers:', handlers.size);
+  emit(full);
 }
 
 // Convenience helpers
 export function announceContactChanged(id: string, etag?: string, summary?: { name?: string; type?: string }) {
+  console.log('📢 CrossTab: Announcing contact changed:', { id, summary });
   publish({ type: "contact:changed", id, summary });
 }
 export function announceContactDeleted(id: string, summary?: { name?: string; type?: string }) {
