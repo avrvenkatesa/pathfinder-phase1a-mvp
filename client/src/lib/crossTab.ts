@@ -74,8 +74,12 @@ if (bc) bc.addEventListener("message", onBCMessage);
 if (typeof window !== "undefined") window.addEventListener("storage", onStorage);
 
 export function subscribe(handler: Handler): () => void {
+  console.log('✅ CrossTab: Registering new handler. Total handlers now:', handlers.size + 1);
   handlers.add(handler);
-  return () => handlers.delete(handler);
+  return () => {
+    console.log('🗑️ CrossTab: Unregistering handler. Total handlers now:', handlers.size - 1);
+    handlers.delete(handler);
+  };
 }
 
 export function publish(evt: Omit<CrossTabEvent, "origin" | "ts">) {
