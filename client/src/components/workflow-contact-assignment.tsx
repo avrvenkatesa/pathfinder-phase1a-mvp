@@ -744,19 +744,17 @@ export function WorkflowContactAssignment({
       }
     };
 
-    // Subscribe to BroadcastChannel events for this workflow  
-    import('@/lib/crossTab').then(({ subscribe }) => {
-      const unsubscribe = subscribe((event: CrossTabEvent) => {
-        console.log('WorkflowAssignment: Received BroadcastChannel event:', event);
-        handleWebSocketMessage({
-          type: event.type === 'contact:deleted' ? 'CONTACT_DELETED' : 'CONTACT_MODIFIED',
-          contactId: event.id,
-          data: event.summary,
-          timestamp: new Date(event.ts).toISOString()
-        });
+    // Subscribe to BroadcastChannel events for this workflow
+    const { subscribe } = require('@/lib/crossTab');
+    
+    const unsubscribe = subscribe((event: CrossTabEvent) => {
+      console.log('WorkflowAssignment: Received BroadcastChannel event:', event);
+      handleWebSocketMessage({
+        type: event.type === 'contact:deleted' ? 'CONTACT_DELETED' : 'CONTACT_MODIFIED',
+        contactId: event.id,
+        data: event.summary,
+        timestamp: new Date(event.ts).toISOString()
       });
-      
-      return unsubscribe;
     });
 
     return () => unsubscribe();

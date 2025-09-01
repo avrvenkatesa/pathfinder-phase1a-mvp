@@ -144,31 +144,30 @@ export function WorkflowPage() {
     console.log('WorkflowPage: Setting up BroadcastChannel for cross-tab validation');
     
     // Import BroadcastChannel system
-    import('@/lib/crossTab').then(({ subscribe }) => {
-      const unsubscribe = subscribe((event: any) => {
-        console.log('WorkflowPage: Received BroadcastChannel event:', event);
-        
-        if (event.type === 'contact:deleted') {
-          toast({
-            title: "Contact Deleted",
-            description: `Contact "${event.summary?.name || 'Unknown'}" was deleted in another tab. This may affect workflow assignments.`,
-            variant: "destructive",
-          });
-        } else if (event.type === 'contact:changed') {
-          toast({
-            title: "Contact Modified", 
-            description: `Contact "${event.summary?.name || 'Unknown'}" was updated in another tab. Review assignments if needed.`,
-            variant: "default",
-          });
-        }
-      });
-
-      // Store unsubscribe function for cleanup
-      return () => {
-        console.log('WorkflowPage: Cleaning up BroadcastChannel subscription');
-        unsubscribe();
-      };
+    const { subscribe } = require('@/lib/crossTab');
+    
+    const unsubscribe = subscribe((event: any) => {
+      console.log('WorkflowPage: Received BroadcastChannel event:', event);
+      
+      if (event.type === 'contact:deleted') {
+        toast({
+          title: "Contact Deleted",
+          description: `Contact "${event.summary?.name || 'Unknown'}" was deleted in another tab. This may affect workflow assignments.`,
+          variant: "destructive",
+        });
+      } else if (event.type === 'contact:changed') {
+        toast({
+          title: "Contact Modified", 
+          description: `Contact "${event.summary?.name || 'Unknown'}" was updated in another tab. Review assignments if needed.`,
+          variant: "default",
+        });
+      }
     });
+
+    return () => {
+      console.log('WorkflowPage: Cleaning up BroadcastChannel subscription');
+      unsubscribe();
+    };
   }, [toast]);
   const [validationOpen, setValidationOpen] = useState(false);
 
