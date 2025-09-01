@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
 import { contactWebSocketService } from '@/services/contact-websocket.service';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -42,7 +43,7 @@ const mockWorkflow: WorkflowDefinition = {
       type: 'user_task',
       name: 'Collect Client Information',
       position: { x: 250, y: 200 },
-      properties: { assignee: 'john_smith' }
+      properties: { assignee: '3f1ab40c-d269-4ba3-ac20-fba3bf9ad589' }
     },
     {
       id: 'gateway_1',
@@ -56,7 +57,7 @@ const mockWorkflow: WorkflowDefinition = {
       type: 'user_task',
       name: 'Review and Approve',
       position: { x: 550, y: 200 },
-      properties: { assignee: 'sarah_johnson' }
+      properties: { assignee: '3f1ab40c-d269-4ba3-ac20-fba3bf9ad589' }
     },
     {
       id: 'end_1',
@@ -218,19 +219,30 @@ export function WorkflowPage() {
   const assignedContactIds = React.useMemo(() => {
     return workflow.elements
       .filter(element => element.properties?.assignee)
-      .map(element => element.properties.assignee)
+      .map(element => element.properties?.assignee)
       .filter(Boolean) as string[];
   }, [workflow.elements]);
+
+  // Fetch contact details for assigned contacts
+  const { data: contactsData } = useQuery({
+    queryKey: ['/api/contacts'],
+    enabled: assignedContactIds.length > 0
+  });
 
   // Create contact lookup for banner
   const contactLookup = React.useMemo(() => {
     const lookup: Record<string, { name?: string; type?: string }> = {};
-    assignedContactIds.forEach(id => {
-      // For now use the ID as name, in real implementation this would fetch contact details
-      lookup[id] = { name: id, type: 'person' };
-    });
+    if (contactsData && Array.isArray(contactsData)) {
+      assignedContactIds.forEach(id => {
+        const contact = contactsData.find((c: Contact) => c.id === id);
+        lookup[id] = { 
+          name: contact?.name || (contact?.firstName ? `${contact.firstName} ${contact.lastName}`.trim() : id), 
+          type: contact?.type || 'person' 
+        };
+      });
+    }
     return lookup;
-  }, [assignedContactIds]);
+  }, [assignedContactIds, contactsData]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
