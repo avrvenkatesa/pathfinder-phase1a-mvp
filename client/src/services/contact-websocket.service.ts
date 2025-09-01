@@ -48,11 +48,16 @@ export class ContactWebSocketService {
   private onReconnect: (() => void) | null = null;
 
   constructor(config?: Partial<ContactWebSocketConfig>) {
+    // In development, connect directly to backend server (port 5000)
+    // In production, use the same host as the frontend
+    const isDevelopment = import.meta.env.DEV;
     const defaultUrl = 
       (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_WS_URL) ||
       (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_WS_URL) ||
-      // Always connect to the current host for WebSocket
-      (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/contacts';
+      // Development: connect directly to backend server
+      (isDevelopment ? 
+        (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//localhost:5000/contacts' :
+        (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/contacts');
 
     this.config = {
       url: defaultUrl,
@@ -281,7 +286,7 @@ export class ContactWebSocketService {
       };
 
       this.ws.onerror = (error) => {
-        console.error('Contact WebSocket error:', error);
+        console.error('❌ Contact WebSocket error:', error, 'URL:', this.config.url);
         this.setState(WebSocketState.ERROR);
         const err = new Error('WebSocket connection error');
         this.onError?.(err);
