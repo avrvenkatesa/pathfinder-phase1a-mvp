@@ -1,0 +1,199 @@
+awesome — since your contact ↔ contact cross-tab is working, we can piggy-back on the same BroadcastChannel to notify workflow pages whenever any assigned contact is changed or deleted in another tab.
+
+Below is drop-in client code to make workflow tabs react to contact events. No server changes needed.
+
+1) (Re)use the bus you already have
+
+If you used the client/src/lib/crossTab.ts I gave earlier, you’re good — it already emits:
+
+contact:changed { id, etag?, summary? }
+
+contact:deleted { id, summary? }
+
+(You don’t need to change it for this step.)
+
+2) Banner for workflow pages
+
+Create this new component. It listens for the above contact events and shows a banner if any of the workflow’s assigned contacts changes or is deleted.
+
+client/src/components/WorkflowCrossTabBanner.tsx
+
+import React from "react";
+import { subscribe, type CrossTabEvent } from "@/lib/crossTab";
+
+type ContactInfo = { name?: string; type?: string };
+
+type Props = {
+  // The contacts currently referenced by this workflow (tasks, assignees, etc.)
+  contactIds: string[];
+
+  // Optional name/type map so we can show friendlier text
+  contactLookup?: Record<string, ContactInfo>;
+
+  // Optional hooks so the workflow page can react programmatically
+  onAnyContactChanged?: (ids: string[]) => void;
+  onAnyContactDeleted?: (ids: string[]) => void;
+
+  // If you have a reload action for the workflow view
+  onReloadWorkflow?: () => void;
+};
+
+export default function WorkflowCrossTabBanner({
+  contactIds,
+  contactLookup = {},
+  onAnyContactChanged,
+  onAnyContactDeleted,
+  onReloadWorkflow,
+}: Props) {
+  const contactSet = React.useMemo(() => new Set(contactIds), [contactIds]);
+
+  const [changedIds, setChangedIds] = React.useState<string[]>([]);
+  const [deletedIds, setDeletedIds] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    return subscribe((evt: CrossTabEvent) => {
+      if (evt.type === "contact:changed" && contactSet.has(evt.id)) {
+        setChangedIds((prev) => (prev.includes(evt.id) ? prev : [...prev, evt.id]));
+      }
+      if (evt.type === "contact:deleted" && contactSet.has(evt.id)) {
+        setDeletedIds((prev) => (prev.includes(evt.id) ? prev : [...prev, evt.id]));
+      }
+    });
+  }, [contactSet]);
+
+  React.useEffect(() => {
+    if (changedIds.length) onAnyContactChanged?.(changedIds);
+  }, [changedIds, onAnyContactChanged]);
+
+  React.useEffect(() => {
+    if (deletedIds.length) onAnyContactDeleted?.(deletedIds);
+  }, [deletedIds, onAnyContactDeleted]);
+
+  if (!changedIds.length && !deletedIds.length) return null;
+
+  const listNames = (ids: string[]) =>
+    ids
+      .map((id) => contactLookup[id]?.name || id)
+      .slice(0, 3)
+      .join(", ") + (ids.length > 3 ? ` +${ids.length - 3} more` : "");
+
+  return (
+    <div className="w-full mb-3 space-y-2">
+      {deletedIds.length > 0 && (
+        <div className="w-full p-3 rounded-md bg-red-100 text-red-800 border border-red-200 flex items-start justify-between gap-3">
+          <div>
+            <div className="font-semibold">Assignments invalid</div>
+            <div className="text-sm">
+              The following assigned contact{deletedIds.length > 1 ? "s were" : " was"}{" "}
+              <strong>deleted in another tab</strong>: {listNames(deletedIds)}.
+              Review the affected tasks and pick new assignees.
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {onReloadWorkflow && (
+              <button
+                className="px-3 py-1 rounded bg-red-200 hover:bg-red-300"
+                onClick={() => onReloadWorkflow()}
+              >
+                Reload
+              </button>
+            )}
+            <button
+              className="px-3 py-1 rounded border border-red-300 hover:bg-red-50"
+              onClick={() => setDeletedIds([])}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {changedIds.length > 0 && (
+        <div className="w-full p-3 rounded-md bg-amber-100 text-amber-900 border border-amber-200 flex items-start justify-between gap-3">
+          <div>
+            <div className="font-semibold">Assignee data changed</div>
+            <div className="text-sm">
+              The following assigned contact{changedIds.length > 1 ? "s" : ""}{" "}
+              <strong>changed in another tab</strong>: {listNames(changedIds)}.
+              Consider re-validating task requirements before proceeding.
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {onReloadWorkflow && (
+              <button
+                className="px-3 py-1 rounded bg-amber-200 hover:bg-amber-300"
+                onClick={() => onReloadWorkflow()}
+              >
+                Reload
+              </button>
+            )}
+            <button
+              className="px-3 py-1 rounded border border-amber-300 hover:bg-amber-50"
+              onClick={() => setChangedIds([])}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+3) Use it on your workflow page
+
+Where you render a workflow (with tasks & assignees), pass the assigned contact IDs and, if you have them, a quick lookup for names:
+
+import WorkflowCrossTabBanner from "@/components/WorkflowCrossTabBanner";
+
+// Example shape — adapt to your real workflow data
+type Task = { id: string; title: string; assigneeId?: string; };
+type Workflow = { id: string; name: string; tasks: Task[]; assignedContacts?: { id: string; name?: string; type?: string }[] };
+
+export default function WorkflowDetailPage() {
+  const [wf, setWf] = useState<Workflow | null>(null);
+
+  // however you currently load a workflow:
+  useEffect(() => {
+    // fetch(`/api/workflows/${id}`).then(r => r.json()).then(setWf)
+  }, []);
+
+  const assignedIds = (wf?.tasks ?? [])
+    .map(t => t.assigneeId)
+    .filter(Boolean) as string[];
+
+  const contactLookup = Object.fromEntries(
+    (wf?.assignedContacts ?? []).map(c => [c.id, { name: c.name, type: c.type }])
+  );
+
+  return (
+    <div>
+      <WorkflowCrossTabBanner
+        contactIds={assignedIds}
+        contactLookup={contactLookup}
+        onReloadWorkflow={() => {
+          // re-fetch workflow (and possibly revalidate assignments)
+          // fetch(`/api/workflows/${wf!.id}`).then(r => r.json()).then(setWf)
+        }}
+        onAnyContactDeleted={(ids) => {
+          // optional: immediately mark tasks using these contacts as invalid
+          // or open a modal to reassign
+          console.log("Assignees deleted:", ids);
+        }}
+        onAnyContactChanged={(ids) => {
+          // optional: trigger a lightweight re-check (skills/capacity, etc.)
+          console.log("Assignees changed:", ids);
+        }}
+      />
+
+      {/* ...rest of your workflow UI */}
+    </div>
+  );
+}
+
+
+That’s it. Now:
+
+Edit a contact in Tab A → the workflow page in Tab B (that references that contact) shows the “Assignee data changed” banner.
+
+Delete a contact in Tab A → the workflow page shows the “Assignments invalid” banner.
