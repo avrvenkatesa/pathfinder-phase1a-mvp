@@ -22,6 +22,7 @@ import { BpmnValidator, BpmnValidationDisplay } from '@/components/bpmn-validato
 import { WorkflowContactAssignment } from '@/components/workflow-contact-assignment';
 import { WorkflowExecutionMonitor } from '@/components/workflow-execution-engine';
 import WorkflowCrossTabBanner from '@/components/WorkflowCrossTabBanner';
+import { useWorkflowCrossTab } from "@/workflow/useWorkflowCrossTab";
 import type { WorkflowDefinition, WorkflowInstance, Contact } from '@shared/schema';
 
 // Mock workflow data
@@ -132,6 +133,9 @@ const mockInstance: WorkflowInstance = {
 };
 
 export function WorkflowPage() {
+  // Register workflow cross-tab handlers (route-scoped)
+  useWorkflowCrossTab();
+  
   const params = useParams();
   const [location, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState('designer');
@@ -139,34 +143,7 @@ export function WorkflowPage() {
   const [instance, setInstance] = useState<WorkflowInstance>(mockInstance);
   const { toast } = useToast();
 
-  // Cross-tab notifications - now handled by bootstrap registration
-  useEffect(() => {
-    console.log('WorkflowPage: Cross-tab handlers registered at app bootstrap');
-    
-    // Register workflow-specific toast notifications
-    import('@/lib/crossTab').then((crossTab) => {
-      const unsubscribe1 = crossTab.default.on('contact:deleted', (event: any) => {
-        toast({
-          title: "Contact Deleted",
-          description: `Contact "${event.summary?.name || 'Unknown'}" was deleted in another tab. This may affect workflow assignments.`,
-          variant: "destructive",
-        });
-      });
-      
-      const unsubscribe2 = crossTab.default.on('contact:changed', (event: any) => {
-        toast({
-          title: "Contact Modified",
-          description: `Contact "${event.summary?.name || 'Unknown'}" was updated in another tab. Review assignments if needed.`,
-          variant: "default",
-        });
-      });
-      
-      return () => {
-        unsubscribe1();
-        unsubscribe2();
-      };
-    });
-  }, [toast]);
+  // Cross-tab notifications now handled by useWorkflowCrossTab hook
   const [validationOpen, setValidationOpen] = useState(false);
 
   // Validate workflow

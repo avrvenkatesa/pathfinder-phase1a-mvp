@@ -28,7 +28,8 @@ class CrossTabBus {
     });
   }
 
-  emit<T extends object>(type: string, payload?: T) {
+  // Added opts: { dispatchLocal?: boolean }
+  emit<T extends object>(type: string, payload?: T, opts?: { dispatchLocal?: boolean }) {
     const msg: CrossTabEvent = {
       type,
       ...(payload as object),
@@ -36,8 +37,11 @@ class CrossTabBus {
       ts: Date.now(),
     };
     this.channel.postMessage(msg);
-    // Also dispatch locally so the emitting tab can react too
-    this.dispatch(msg);
+
+    // Default: do NOT dispatch locally to avoid handling own event in the sender tab.
+    if (opts?.dispatchLocal) {
+      this.dispatch(msg);
+    }
   }
 
   on<T extends CrossTabEvent>(

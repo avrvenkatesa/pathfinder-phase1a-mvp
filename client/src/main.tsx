@@ -1,9 +1,5 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { registerWorkflowCrossTabHandlers } from "@/workflow/bootstrapCrossTab";
-
-// Register cross-tab handlers before rendering
-registerWorkflowCrossTabHandlers();
 
 createRoot(document.getElementById("root")!).render(<App />);
