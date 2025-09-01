@@ -1,0 +1,381 @@
+# REPLIT PROMPT: Critical Referential Integrity Fix
+
+## CONTEXT
+Test Case 3 revealed CRITICAL data integrity failures in the PathFinder application:
+- Contacts can be deleted while assigned to workflows
+- This creates orphaned references (workflows pointing to non-existent contacts)
+- No foreign key constraints or application-level validation exists
+- This can cause data corruption and application crashes
+
+## ISSUE SEVERITY: 🔴 CRITICAL - IMMEDIATE FIX REQUIRED
+
+---
+
+## REPLIT IMPLEMENTATION INSTRUCTIONS
+
+### PHASE 1: Database Schema Fix (URGENT - Implement First)
+
+#### Step 1: Create Database Migration
+Create file: `database/migrations/004_add_referential_integrity.sql`
+
+```sql
+-- Add foreign key constraints to prevent orphaned references
+ALTER TABLE workflow_assignments 
+ADD CONSTRAINT fk_workflow_assignment_contact 
+FOREIGN KEY (contact_id) REFERENCES contacts(id) 
+ON DELETE RESTRICT;
+
+-- Add constraint for workflow reference
+ALTER TABLE workflow_assignments 
+ADD CONSTRAINT fk_workflow_assignment_workflow 
+FOREIGN KEY (workflow_id) REFERENCES workflows(id) 
+ON DELETE CASCADE;
+
+-- Add indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_workflow_assignments_contact 
+ON workflow_assignments(contact_id);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_assignments_workflow 
+ON workflow_assignments(workflow_id);
+
+-- Add deletion check function
+CREATE OR REPLACE FUNCTION check_contact_deletion()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM workflow_assignments 
+    WHERE contact_id = OLD.id 
+    AND status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Cannot delete contact with active workflow assignments'
+      USING ERRCODE = '23503';
+  END IF;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Add trigger
+CREATE TRIGGER before_contact_delete
+BEFORE DELETE ON contacts
+FOR EACH ROW
+EXECUTE FUNCTION check_contact_deletion();
+```
+
+#### Step 2: Run Migration in Replit
+In your Replit console:
+```bash
+# Apply the migration
+psql $DATABASE_URL -f database/migrations/004_add_referential_integrity.sql
+
+# Verify constraints were added
+psql $DATABASE_URL -c "\d workflow_assignments"
+```
+
+### PHASE 2: Application-Level Validation
+
+#### Step 3: Update Contact Controller
+Modify `server/controllers/contacts.ts` (or equivalent contact deletion endpoint):
+
+```typescript
+// Add this function before the delete endpoint
+async function checkContactAssignments(contactId: string) {
+  const assignments = await db.query(`
+    SELECT 
+      wa.id,
+      wa.workflow_id,
+      wa.task_name,
+      w.name as workflow_name,
+      wa.status
+    FROM workflow_assignments wa
+    LEFT JOIN workflows w ON wa.workflow_id = w.id
+    WHERE wa.contact_id = $1
+    AND wa.status = 'active'
+  `, [contactId]);
+  
+  return assignments;
+}
+
+// Update your DELETE /contacts/:id endpoint
+app.delete('/api/contacts/:id', async (req, res) => {
+  const contactId = req.params.id;
+  
+  try {
+    // STEP 1: Check for active workflow assignments
+    const activeAssignments = await checkContactAssignments(contactId);
+    
+    if (activeAssignments.length > 0) {
+      return res.status(409).json({
+        error: 'CONTACT_HAS_ACTIVE_ASSIGNMENTS',
+        message: `Cannot delete contact. Found ${activeAssignments.length} active workflow assignments.`,
+        details: {
+          assignmentCount: activeAssignments.length,
+          workflows: activeAssignments.map(a => ({
+            workflowId: a.workflow_id,
+            workflowName: a.workflow_name,
+            taskName: a.task_name
+          }))
+        },
+        suggestions: [
+          'Remove contact from workflow assignments first',
+          'Reassign tasks to another contact',
+          'Complete or cancel the assigned tasks'
+        ]
+      });
+    }
+    
+    // STEP 2: If no assignments, proceed with deletion
+    const result = await db.query(
+      'DELETE FROM contacts WHERE id = $1 RETURNING *',
+      [contactId]
+    );
+    
+    if (result.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+    
+    // STEP 3: Notify other services (if WebSocket available)
+    try {
+      publishContactChange({
+        type: 'CONTACT_DELETED',
+        contactId,
+        timestamp: Date.now()
+      });
+    } catch (e) {
+      console.log('WebSocket notification failed:', e);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Contact deleted successfully',
+      deletedContact: result[0]
+    });
+    
+  } catch (error) {
+    // Handle database constraint violations
+    if (error.code === '23503') {
+      return res.status(409).json({
+        error: 'REFERENTIAL_INTEGRITY_VIOLATION',
+        message: 'Cannot delete contact due to existing workflow assignments',
+        hint: 'Remove all workflow assignments before deleting this contact'
+      });
+    }
+    
+    console.error('Contact deletion error:', error);
+    res.status(500).json({ 
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Failed to delete contact' 
+    });
+  }
+});
+```
+
+#### Step 4: Add Pre-Deletion Check Endpoint
+Add this new endpoint to check if a contact can be deleted:
+
+```typescript
+// Add this endpoint to your contacts router
+app.get('/api/contacts/:id/can-delete', async (req, res) => {
+  const contactId = req.params.id;
+  
+  try {
+    const assignments = await checkContactAssignments(contactId);
+    
+    res.json({
+      canDelete: assignments.length === 0,
+      assignmentCount: assignments.length,
+      assignments: assignments,
+      reasons: assignments.length > 0 ? [
+        `Contact has ${assignments.length} active workflow assignments`
+      ] : [],
+      suggestions: assignments.length > 0 ? [
+        'Reassign tasks to another contact',
+        'Complete or cancel active assignments',
+        'Use workflow management to remove assignments'
+      ] : []
+    });
+  } catch (error) {
+    console.error('Can-delete check error:', error);
+    res.status(500).json({ error: 'Failed to check contact dependencies' });
+  }
+});
+```
+
+### PHASE 3: Frontend Protection
+
+#### Step 5: Update Contact Deletion UI
+Find your contact deletion component (likely in `client/src/components/contacts/` or similar) and update it:
+
+```typescript
+// Add this hook to check before deletion
+function useContactDeletion() {
+  const [canDelete, setCanDelete] = useState(null);
+  const [deleteInfo, setDeleteInfo] = useState(null);
+  
+  const checkCanDelete = async (contactId: string) => {
+    try {
+      const response = await fetch(`/api/contacts/${contactId}/can-delete`);
+      const data = await response.json();
+      setCanDelete(data.canDelete);
+      setDeleteInfo(data);
+      return data;
+    } catch (error) {
+      console.error('Delete check failed:', error);
+      return { canDelete: false, error: 'Check failed' };
+    }
+  };
+  
+  return { canDelete, deleteInfo, checkCanDelete };
+}
+
+// Update your delete confirmation dialog
+function ContactDeleteDialog({ contact, onClose, onDeleted }) {
+  const { canDelete, deleteInfo, checkCanDelete } = useContactDeletion();
+  const [loading, setLoading] = useState(false);
+  
+  useEffect(() => {
+    checkCanDelete(contact.id);
+  }, [contact.id]);
+  
+  const handleDelete = async () => {
+    if (!canDelete) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/contacts/${contact.id}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        onDeleted(contact.id);
+        onClose();
+      } else {
+        const error = await response.json();
+        alert(`Delete failed: ${error.message}`);
+      }
+    } catch (error) {
+      alert('Delete failed: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  if (deleteInfo === null) {
+    return <div>Checking dependencies...</div>;
+  }
+  
+  if (!canDelete) {
+    return (
+      <div className="p-4 border border-red-200 bg-red-50 rounded">
+        <h3 className="text-lg font-semibold text-red-800 mb-2">
+          ⚠️ Cannot Delete Contact
+        </h3>
+        <p className="text-red-700 mb-3">
+          {contact.name} cannot be deleted because they have active workflow assignments.
+        </p>
+        
+        <div className="mb-4">
+          <h4 className="font-medium text-red-800">Active Assignments:</h4>
+          <ul className="list-disc pl-5 mt-1">
+            {deleteInfo.assignments.map((a, i) => (
+              <li key={i} className="text-sm text-red-600">
+                {a.workflow_name}: {a.task_name}
+              </li>
+            ))}
+          </ul>
+        </div>
+        
+        <div className="mb-4">
+          <h4 className="font-medium text-red-800">What to do:</h4>
+          <ul className="list-disc pl-5 mt-1">
+            {deleteInfo.suggestions.map((s, i) => (
+              <li key={i} className="text-sm text-red-600">{s}</li>
+            ))}
+          </ul>
+        </div>
+        
+        <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded">
+          Close
+        </button>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="p-4 border border-gray-200 rounded">
+      <h3 className="text-lg font-semibold mb-2">Confirm Deletion</h3>
+      <p className="mb-4">
+        Are you sure you want to delete {contact.name}? This action cannot be undone.
+      </p>
+      <div className="flex gap-2">
+        <button 
+          onClick={onClose}
+          className="px-4 py-2 bg-gray-200 rounded"
+        >
+          Cancel
+        </button>
+        <button 
+          onClick={handleDelete}
+          disabled={loading}
+          className="px-4 py-2 bg-red-500 text-white rounded disabled:opacity-50"
+        >
+          {loading ? 'Deleting...' : 'Delete'}
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+### TESTING INSTRUCTIONS
+
+#### Test 1: Database Constraint
+```bash
+# In Replit console, try to manually delete a contact with assignments
+psql $DATABASE_URL -c "
+INSERT INTO contacts (id, name, email) VALUES ('test-contact', 'Test User', 'test@test.com');
+INSERT INTO workflow_assignments (id, contact_id, workflow_id, task_name, status) 
+VALUES ('test-assignment', 'test-contact', 'some-workflow-id', 'Test Task', 'active');
+DELETE FROM contacts WHERE id = 'test-contact';
+"
+# This should FAIL with foreign key constraint error
+```
+
+#### Test 2: API Endpoint
+```bash
+# Test the can-delete endpoint
+curl -X GET http://localhost:3000/api/contacts/CONTACT_ID/can-delete
+# Should return canDelete: false if contact has assignments
+
+# Test deletion with assignments
+curl -X DELETE http://localhost:3000/api/contacts/CONTACT_ID
+# Should return 409 error with assignment details
+```
+
+#### Test 3: Frontend Flow
+1. Open your contact management page
+2. Try to delete a contact that has workflow assignments
+3. Should see warning dialog instead of immediate deletion
+4. Remove assignments first, then deletion should work
+
+## SUCCESS CRITERIA
+
+✅ **Database Level**: Foreign key constraints prevent orphaned references
+✅ **API Level**: DELETE requests return 409 error with details when contact has assignments
+✅ **UI Level**: Users see clear warning with specific assignments listed
+✅ **No Data Corruption**: No orphaned workflow_assignments records possible
+
+## ROLLBACK PLAN
+
+If issues occur:
+```sql
+-- Remove constraints temporarily
+ALTER TABLE workflow_assignments DROP CONSTRAINT fk_workflow_assignment_contact;
+DROP TRIGGER IF EXISTS before_contact_delete ON contacts;
+DROP FUNCTION IF EXISTS check_contact_deletion();
+```
+
+## PRIORITY
+
+This is a **CRITICAL** data integrity issue. Implement Phase 1 (database constraints) immediately to prevent further data corruption, then proceed with Phases 2-3 for better user experience.
+
+The foreign key constraint alone will prevent the worst-case scenario of orphaned references.
