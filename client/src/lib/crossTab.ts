@@ -84,7 +84,7 @@ export function publish(evt: Omit<CrossTabEvent, "origin" | "ts">) {
 
 // Convenience helpers
 export function announceContactChanged(id: string, etag?: string, summary?: { name?: string; type?: string }) {
-  publish({ type: "contact:changed", id, etag, summary });
+  publish({ type: "contact:changed", id, summary });
 }
 export function announceContactDeleted(id: string, summary?: { name?: string; type?: string }) {
   publish({ type: "contact:deleted", id, summary });
