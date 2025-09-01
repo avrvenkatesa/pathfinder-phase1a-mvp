@@ -48,23 +48,15 @@ export class ContactWebSocketService {
   private onReconnect: (() => void) | null = null;
 
   constructor(config?: Partial<ContactWebSocketConfig>) {
-    // In development, connect directly to backend server (port 5000)
-    // In production, use the same host as the frontend
-    const isDevelopment = import.meta.env.DEV;
-    const defaultUrl = 
-      (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_WS_URL) ||
-      (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_WS_URL) ||
-      // Development: connect directly to backend server
-      (isDevelopment ? 
-        (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//localhost:5000/contacts' :
-        (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/contacts');
-
+    // DISABLED: WebSocket service - using BroadcastChannel instead
+    console.log('⚠️ ContactWebSocketService: WebSocket disabled in favor of BroadcastChannel');
+    
     this.config = {
-      url: defaultUrl,
+      url: '',
       reconnectInterval: 5000,
-      maxReconnectAttempts: 10,
-      heartbeatInterval: 30000, // 30 seconds
-      authToken: this.getAuthToken(),
+      maxReconnectAttempts: 0, // Prevent reconnection attempts
+      heartbeatInterval: 30000,
+      authToken: undefined,
       ...config
     };
   }
@@ -250,78 +242,23 @@ export class ContactWebSocketService {
   }
 
   public connect(): void {
-    if (this.state === WebSocketState.CONNECTED || this.state === WebSocketState.CONNECTING) {
-      console.log('WebSocket already connected/connecting, state:', this.state);
-      return;
-    }
-
-    console.log('Attempting to connect to WebSocket:', this.config.url);
-    this.setState(WebSocketState.CONNECTING);
-
-    try {
-      this.ws = new WebSocket(this.config.url);
-
-      this.ws.onopen = () => {
-        console.log('Contact WebSocket connected to:', this.config.url);
-        this.setState(WebSocketState.CONNECTED);
-        this.reconnectAttempts = 0;
-        this.authenticate();
-        this.setupHeartbeat();
-        this.processMessageQueue();
-      };
-
-      this.ws.onmessage = (event) => {
-        this.handleMessage(event);
-      };
-
-      this.ws.onclose = (event) => {
-        console.log('Contact WebSocket disconnected:', event.code, event.reason);
-        this.setState(WebSocketState.DISCONNECTED);
-        this.clearHeartbeat();
-        
-        // Only auto-reconnect if it wasn't a clean close
-        if (event.code !== 1000 && this.reconnectAttempts < this.config.maxReconnectAttempts) {
-          this.scheduleReconnect();
-        }
-      };
-
-      this.ws.onerror = (error) => {
-        console.error('❌ Contact WebSocket error:', error, 'URL:', this.config.url);
-        this.setState(WebSocketState.ERROR);
-        const err = new Error('WebSocket connection error');
-        this.onError?.(err);
-      };
-
-    } catch (error) {
-      console.error('Failed to create WebSocket connection:', error);
-      this.setState(WebSocketState.ERROR);
-      this.onError?.(error as Error);
-    }
+    // DISABLED: WebSocket connections disabled - using BroadcastChannel instead
+    console.log('⚠️ ContactWebSocketService.connect() called but WebSocket is disabled');
+    console.log('✅ Using BroadcastChannel for cross-tab communication instead');
+    this.setState(WebSocketState.CONNECTED); // Mock connected state for UI
+    return;
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-    }
-
-    this.setState(WebSocketState.RECONNECTING);
-    this.reconnectAttempts++;
-
-    const delay = Math.min(
-      this.config.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1),
-      30000 // Max 30 seconds
-    );
-
-    console.log(`Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
-
-    this.reconnectTimeout = setTimeout(() => {
-      this.reconnect();
-    }, delay);
+    // DISABLED: WebSocket reconnection disabled - using BroadcastChannel instead
+    console.log('⚠️ ContactWebSocketService.scheduleReconnect() called but WebSocket is disabled');
+    return;
   }
 
   public reconnect(): void {
-    this.disconnect();
-    this.connect();
+    // DISABLED: WebSocket reconnection disabled - using BroadcastChannel instead
+    console.log('⚠️ ContactWebSocketService.reconnect() called but WebSocket is disabled');
+    return;
   }
 
   public disconnect(): void {
