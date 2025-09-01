@@ -22,6 +22,7 @@ import DataQualityDashboardPage from "@/pages/data-quality-dashboard";
 import { WebSocketTestComponent } from "@/components/WebSocketTestComponent";
 import { CrossTabValidationTest } from "@/components/CrossTabValidationTest";
 import { CrossTabTestInterface } from "@/components/CrossTabTestInterface";
+import { EventDrivenValidationTest } from "@/components/EventDrivenValidationTest";
 import CrossTabAlerts from "@/components/CrossTabAlerts";
 
 /** Router stays under the provider (it uses useAuth inside) */
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/websocket-test" component={WebSocketTestComponent} />
       <Route path="/cross-tab-test" component={CrossTabValidationTest} />
       <Route path="/test-validation" component={CrossTabTestInterface} />
+      <Route path="/event-test" component={EventDrivenValidationTest} />
 
       <Route path="/contacts" component={Home} />
       <Route path="/workflows" component={WorkflowDashboard} />
