@@ -43,7 +43,7 @@ const mockWorkflow: WorkflowDefinition = {
       type: 'user_task',
       name: 'Collect Client Information',
       position: { x: 250, y: 200 },
-      properties: { assignee: '3f1ab40c-d269-4ba3-ac20-fba3bf9ad589' }
+      properties: { assignee: '181d031f-acb0-40e9-8656-2c1c54e5ebda' }
     },
     {
       id: 'gateway_1',
