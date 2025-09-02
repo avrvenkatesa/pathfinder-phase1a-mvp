@@ -1,13 +1,13 @@
 // client/src/lib/crossTab.ts
-// Cross-tab event bus: BroadcastChannel + storage-event fallback (both enabled) with dedupe.
+// Cross-tab bus using BroadcastChannel + storage-event + polling fallback (with dedupe).
 // HMR-safe singleton.
 
 export type CrossTabEvent = {
   type: string;
   ts?: number;
   origin?: string;
-  eid?: string;           // unique event id (for dedupe)
-  [k: string]: any;       // payload keys
+  eid?: string;            // unique event id (for dedupe)
+  [k: string]: any;        // payload
 };
 
 type Handler = (e: CrossTabEvent) => void;
@@ -15,7 +15,6 @@ type Handler = (e: CrossTabEvent) => void;
 const CHANNEL_NAME = "pf-x-tab";
 const LAST_EVENT_KEY = "pf-x-tab:last";
 
-// Per-tab random id (no sessionStorage; avoids duplicate ids when duplicating a tab)
 declare global {
   // eslint-disable-next-line no-var
   var __PF_TAB_ID__: string | undefined;
@@ -39,20 +38,22 @@ class CrossTabBus {
   private origin: string;
   private handlers = new Map<string, Set<Handler>>();
   private anyHandlers = new Set<Handler>();
-  private seen = new Set<string>(); // dedupe across transports
+  private seen = new Set<string>(); // eid dedupe
 
   constructor() {
     this.origin = typeof window !== "undefined" ? getTabId() : "srv";
 
     // Transport 1: BroadcastChannel
     if (typeof BroadcastChannel !== "undefined") {
-      this.bc = new BroadcastChannel(CHANNEL_NAME);
-      this.bc.onmessage = (msg: MessageEvent<CrossTabEvent>) => {
-        this.handleIncoming(msg.data);
-      };
+      try {
+        this.bc = new BroadcastChannel(CHANNEL_NAME);
+        this.bc.onmessage = (msg: MessageEvent<CrossTabEvent>) => {
+          this.handleIncoming(msg.data);
+        };
+      } catch { }
     }
 
-    // Transport 2: storage-event (ALWAYS enabled, not just as a fallback)
+    // Transport 2: storage event
     if (typeof window !== "undefined") {
       window.addEventListener("storage", (ev) => {
         if (ev.key !== LAST_EVENT_KEY || !ev.newValue) return;
@@ -61,13 +62,26 @@ class CrossTabBus {
           this.handleIncoming(e);
         } catch { }
       });
+
+      // Transport 3: polling fallback (covers cases where 'storage' doesn't fire)
+      let lastPolledEid = "";
+      setInterval(() => {
+        try {
+          const raw = localStorage.getItem(LAST_EVENT_KEY);
+          if (!raw) return;
+          const e = JSON.parse(raw) as CrossTabEvent;
+          if (!e?.eid || e.eid === lastPolledEid) return;
+          lastPolledEid = e.eid;
+          this.handleIncoming(e);
+        } catch { }
+      }, 800);
     }
   }
 
   private handleIncoming(e?: CrossTabEvent) {
     if (!e) return;
-    if (e.origin === this.origin) return;           // ignore self
-    if (e.eid && this.seen.has(e.eid)) return;      // dedupe
+    if (e.origin === this.origin) return;        // ignore self
+    if (e.eid && this.seen.has(e.eid)) return;   // dedupe
     if (e.eid) this.seen.add(e.eid);
     this.dispatch(e);
   }
@@ -86,18 +100,18 @@ class CrossTabBus {
       ...payload,
     };
 
-    // Optionally dispatch locally (sender tab)
+    // optionally dispatch locally
     if (dispatchLocal) this.dispatch(e);
 
-    // Persist for storage-event transport (and for late-subscriber replay)
+    // persist for storage/poll transports & late-subscriber replay
     try {
       localStorage.setItem(LAST_EVENT_KEY, JSON.stringify(e));
     } catch { }
 
-    // BroadcastChannel transport (if available)
-    if (this.bc) {
-      try { this.bc.postMessage(e); } catch { }
-    }
+    // BroadcastChannel (best-effort)
+    try {
+      this.bc?.postMessage(e);
+    } catch { }
   }
 
   on(type: string, handler: Handler, opts?: { replayLast?: boolean }) {
@@ -110,7 +124,6 @@ class CrossTabBus {
         if (raw) {
           const last = JSON.parse(raw) as CrossTabEvent;
           if (last.type === type && last.origin !== this.origin) {
-            // dedupe if already seen
             if (!last.eid || !this.seen.has(last.eid)) {
               if (last.eid) this.seen.add(last.eid);
               handler(last);
@@ -119,7 +132,6 @@ class CrossTabBus {
         }
       } catch { }
     }
-
     return () => this.off(type, handler);
   }
 
@@ -133,12 +145,8 @@ class CrossTabBus {
   }
 
   private dispatch(e: CrossTabEvent) {
-    this.handlers.get(e.type)?.forEach((h) => {
-      try { h(e); } catch { }
-    });
-    this.anyHandlers.forEach((h) => {
-      try { h(e); } catch { }
-    });
+    this.handlers.get(e.type)?.forEach((h) => { try { h(e); } catch { } });
+    this.anyHandlers.forEach((h) => { try { h(e); } catch { } });
   }
 }
 
