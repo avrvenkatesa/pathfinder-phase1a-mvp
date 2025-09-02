@@ -37,34 +37,55 @@ class CrossTabBus {
       this.bc.onmessage = (msg: MessageEvent<CrossTabEvent>) => {
         const e = msg.data;
         if (!e) return;
-        // ignore self (we already dispatch locally)
+        // ignore self (we already dispatch locally if we choose to)
         if (e.origin === this.origin) return;
         this.dispatch(e);
       };
     } else if (typeof window !== "undefined") {
-      // Fallback path: use storage events to deliver messages across tabs
+      // Fallback: use storage events to deliver messages across tabs
       window.addEventListener("storage", (ev) => {
         if (ev.key !== LAST_EVENT_KEY || !ev.newValue) return;
         try {
           const e = JSON.parse(ev.newValue) as CrossTabEvent;
           if (e.origin === this.origin) return;
           this.dispatch(e);
-        } catch {}
+        } catch { }
       });
     }
   }
 
-  emit(type: string, payload: Record<string, any> = {}) {
+  /**
+   * Emit an event to this tab (optionally) and to other tabs.
+   * @param type Event name (e.g., "contact:changed")
+   * @param payload Arbitrary data to send with the event
+   * @param opts dispatchLocal: whether to call local handlers in the sender tab (default: true)
+   */
+  emit(
+    type: string,
+    payload: Record<string, any> = {},
+    opts?: { dispatchLocal?: boolean }
+  ) {
+    const { dispatchLocal = true } = opts ?? {};
     const e: CrossTabEvent = { type, ts: Date.now(), origin: this.origin, ...payload };
-    // local dispatch first
-    this.dispatch(e);
-    // persist for replay
-    try { localStorage.setItem(LAST_EVENT_KEY, JSON.stringify(e)); } catch {}
-    // broadcast
+
+    // Optionally dispatch locally (sender tab)
+    if (dispatchLocal) {
+      this.dispatch(e);
+    }
+
+    // Persist for replay so late subscribers can react
+    try {
+      localStorage.setItem(LAST_EVENT_KEY, JSON.stringify(e));
+    } catch { }
+
+    // Broadcast to other tabs
     if (this.bc) {
       this.bc.postMessage(e);
     } else {
-      try { localStorage.setItem(LAST_EVENT_KEY, JSON.stringify(e)); } catch {}
+      // storage-event fallback fan-out
+      try {
+        localStorage.setItem(LAST_EVENT_KEY, JSON.stringify(e));
+      } catch { }
     }
   }
 
@@ -77,9 +98,11 @@ class CrossTabBus {
         const raw = localStorage.getItem(LAST_EVENT_KEY);
         if (raw) {
           const last = JSON.parse(raw) as CrossTabEvent;
-          if (last.type === type && last.origin !== this.origin) handler(last);
+          if (last.type === type && last.origin !== this.origin) {
+            handler(last);
+          }
         }
-      } catch {}
+      } catch { }
     }
     return () => this.off(type, handler);
   }
@@ -94,8 +117,16 @@ class CrossTabBus {
   }
 
   private dispatch(e: CrossTabEvent) {
-    this.handlers.get(e.type)?.forEach((h) => { try { h(e); } catch {} });
-    this.anyHandlers.forEach((h) => { try { h(e); } catch {} });
+    this.handlers.get(e.type)?.forEach((h) => {
+      try {
+        h(e);
+      } catch { }
+    });
+    this.anyHandlers.forEach((h) => {
+      try {
+        h(e);
+      } catch { }
+    });
   }
 }
 
