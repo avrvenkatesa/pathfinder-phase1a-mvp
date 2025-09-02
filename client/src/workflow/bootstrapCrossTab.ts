@@ -8,7 +8,7 @@ import { queryClient } from "@/lib/queryClient";
  */
 export function registerWorkflowCrossTabHandlers() {
   // Optional: debug every incoming event
-  // crossTab.onAny((e) => console.debug("🔎 CrossTab event:", e));
+  crossTab.onAny((e) => console.debug("🔎 CrossTab event:", e));
 
   // ---- contact:changed ------------------------------------------------------
   // When a contact is created/updated in another tab, refresh relevant caches.
