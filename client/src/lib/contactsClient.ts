@@ -1,6 +1,7 @@
 // client/src/lib/contactsClient.ts
 import { emitContactChanged, emitContactDeleted } from "@/features/contacts/events";
 
+
 const etagCache = new Map<string, string>();
 
 export function getCachedETag(id: string) {
@@ -51,8 +52,8 @@ export async function updateContact(id: string, patch: any) {
 }
 
 export async function checkContactCanDelete(id: string) {
-  const res = await fetch(`/api/contacts/${id}/can-delete`, { 
-    credentials: "include" 
+  const res = await fetch(`/api/contacts/${id}/can-delete`, {
+    credentials: "include"
   });
   if (!res.ok) throw new Error(`Check deletion failed: ${res.status}`);
   return res.json();
@@ -75,10 +76,10 @@ export async function deleteContact(id: string) {
   }
   if (res.status === 409) {
     const errorData = await res.json();
-    throw Object.assign(new Error(errorData.message), { 
-      code: 409, 
+    throw Object.assign(new Error(errorData.message), {
+      code: 409,
       details: errorData.details,
-      suggestions: errorData.suggestions 
+      suggestions: errorData.suggestions
     });
   }
   if (!(res.status === 204 || res.ok)) throw new Error(`DELETE failed: ${res.status}`);
