@@ -2,46 +2,58 @@
 import crossTab from "@/lib/crossTab";
 import { queryClient } from "@/lib/queryClient";
 
-/**
- * Register all cross-tab workflow handlers.
- * Call this once during client startup, BEFORE React mounts.
- */
+// Prevent double-registration during HMR / multiple mounts
+declare global {
+  // eslint-disable-next-line no-var
+  var __PF_XTAB_BOOT__: boolean | undefined;
+}
+
 export function registerWorkflowCrossTabHandlers() {
-  // Optional: debug every incoming event
+  if (globalThis.__PF_XTAB_BOOT__) return;
+  globalThis.__PF_XTAB_BOOT__ = true;
+
+  // --- debug: prove we actually registered
+  console.log("[bootstrapCrossTab] registering handlers");
   crossTab.onAny((e) => console.debug("🔎 CrossTab event:", e));
 
   // ---- contact:changed ------------------------------------------------------
-  // When a contact is created/updated in another tab, refresh relevant caches.
   crossTab.on(
     "contact:changed",
     (e) => {
       const id = (e as any).id as string | undefined;
+      const summary = (e as any).summary;
 
-      // Invalidate list views
+      // (optional) optimistic cache touch so you see changes even if API is down
+      if (id && summary) {
+        queryClient.setQueryData(["contact", id], (prev: any) => ({ ...prev, ...summary }));
+        queryClient.setQueryData(["contacts"], (list: any[] | undefined) =>
+          Array.isArray(list) ? list.map((c) => (c.id === id ? { ...c, ...summary } : c)) : list
+        );
+      }
+
+      // normal refetch
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["workflow", "contacts"] });
-
-      // Invalidate detail if we know which contact
       if (id) {
         queryClient.invalidateQueries({ queryKey: ["contact", id] });
-        queryClient.invalidateQueries({ queryKey: ["workflow", "contact", id] });
       }
+      // keep these if you use them elsewhere
+      queryClient.invalidateQueries({ queryKey: ["workflow", "contacts"] });
+      if (id) queryClient.invalidateQueries({ queryKey: ["workflow", "contact", id] });
     },
     { replayLast: true }
   );
 
   // ---- contact:deleted ------------------------------------------------------
-  // When a contact is deleted in another tab, refresh lists and drop detail caches.
   crossTab.on(
     "contact:deleted",
     (e) => {
       const id = (e as any).id as string | undefined;
 
-      // Refresh lists that could include the deleted contact
+      // refresh lists
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["workflow", "contacts"] });
 
-      // Remove any cached detail for that contact
+      // drop cached detail
       if (id) {
         queryClient.removeQueries({ queryKey: ["contact", id], exact: true });
         queryClient.removeQueries({ queryKey: ["workflow", "contact", id], exact: true });
