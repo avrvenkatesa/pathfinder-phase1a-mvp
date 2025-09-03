@@ -1,14 +1,21 @@
-import { defineConfig } from "drizzle-kit";
+// server/drizzle.config.ts
+import type { Config } from "drizzle-kit";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import * as dotenv from "dotenv";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL, ensure the database is provisioned");
-}
+// Resolve server/.env relative to this config file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, "./.env") });
 
-export default defineConfig({
-  out: "./migrations",
-  schema: "./shared/schema.ts",
+export default {
+  schema: "./db/schema.ts",       // your schema file
+  out: "./drizzle",               // where SQL migrations will be written
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: process.env.DATABASE_URL!,   // pulled from server/.env
   },
-});
+  strict: true,
+  verbose: true,
+} satisfies Config;
