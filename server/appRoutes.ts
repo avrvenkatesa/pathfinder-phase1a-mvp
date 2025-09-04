@@ -45,121 +45,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Keep JWT routes for cookie mint/refresh/etc.
   app.use("/api/auth", authJwtRoutes);
 
-  // ------------------------------------------------------------------
   // ✅ Workflow API (unprotected for now; add isAuthenticated if desired)
-  // ------------------------------------------------------------------
-  // If you want these behind auth, switch to:
-  //   app.use("/api/workflows", isAuthenticated, workflows);
-  //   app.use("/api/instances", isAuthenticated, instances);
   app.use("/api/workflows", workflows);
   app.use("/api/instances", instances);
 
-  // ------------------------------------------------------------------
-  // Validation proxy routes (simplified example)
-  // ------------------------------------------------------------------
-  app.post("/api/validation/validate-entity", async (req, res) => {
-    try {
-      const { entityType, data } = req.body;
+  // ---- TEMP: contacts stubs to avoid DB errors while contacts schema is not ready
+  if (process.env.NODE_ENV !== 'production' && process.env.CONTACTS_STUB === 'true') {
+    // List contacts (stub)
+    app.get("/api/contacts", isAuthenticated, (_req, res) => {
+      res.json([]); // empty list
+    });
 
-      if (!entityType || !data) {
-        return res.status(400).json({
-          error: "Missing required fields: entityType and data",
-        });
-      }
+    // Stats (stub)
+    app.get("/api/contacts/stats", isAuthenticated, (_req, res) => {
+      res.json({ total: 0, byType: {}, byTag: {} });
+    });
 
-      // Simple validation for contacts - just check required fields
-      if (entityType === "contact") {
-        const errors: any[] = [];
-        const warnings: any[] = [];
-
-        // Check required fields based on contact type
-        if (!data.name || !data.name.trim()) {
-          errors.push({
-            field: "name",
-            message: "Full name is required",
-            code: "REQUIRED_FIELD",
-            value: data.name,
-          });
-        }
-
-        if (!data.type) {
-          errors.push({
-            field: "type",
-            message: "Contact type is required",
-            code: "REQUIRED_FIELD",
-            value: data.type,
-          });
-        }
-
-        // For person type, check firstName and lastName separately
-        if (data.type === "person") {
-          if (!data.firstName || !data.firstName.trim()) {
-            errors.push({
-              field: "firstName",
-              message: "First name is required for persons",
-              code: "REQUIRED_FIELD",
-              value: data.firstName,
-            });
-          }
-
-          if (!data.lastName || !data.lastName.trim()) {
-            errors.push({
-              field: "lastName",
-              message: "Last name is required for persons",
-              code: "REQUIRED_FIELD",
-              value: data.lastName,
-            });
-          }
-        }
-
-        // Email validation if provided
-        if (data.email && data.email.trim()) {
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(data.email)) {
-            errors.push({
-              field: "email",
-              message: "Invalid email format",
-              code: "INVALID_FORMAT",
-              value: data.email,
-            });
-          }
-        }
-
-        const result = {
-          isValid: errors.length === 0,
-          errors,
-          warnings,
-          metadata: {
-            entityType,
-            entityId: data.id || "new",
-            validatedAt: new Date().toISOString(),
-            severity: errors.length > 0 ? "error" : "info",
-          },
-        };
-
-        return res.json(result);
-      }
-
-      // For other entity types, return basic success
-      return res.json({
-        isValid: true,
-        errors: [] as any[],
-        warnings: [] as any[],
-        metadata: {
-          entityType,
-          entityId: data.id || "new",
-          validatedAt: new Date().toISOString(),
-          severity: "info",
-        },
-      });
-    } catch (error) {
-      console.error("Validation error:", error);
-      return res.status(500).json({
-        error: "Internal validation service error",
-        details: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  });
+    // Hierarchy (stub)
+    app.get("/api/contacts/hierarchy", isAuthenticated, (_req, res) => {
+      res.json([]); // empty tree
+    });
+  }
+  // ---- END TEMP
 
   // ------------------------------------------------------------------
   // Contacts (list/create/stats) — must come BEFORE the :id routes
