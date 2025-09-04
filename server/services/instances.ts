@@ -251,5 +251,3 @@ export async function listInstances(params: {
 
     return { items: rows, nextCursor };
 }
-return { items: rows, nextCursor };
-}
