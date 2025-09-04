@@ -1,137 +1,158 @@
-type CrossTabEvent = {
+// client/src/lib/crossTab.ts
+// Cross-tab bus using BroadcastChannel + storage-event + polling fallback (with dedupe).
+// HMR-safe singleton.
+
+export type CrossTabEvent = {
   type: string;
   ts?: number;
   origin?: string;
-  [k: string]: any;
+  eid?: string;            // unique event id (for dedupe)
+  [k: string]: any;        // payload
 };
 
-type Handler<T = CrossTabEvent> = (event: T) => void;
+type Handler = (e: CrossTabEvent) => void;
+
+const CHANNEL_NAME = "pf-x-tab";
+const LAST_EVENT_KEY = "pf-x-tab:last";
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __PF_TAB_ID__: string | undefined;
+  // eslint-disable-next-line no-var
+  var __PF_XTAB__: CrossTabBus | undefined;
+}
+
+function getTabId(): string {
+  if (!globalThis.__PF_TAB_ID__) {
+    const rid =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `tab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    globalThis.__PF_TAB_ID__ = rid;
+  }
+  return globalThis.__PF_TAB_ID__;
+}
 
 class CrossTabBus {
-  private channel: BroadcastChannel;
+  private bc?: BroadcastChannel;
+  private origin: string;
   private handlers = new Map<string, Set<Handler>>();
-  private anyHandlers = new Set<Handler<CrossTabEvent>>();
-  private lastByType = new Map<string, CrossTabEvent>();
-  private readonly selfOrigin: string;
+  private anyHandlers = new Set<Handler>();
+  private seen = new Set<string>(); // eid dedupe
 
-  constructor(channelName: string) {
-    this.channel = new BroadcastChannel(channelName);
-    this.selfOrigin = this.ensureSessionOrigin();
+  constructor() {
+    this.origin = typeof window !== "undefined" ? getTabId() : "srv";
 
-    this.channel.addEventListener("message", (e: MessageEvent) => {
-      const msg = e.data as CrossTabEvent;
-      // Ignore self if desired; remove this if you want same-tab processing only via dispatch below
-      if (msg && msg.origin && msg.origin === this.selfOrigin) return;
+    // Transport 1: BroadcastChannel
+    if (typeof BroadcastChannel !== "undefined") {
+      try {
+        this.bc = new BroadcastChannel(CHANNEL_NAME);
+        this.bc.onmessage = (msg: MessageEvent<CrossTabEvent>) => {
+          this.handleIncoming(msg.data);
+        };
+      } catch { }
+    }
 
-      console.debug("📨 CrossTab: Received BroadcastChannel message:", msg);
-      this.dispatch(msg);
-    });
-  }
+    // Transport 2: storage event
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", (ev) => {
+        if (ev.key !== LAST_EVENT_KEY || !ev.newValue) return;
+        try {
+          const e = JSON.parse(ev.newValue) as CrossTabEvent;
+          this.handleIncoming(e);
+        } catch { }
+      });
 
-  // Added opts: { dispatchLocal?: boolean }
-  emit<T extends object>(type: string, payload?: T, opts?: { dispatchLocal?: boolean }) {
-    const msg: CrossTabEvent = {
-      type,
-      ...(payload as object),
-      origin: this.selfOrigin,
-      ts: Date.now(),
-    };
-    this.channel.postMessage(msg);
-
-    // Default: do NOT dispatch locally to avoid handling own event in the sender tab.
-    if (opts?.dispatchLocal) {
-      this.dispatch(msg);
+      // Transport 3: polling fallback (covers cases where 'storage' doesn't fire)
+      let lastPolledEid = "";
+      setInterval(() => {
+        try {
+          const raw = localStorage.getItem(LAST_EVENT_KEY);
+          if (!raw) return;
+          const e = JSON.parse(raw) as CrossTabEvent;
+          if (!e?.eid || e.eid === lastPolledEid) return;
+          lastPolledEid = e.eid;
+          this.handleIncoming(e);
+        } catch { }
+      }, 800);
     }
   }
 
-  on<T extends CrossTabEvent>(
+  private handleIncoming(e?: CrossTabEvent) {
+    if (!e) return;
+    if (e.origin === this.origin) return;        // ignore self
+    if (e.eid && this.seen.has(e.eid)) return;   // dedupe
+    if (e.eid) this.seen.add(e.eid);
+    this.dispatch(e);
+  }
+
+  emit(
     type: string,
-    handler: Handler<T>,
-    opts?: { replayLast?: boolean }
+    payload: Record<string, any> = {},
+    opts?: { dispatchLocal?: boolean }
   ) {
-    let set = this.handlers.get(type);
-    if (!set) {
-      set = new Set();
-      this.handlers.set(type, set);
-    }
-    set.add(handler as Handler);
+    const { dispatchLocal = true } = opts ?? {};
+    const e: CrossTabEvent = {
+      type,
+      ts: Date.now(),
+      origin: this.origin,
+      eid: `${type}:${Math.random().toString(36).slice(2, 8)}:${Date.now()}`,
+      ...payload,
+    };
+
+    // optionally dispatch locally
+    if (dispatchLocal) this.dispatch(e);
+
+    // persist for storage/poll transports & late-subscriber replay
+    try {
+      localStorage.setItem(LAST_EVENT_KEY, JSON.stringify(e));
+    } catch { }
+
+    // BroadcastChannel (best-effort)
+    try {
+      this.bc?.postMessage(e);
+    } catch { }
+  }
+
+  on(type: string, handler: Handler, opts?: { replayLast?: boolean }) {
+    if (!this.handlers.has(type)) this.handlers.set(type, new Set());
+    this.handlers.get(type)!.add(handler);
 
     if (opts?.replayLast) {
-      const last = this.lastByType.get(type);
-      if (last) {
-        try {
-          (handler as Handler)(last as unknown as T);
-        } catch (e) {
-          console.error("CrossTab: error replaying last event to handler", e);
+      try {
+        const raw = localStorage.getItem(LAST_EVENT_KEY);
+        if (raw) {
+          const last = JSON.parse(raw) as CrossTabEvent;
+          if (last.type === type && last.origin !== this.origin) {
+            if (!last.eid || !this.seen.has(last.eid)) {
+              if (last.eid) this.seen.add(last.eid);
+              handler(last);
+            }
+          }
         }
-      }
+      } catch { }
     }
-    return () => this.off(type, handler as Handler);
+    return () => this.off(type, handler);
   }
 
-  onAny(handler: Handler<CrossTabEvent>) {
+  onAny(handler: Handler) {
     this.anyHandlers.add(handler);
     return () => this.anyHandlers.delete(handler);
   }
 
   off(type: string, handler: Handler) {
-    const set = this.handlers.get(type);
-    if (set) set.delete(handler);
+    this.handlers.get(type)?.delete(handler);
   }
 
-  private dispatch(msg: CrossTabEvent) {
-    this.lastByType.set(msg.type, msg);
-
-    const set = this.handlers.get(msg.type);
-    const count = set?.size ?? 0;
-    console.debug(`✅ CrossTab: Processing message for ${count} handlers`);
-    console.debug(`🎯 CrossTab: Emitting to ${count} handlers: ${msg.type}`);
-
-    if (set) {
-      set.forEach((h) => {
-        try {
-          h(msg);
-        } catch (e) {
-          console.error("CrossTab handler error", e);
-        }
-      });
-    }
-
-    if (this.anyHandlers.size) {
-      this.anyHandlers.forEach((h) => {
-        try {
-          h(msg);
-        } catch (e) {
-          console.error("CrossTab any-handler error", e);
-        }
-      });
-    }
-  }
-
-  private ensureSessionOrigin(): string {
-    try {
-      const key = "__cross_tab_origin__";
-      let id = sessionStorage.getItem(key);
-      if (!id) {
-        id =
-          "randomUUID" in crypto
-            ? (crypto as any).randomUUID()
-            : `${Date.now()}-${Math.random()}`;
-        sessionStorage.setItem(key, id);
-      }
-      return id;
-    } catch {
-      return `${Date.now()}-${Math.random()}`;
-    }
+  private dispatch(e: CrossTabEvent) {
+    this.handlers.get(e.type)?.forEach((h) => { try { h(e); } catch { } });
+    this.anyHandlers.forEach((h) => { try { h(e); } catch { } });
   }
 }
 
-// Global singleton (prevents multiple instances under HMR)
-const GLOBAL_KEY = "__app_cross_tab_bus_singleton__";
-const CHANNEL_NAME = "pathfinder-cross-tab";
+// HMR-safe singleton
+const crossTab: CrossTabBus = globalThis.__PF_XTAB__ ?? new CrossTabBus();
+globalThis.__PF_XTAB__ = crossTab;
 
-const bus: CrossTabBus =
-  (globalThis as any)[GLOBAL_KEY] ||
-  ((globalThis as any)[GLOBAL_KEY] = new CrossTabBus(CHANNEL_NAME));
-
-export default bus;
+export default crossTab;
+export { CHANNEL_NAME };

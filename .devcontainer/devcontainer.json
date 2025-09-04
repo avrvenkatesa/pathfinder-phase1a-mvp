@@ -1,0 +1,25 @@
+{
+  "name": "pathfinder-phase1a-mvp (Node 20)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "containerEnv": { "NODE_ENV": "development" },
+  "forwardPorts": [3000, 5173],
+  "portsAttributes": {
+    "3000": { "label": "API" },
+    "5173": { "label": "Vite/Frontend" }
+  },
+  "postCreateCommand": "npm ci || npm install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "github.copilot",
+        "github.copilot-chat",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "remoteUser": "node"
+}

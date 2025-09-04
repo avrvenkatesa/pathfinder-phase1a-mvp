@@ -14,12 +14,19 @@ import { computeContactETag, ifMatchSatisfied } from "./utils/etag";
 import { z } from "zod";
 import { insertContactSchema } from "@shared/schema";
 
+// 🔧 Workflow routes (make sure these files exist per our earlier scaffolding)
+import workflows from "./routes/workflows";
+import instances from "./routes/instances";
+
 /**
  * Register all routes and return the HTTP server instance.
  */
 export async function registerRoutes(app: Express): Promise<Server> {
   // Session/OIDC middleware (required before authJwt routes)
   await setupAuth(app);
+
+  // Health (for quick curl checks)
+  app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
   // Session-based auth endpoint (handy for the client)
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
@@ -38,111 +45,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Keep JWT routes for cookie mint/refresh/etc.
   app.use("/api/auth", authJwtRoutes);
 
-  // Add validation proxy routes (simplified version for contact creation)
-  app.post("/api/validation/validate-entity", async (req, res) => {
-    try {
-      const { entityType, data } = req.body;
-      
-      if (!entityType || !data) {
-        return res.status(400).json({
-          error: 'Missing required fields: entityType and data'
-        });
-      }
+  // ✅ Workflow API (unprotected for now; add isAuthenticated if desired)
+  app.use("/api/workflows", workflows);
+  app.use("/api/instances", instances);
 
-      // Simple validation for contacts - just check required fields
-      if (entityType === 'contact') {
-        const errors: any[] = [];
-        const warnings: any[] = [];
+  // ---- TEMP: contacts stubs to avoid DB errors while contacts schema is not ready
+  if (process.env.NODE_ENV !== 'production' && process.env.CONTACTS_STUB === 'true') {
+    // List contacts (stub)
+    app.get("/api/contacts", isAuthenticated, (_req, res) => {
+      res.json([]); // empty list
+    });
 
-        // Check required fields based on contact type
-        if (!data.name || !data.name.trim()) {
-          errors.push({
-            field: 'name',
-            message: 'Full name is required',
-            code: 'REQUIRED_FIELD',
-            value: data.name
-          });
-        }
+    // Stats (stub)
+    app.get("/api/contacts/stats", isAuthenticated, (_req, res) => {
+      res.json({ total: 0, byType: {}, byTag: {} });
+    });
 
-        if (!data.type) {
-          errors.push({
-            field: 'type',
-            message: 'Contact type is required',
-            code: 'REQUIRED_FIELD',
-            value: data.type
-          });
-        }
-
-        // For person type, check firstName and lastName separately
-        if (data.type === 'person') {
-          if (!data.firstName || !data.firstName.trim()) {
-            errors.push({
-              field: 'firstName',
-              message: 'First name is required for persons',
-              code: 'REQUIRED_FIELD',
-              value: data.firstName
-            });
-          }
-
-          if (!data.lastName || !data.lastName.trim()) {
-            errors.push({
-              field: 'lastName',
-              message: 'Last name is required for persons',
-              code: 'REQUIRED_FIELD',
-              value: data.lastName
-            });
-          }
-        }
-
-        // Email validation if provided
-        if (data.email && data.email.trim()) {
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(data.email)) {
-            errors.push({
-              field: 'email',
-              message: 'Invalid email format',
-              code: 'INVALID_FORMAT',
-              value: data.email
-            });
-          }
-        }
-
-        const result = {
-          isValid: errors.length === 0,
-          errors,
-          warnings,
-          metadata: {
-            entityType,
-            entityId: data.id || 'new',
-            validatedAt: new Date().toISOString(),
-            severity: errors.length > 0 ? 'error' : 'info'
-          }
-        };
-
-        return res.json(result);
-      }
-
-      // For other entity types, return basic success
-      return res.json({
-        isValid: true,
-        errors: [] as any[],
-        warnings: [] as any[],
-        metadata: {
-          entityType,
-          entityId: data.id || 'new',
-          validatedAt: new Date().toISOString(),
-          severity: 'info'
-        }
-      });
-      
-    } catch (error) {
-      console.error('Validation error:', error);
-      return res.status(500).json({
-        error: 'Internal validation service error',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
+    // Hierarchy (stub)
+    app.get("/api/contacts/hierarchy", isAuthenticated, (_req, res) => {
+      res.json([]); // empty tree
+    });
+  }
+  // ---- END TEMP
 
   // ------------------------------------------------------------------
   // Contacts (list/create/stats) — must come BEFORE the :id routes
@@ -254,13 +178,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const currentETag = computeContactETag(current);
       if (!ifMatchSatisfied(ifMatch, currentETag)) {
-        return res
-          .status(412)
-          .json({
-            message: "ETag precondition failed",
-            code: "ETAG_MISMATCH",
-            currentETag,
-          });
+        return res.status(412).json({
+          message: "ETag precondition failed",
+          code: "ETAG_MISMATCH",
+          currentETag,
+        });
       }
 
       const updated = await storage.updateContact(contactId, req.body, userId);
@@ -301,13 +223,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const currentETag = computeContactETag(current);
       if (!ifMatchSatisfied(ifMatch, currentETag)) {
-        return res
-          .status(412)
-          .json({
-            message: "ETag precondition failed",
-            code: "ETAG_MISMATCH",
-            currentETag,
-          });
+        return res.status(412).json({
+          message: "ETag precondition failed",
+          code: "ETAG_MISMATCH",
+          currentETag,
+        });
       }
 
       // CRITICAL: Check for active workflow assignments before deletion
@@ -318,18 +238,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           code: "CONTACT_HAS_ACTIVE_ASSIGNMENTS",
           details: {
             assignmentCount: activeAssignments.length,
-            assignments: activeAssignments.map(a => ({
+            assignments: activeAssignments.map((a) => ({
               id: a.id,
               workflowName: a.workflowName,
               status: a.status,
-              assignedAt: a.assignedAt
-            }))
+              assignedAt: a.assignedAt,
+            })),
           },
           suggestions: [
             "Complete or cancel the assigned workflow tasks",
             "Reassign tasks to another contact",
-            "Remove contact from workflow assignments"
-          ]
+            "Remove contact from workflow assignments",
+          ],
         });
       }
 
@@ -344,16 +264,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(204).end();
     } catch (err: any) {
       console.error("Error deleting contact:", err);
-      
+
       // Handle database foreign key constraint violations
-      if (err.code === '23503') {
+      if (err.code === "23503") {
         return res.status(409).json({
           message: "Cannot delete contact due to existing references",
           code: "REFERENTIAL_INTEGRITY_VIOLATION",
-          hint: "Remove all workflow assignments before deleting this contact"
+          hint: "Remove all workflow assignments before deleting this contact",
         });
       }
-      
+
       return res.status(500).json({ message: "Failed to delete contact" });
     }
   });
@@ -370,24 +290,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const activeAssignments = await storage.checkContactAssignments(contactId, userId);
-      
+
       res.json({
         canDelete: activeAssignments.length === 0,
         contact: {
           id: current.id,
           name: current.name,
-          type: current.type
+          type: current.type,
         },
         assignmentCount: activeAssignments.length,
         assignments: activeAssignments,
-        reasons: activeAssignments.length > 0 ? [
-          `Contact has ${activeAssignments.length} active workflow assignments`
-        ] : [],
-        suggestions: activeAssignments.length > 0 ? [
-          "Complete or cancel active assignments",
-          "Reassign tasks to another contact",
-          "Use workflow management to remove assignments"
-        ] : []
+        reasons:
+          activeAssignments.length > 0
+            ? [`Contact has ${activeAssignments.length} active workflow assignments`]
+            : [],
+        suggestions:
+          activeAssignments.length > 0
+            ? [
+              "Complete or cancel active assignments",
+              "Reassign tasks to another contact",
+              "Use workflow management to remove assignments",
+            ]
+            : [],
       });
     } catch (err) {
       console.error("Error checking contact dependencies:", err);
@@ -395,7 +319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Simple health check
+  // Simple health check (legacy path)
   app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
   // Build the HTTP server and initialize websockets
