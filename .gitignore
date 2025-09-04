@@ -92,3 +92,11 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# Dev helpers
+create_issues.sh
+server/drizzle_backup_*/
+
+# Secrets
+server/.env
+.env
