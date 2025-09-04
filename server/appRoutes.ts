@@ -17,6 +17,7 @@ import { insertContactSchema } from "@shared/schema";
 // 🔧 Workflow routes (make sure these files exist per our earlier scaffolding)
 import workflows from "./routes/workflows";
 import instances from "./routes/instances";
+import instancesById from "./routes/instances.byId";
 
 /**
  * Register all routes and return the HTTP server instance.
@@ -48,6 +49,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ✅ Workflow API (unprotected for now; add isAuthenticated if desired)
   app.use("/api/workflows", workflows);
   app.use("/api/instances", instances);
+  app.use("/api/instances", instancesById);
 
   // ---- TEMP: contacts stubs to avoid DB errors while contacts schema is not ready
   if (process.env.NODE_ENV !== 'production' && process.env.CONTACTS_STUB === 'true') {
