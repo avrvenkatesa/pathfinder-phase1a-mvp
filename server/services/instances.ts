@@ -164,3 +164,92 @@ export async function completeStep(instanceId: string, stepId: string) {
         client.release();
     }
 }
+
+// ---- listInstances (filters + seek pagination)
+const INSTANCE_STATUSES = new Set([
+    'pending',
+    'running',
+    'completed',
+    'cancelled',
+    'failed',
+    'paused',
+]);
+
+function encodeCursor(updatedAt: string | Date, id: string) {
+    const iso = typeof updatedAt === 'string' ? updatedAt : (updatedAt as Date).toISOString();
+    return Buffer.from(`${iso}|${id}`, 'utf8').toString('base64');
+}
+
+function decodeCursor(s: string): { updatedAtIso: string; id: string } {
+    try {
+        const raw = Buffer.from(s, 'base64').toString('utf8');
+        const [iso, id] = raw.split('|');
+        if (!iso || !id) throw new Error('bad');
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) throw new Error('bad');
+        assertUUID(id, 'cursor.id');
+        return { updatedAtIso: d.toISOString(), id };
+    } catch {
+        throw Object.assign(new Error('Invalid cursor'), { status: 400 });
+    }
+}
+
+export async function listInstances(params: {
+    definitionId?: string;
+    status?: string;
+    limit?: number;
+    cursor?: string;
+}) {
+    const definitionId = params.definitionId?.trim();
+    const status = params.status?.trim();
+    let limit = Number(params.limit ?? 20);
+    if (!Number.isFinite(limit) || limit <= 0) limit = 20;
+    if (limit > 100) limit = 100;
+
+    if (definitionId) assertUUID(definitionId, 'definitionId');
+    if (status && !INSTANCE_STATUSES.has(status))
+        throw Object.assign(new Error(`Invalid status '${status}'`), { status: 400 });
+
+    const values: any[] = [];
+    const where: string[] = [];
+
+    if (definitionId) {
+        values.push(definitionId);
+        where.push(`workflow_definition_id = $${values.length}`);
+    }
+    if (status) {
+        values.push(status);
+        where.push(`status = $${values.length}`);
+    }
+
+    const c = (params.cursor ?? '').trim();
+    if (c && c !== 'null' && c !== 'undefined' && c !== '-') {
+        const { updatedAtIso, id } = decodeCursor(c);
+        values.push(updatedAtIso, id);
+        // Seek for ORDER BY updated_at DESC, id DESC:
+        where.push(`(updated_at, id) < ($${values.length - 1}, $${values.length})`);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const sql = `
+    SELECT id, workflow_definition_id, status,
+           started_at, completed_at, created_at, updated_at
+      FROM workflow_instances
+      ${whereSql}
+      ORDER BY updated_at DESC, id DESC
+      LIMIT $${values.length + 1}
+  `;
+    values.push(limit);
+
+    const { rows } = await pool.query(sql, values);
+
+    let nextCursor: string | null = null;
+    if (rows.length === limit) {
+        const last = rows[rows.length - 1];
+        nextCursor = encodeCursor(last.updated_at, last.id);
+    }
+
+    return { items: rows, nextCursor };
+}
+return { items: rows, nextCursor };
+}
