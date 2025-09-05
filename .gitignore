@@ -100,3 +100,4 @@ server/drizzle_backup_*/
 # Secrets
 server/.env
 .env
+.github/pr-bodies/
