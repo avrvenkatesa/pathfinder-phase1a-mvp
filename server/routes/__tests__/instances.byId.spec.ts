@@ -1,15 +1,25 @@
+// server/routes/__tests__/instances.byId.spec.ts
 import request from "supertest";
 import { describe, it, expect, beforeAll } from "vitest";
 import { app, appReady } from "../../index";
 import { db } from "../../db";
-import { workflow_instances as wi } from "../../db/schema";
+import { sql } from "drizzle-orm";
 
 let existingInstanceId: string | null = null;
 
+async function fetchAnyInstanceId(): Promise<string | null> {
+  // Run raw SQL to avoid depending on schema export names
+  const res: any = await db.execute(
+    sql`select id from workflow_instances order by updated_at desc limit 1`
+  );
+  // Neon/pg adapters differ: try both shapes
+  const row = res?.rows?.[0] ?? res?.[0];
+  return row?.id ?? null;
+}
+
 beforeAll(async () => {
   await appReady; // ensure routes/middleware are mounted
-  const rows = await db.select({ id: wi.id }).from(wi).limit(1);
-  existingInstanceId = rows[0]?.id ?? null;
+  existingInstanceId = await fetchAnyInstanceId();
 });
 
 describe("GET /api/instances/:id", () => {
@@ -29,8 +39,8 @@ describe("GET /api/instances/:id", () => {
 
   it("returns 200 and the expected shape for an existing instance", async () => {
     if (!existingInstanceId) {
-      console.warn("[test] No workflow_instances found; skipping happy-path check.");
-      return;
+      console.warn("[test] No workflow_instances found; run `npm run seed:workflow` and re-run tests.");
+      return; // skip gracefully if DB empty
     }
     const res = await request(app).get(`/api/instances/${existingInstanceId}`);
     expect(res.status).toBe(200);
