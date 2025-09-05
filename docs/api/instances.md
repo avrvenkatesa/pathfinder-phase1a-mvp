@@ -119,3 +119,14 @@ Links
 Issue: #6 — M1: GET /api/instances (list/filter)
 
 PR: #22 — M1: instances list/filter + seek pagination
+
+---
+
+## Business Rationale
+
+**Why:** Provide fast, reliable visibility into workflow runs so Ops and Product can track progress, triage issues, and make decisions.  
+**Outcomes:**
+- Operational visibility for the Runtime Dashboard and support workflows
+- Faster triage of stuck or long-running instances
+- Pagination that scales with data growth (lower infra costs, better UX)
+- Stable API contract to unblock frontend delivery in M2
