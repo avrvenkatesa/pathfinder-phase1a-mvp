@@ -18,6 +18,7 @@ import { insertContactSchema } from "@shared/schema";
 import workflows from "./routes/workflows";
 import instances from "./routes/instances";
 import instancesById from "./routes/instances.byId";
+import instancesSteps from "./routes/instances.steps";
 
 /**
  * Register all routes and return the HTTP server instance.
@@ -50,6 +51,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/workflows", workflows);
   app.use("/api/instances", instances);
   app.use("/api/instances", instancesById);
+  app.use("/api/instances", instancesSteps);
 
   // ---- TEMP: contacts stubs to avoid DB errors while contacts schema is not ready
   if (process.env.NODE_ENV !== 'production' && process.env.CONTACTS_STUB === 'true') {

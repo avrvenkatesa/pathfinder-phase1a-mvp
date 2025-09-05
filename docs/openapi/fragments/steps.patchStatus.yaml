@@ -1,0 +1,35 @@
+/api/instances/{id}/steps/{stepId}/status:
+patch:
+summary: Update a step status (wrapper)
+tags: [instances, steps]
+parameters:
+- in: path
+name: id
+required: true
+schema: { type: string, format: uuid }
+- in: path
+name: stepId
+required: true
+schema: { type: string, format: uuid }
+requestBody:
+required: true
+content:
+application/json:
+schema:
+type: object
+required: [status]
+properties:
+status:
+type: string
+enum: [pending, ready, in_progress, blocked, completed, cancelled, failed, skipped]
+reason: { type: string, maxLength: 500 }
+metadata: { type: object, additionalProperties: true }
+responses:
+"200":
+description: Updated
+"400":
+description: Invalid request
+"404":
+description: Not found
+"409":
+description: Invalid transition
