@@ -1,0 +1,52 @@
+# Fragment to be merged under top-level `paths:` of docs/openapi/openapi.yaml
+/api/instances/{id}:
+  get:
+    summary: Get a workflow instance by id
+    tags: [instances]
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      "200":
+        description: Instance found
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, definitionId, status, createdAt, updatedAt, summary]
+              properties:
+                id: { type: string, format: uuid }
+                definitionId: { type: string, format: uuid }
+                status:
+                  type: string
+                  enum: [pending, running, completed, cancelled, failed, paused]
+                createdAt: { type: string, format: date-time }
+                updatedAt: { type: string, format: date-time }
+                summary:
+                  type: object
+                  properties:
+                    totalSteps: { type: integer }
+                    completedSteps: { type: integer }
+                    runningSteps: { type: integer }
+                    failedSteps: { type: integer }
+                    pendingSteps: { type: integer }
+      "400":
+        description: Invalid id
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error: { type: string, example: BadRequest }
+                message: { type: string, example: Invalid id }
+      "404":
+        description: Instance not found
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error: { type: string, example: NotFound }
+                message: { type: string, example: Instance not found }

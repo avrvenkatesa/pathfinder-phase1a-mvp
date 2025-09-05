@@ -1,0 +1,108 @@
+openapi: 3.0.3
+info:
+title: Pathfinder API
+version: 1.0.0
+servers:
+
+url: http://localhost:5000
+
+paths:
+/api/instances:
+get:
+summary: List workflow instances
+description: Seek-paginated list; ordered by updated_at desc, id desc.
+parameters:
+- in: query
+name: definitionId
+schema:
+type: string
+format: uuid
+- in: query
+name: status
+schema:
+type: string
+enum: [pending, running, completed, cancelled, failed, paused]
+- in: query
+name: limit
+schema:
+type: integer
+minimum: 1
+maximum: 100
+default: 20
+- in: query
+name: cursor
+schema:
+type: string
+nullable: true
+responses:
+'200':
+description: OK
+content:
+application/json:
+schema:
+$ref: '#/components/schemas/InstancesListResponse'
+'400':
+description: Bad Request
+content:
+application/json:
+schema:
+$ref: '#/components/schemas/ErrorResponse'
+'500':
+description: Server Error
+content:
+application/json:
+schema:
+$ref: '#/components/schemas/ErrorResponse'
+components:
+schemas:
+Instance:
+type: object
+properties:
+id:
+type: string
+format: uuid
+workflow_definition_id:
+type: string
+format: uuid
+status:
+type: string
+enum: [pending, running, completed, cancelled, failed, paused]
+started_at:
+type: string
+format: date-time
+nullable: true
+completed_at:
+type: string
+format: date-time
+nullable: true
+created_at:
+type: string
+format: date-time
+updated_at:
+type: string
+format: date-time
+required: [id, workflow_definition_id, status, created_at, updated_at]
+InstancesListResponse:
+type: object
+properties:
+items:
+type: array
+items:
+$ref: '#/components/schemas/Instance'
+nextCursor:
+type: string
+nullable: true
+required: [items]
+ErrorResponse:
+type: object
+properties:
+message:
+type: string
+code:
+type: string
+nullable: true
+details:
+type: object
+additionalProperties: true
+nullable: true
+required: [message]
