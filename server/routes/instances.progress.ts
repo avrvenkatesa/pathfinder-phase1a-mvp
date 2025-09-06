@@ -5,7 +5,6 @@ import { sql } from "drizzle-orm";
 
 const router = Router();
 
-// UUID v4
 const UUID_V4 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -86,7 +85,33 @@ router.get(
 
       // Sanitize rows to avoid bigint -> JSON issues
       const instance = sanitizeJson(instanceRaw);
-      const steps = sanitizeJson(stepsRaw);
+
+      // Enrich steps with expected fields
+      const steps = (stepsRaw as any[]).map((s, i) => {
+        const status: string = s.status;
+        const isReady = status === "ready";
+        const isBlocked = status === "blocked";
+        const isTerminal = ["completed", "failed", "cancelled", "skipped"].includes(
+          status
+        );
+        return {
+          // original ids
+          id: s.id,
+          definitionStepId: s.step_id ?? s.id, // fall back to id if step_id missing
+          // derived
+          index: i, // 0-based, ordered by created_at asc
+          status,
+          isReady,
+          isBlocked,
+          isTerminal,
+          blockedBy: [] as string[], // no dependency graph yet
+          // keep a few timestamps for UI if needed
+          created_at: s.created_at,
+          updated_at: s.updated_at,
+          started_at: s.started_at,
+          completed_at: s.completed_at,
+        };
+      });
 
       return res.json({
         instanceId: instance.id,
