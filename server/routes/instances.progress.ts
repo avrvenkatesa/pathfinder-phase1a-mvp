@@ -48,24 +48,22 @@ router.get(
           .json({ error: "NotFound", message: "Instance not found" });
       }
 
-      // Steps
+      // Steps — only columns that surely exist on step_instances
       const stepsRes: any = await db.execute(sql`
         select
           id,
           step_id,
-          name,
-          type,
-          sequence,
           status,
           assigned_to,
           payload,
           created_at,
           updated_at,
           started_at,
-          completed_at
+          completed_at,
+          workflow_instance_id
         from step_instances
         where workflow_instance_id = ${id}
-        order by sequence asc, created_at asc
+        order by created_at asc
       `);
       const stepsRaw = stepsRes?.rows ?? stepsRes ?? [];
 
@@ -97,7 +95,6 @@ router.get(
         steps,
       });
     } catch (err) {
-      // helpful in CI
       console.error("GET /api/instances/:id/progress failed:", err);
       next(err);
     }
