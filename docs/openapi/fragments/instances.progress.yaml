@@ -1,0 +1,53 @@
+/api/instances/{id}/progress:
+  get:
+    summary: Get per-step progress for an instance
+    tags: [instances]
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      "200":
+        description: Progress detail
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instanceId, steps, summary]
+              properties:
+                instanceId: { type: string, format: uuid }
+                steps:
+                  type: array
+                  items:
+                    type: object
+                    required: [definitionStepId, index, status, blockedBy, isBlocked, isReady, isTerminal]
+                    properties:
+                      stepId: { type: string, format: uuid, nullable: true }
+                      definitionStepId: { type: string, format: uuid }
+                      name: { type: string, nullable: true }
+                      type: { type: string, nullable: true }
+                      index: { type: integer }
+                      status:
+                        type: string
+                        enum: [pending, ready, in_progress, blocked, completed, cancelled, failed, skipped]
+                      updatedAt: { type: string, format: date-time, nullable: true }
+                      completedAt: { type: string, format: date-time, nullable: true }
+                      blockedBy:
+                        type: array
+                        items: { type: string, format: uuid }
+                      isBlocked: { type: boolean }
+                      isReady: { type: boolean }
+                      isTerminal: { type: boolean }
+                summary:
+                  type: object
+                  required: [total, completed, running, pending]
+                  properties:
+                    total: { type: integer }
+                    completed: { type: integer }
+                    running: { type: integer }
+                    pending: { type: integer }
+      "400":
+        description: Invalid id
+      "404":
+        description: Instance not found
