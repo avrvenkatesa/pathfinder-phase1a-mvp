@@ -1,0 +1,38 @@
+paths:
+  /api/instances/{id}/steps/{stepId}/advance:
+    post:
+      summary: Advance a step (dependency-aware)
+      tags: [Instances]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: stepId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Advanced }
+        "404": { description: Not found }
+        "409": { description: Blocking dependencies remain }
+        "422": { description: Invalid transition }
+
+  /api/instances/{id}/steps/{stepId}/complete:
+    post:
+      summary: Complete a step (dependency-aware)
+      tags: [Instances]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: stepId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Completed }
+        "404": { description: Not found }
+        "409": { description: Blocking dependencies remain }
+        "422": { description: Invalid transition }
