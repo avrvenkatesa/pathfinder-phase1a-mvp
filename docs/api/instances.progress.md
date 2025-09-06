@@ -1,41 +1,44 @@
-# GET `/api/instances/:id/progress` — per-step progress & topology
+# GET `/api/instances/:id/progress`
 
-Returns all definition steps for the instance’s workflow with runtime status, simple dependency topology, and a summary.
+Returns a workflow instance’s progress (rollup counts + per-step flags).
 
-## Request
-`GET /api/instances/{id}/progress`
+## Path params
+- `id` — UUIDv4 (required)
 
 ## Response — 200 OK
 ```json
 {
   "instanceId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+  "summary": {
+    "total": 5,
+    "running": 2,
+    "completed": 1,
+    "pending": 2,
+    "failed": 0
+  },
   "steps": [
     {
-      "stepId": "…",                     // may be null if not materialized
-      "definitionStepId": "…",
-      "name": "Approve Request",
-      "type": "approval",
+      "stepId": "11111111-2222-4ccc-8ddd-333333333333",   // may be null if not materialized
+      "definitionStepId": "44444444-5555-4ccc-8ddd-666666666666",
       "index": 0,
       "status": "in_progress",
-      "updatedAt": "2025-09-05T12:34:56.789Z",
-      "completedAt": null,
-      "blockedBy": ["<definitionStepId>"],
+      "isReady": true,
       "isBlocked": false,
-      "isReady": false,
-      "isTerminal": false
+      "isTerminal": false,
+      "blockedBy": []
     }
-  ],
-  "summary": { "total": 5, "completed": 2, "running": 1, "pending": 2 }
+  ]
+}
 Errors
 400 Bad Request — invalid UUID
+{"error":"BadRequest","message":"Invalid id"}
 
-404 Not Found — instance missing
-
-500 Internal Server Error — unexpected
+404 Not Found — instance not found
+{"error":"NotFound","message":"Instance not found"}
 
 Notes
-blockedBy lists definition step ids; isBlocked becomes true if any dependent step instance is not completed.
+running rollup covers ready + in_progress.
 
-isReady = !isBlocked && status in {pending,ready,blocked}.
+pending rollup covers pending + blocked + skipped.
 
-Summary uses: running = in_progress + ready, pending = pending + blocked + skipped.
+Additional timestamp fields on steps may be present and should be treated as optional.
