@@ -6,7 +6,7 @@ import session from 'express-session';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { getDatabase, closeDatabasePool } from './config/database.js';
-import config, { validateConfig } from './config/production.js';
+import config, { validateConfig } from './config/env';
 import { errorHandler, notFoundHandler, asyncHandler } from './middleware/errorHandler.js';
 import { 
   requestLogger, 

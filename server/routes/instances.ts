@@ -39,8 +39,8 @@ r.post("/", async (req, res, next) => {
     }
 });
 
-// PROGRESS: GET /api/instances/:instanceId/progress
-r.get("/:instanceId/progress", async (req, res, next) => {
+// PROGRESS: GET /api/instances/:instanceId/progress_DEPRECATED
+r.get("/:instanceId/progress_DEPRECATED", async (req, res, next) => {
     try {
         res.json(await getProgress(req.params.instanceId));
     } catch (e) {
