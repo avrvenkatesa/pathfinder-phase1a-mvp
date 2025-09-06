@@ -97,6 +97,7 @@ router.get(
         return {
           // original ids
           id: s.id,
+          stepId: s.step_id ?? null,
           definitionStepId: s.step_id ?? s.id, // fall back to id if step_id missing
           // derived
           index: i, // 0-based, ordered by created_at asc
