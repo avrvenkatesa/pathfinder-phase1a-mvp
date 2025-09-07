@@ -14,9 +14,10 @@ import { computeContactETag, ifMatchSatisfied } from "./utils/etag";
 import { z } from "zod";
 import { insertContactSchema } from "@shared/schema";
 
-// 🔧 Workflow / Instances routers
+// Workflow / Instances routers
 import workflows from "./routes/workflows";
 import instancesSteps from "./routes/instances.steps";
+import instancesStepsConvenience from "./routes/instances.steps.convenience";
 import instancesProgress from "./routes/instances.progress";
 import instancesById from "./routes/instances.byId";
 import instances from "./routes/instances";
@@ -35,9 +36,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
       const user = req.user;
-      if (!user || !user.claims) {
-        return res.status(401).json({ error: "No active session" });
-      }
+      if (!user?.claims) return res.status(401).json({ error: "No active session" });
       res.json({ claims: user.claims, authenticated: true });
     } catch (error) {
       console.error("Error in /api/auth/user:", error);
@@ -45,43 +44,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Keep JWT routes for cookie mint/refresh/etc.
+  // JWT routes (cookie mint/refresh/etc.)
   app.use("/api/auth", authJwtRoutes);
 
-  // ✅ Workflows (separate path)
+  // Workflows (separate path)
   app.use("/api/workflows", workflows);
 
-  // ✅ Instances family — most specific first
-  app.use("/api/instances", instancesSteps);     // PATCH /:id/steps/:stepId/status
-  app.use("/api/instances", instancesProgress);  // GET   /:id/progress
-  app.use("/api/instances", instancesById);      // GET   /:id
-  app.use("/api/instances", instances);          // GET   /  (list with seek)
+  // Instances family — most specific first
+  app.use("/api/instances", instancesProgress);           // GET   /:id/progress
+  app.use("/api/instances", instancesSteps);              // PATCH /:id/steps/:stepId/status
+  app.use("/api/instances", instancesStepsConvenience);   // POST  /:id/steps/:stepId/{advance,complete}
+  app.use("/api/instances", instancesById);               // GET   /:id
+  app.use("/api/instances", instances);                   // GET   /  (seek list)
 
   // ---- TEMP: contacts stubs to avoid DB errors while contacts schema is not ready
   const useContactStubs =
     process.env.NODE_ENV !== "production" && process.env.CONTACTS_STUB === "true";
 
   if (useContactStubs) {
-    // List contacts (stub)
-    app.get("/api/contacts", isAuthenticated, (_req, res) => {
-      res.json([]); // empty list
-    });
-
-    // Stats (stub)
-    app.get("/api/contacts/stats", isAuthenticated, (_req, res) => {
-      res.json({ total: 0, byType: {}, byTag: {} });
-    });
-
-    // Hierarchy (stub)
-    app.get("/api/contacts/hierarchy", isAuthenticated, (_req, res) => {
-      res.json([]); // empty tree
-    });
+    app.get("/api/contacts", isAuthenticated, (_req, res) => res.json([]));
+    app.get("/api/contacts/stats", isAuthenticated, (_req, res) =>
+      res.json({ total: 0, byType: {}, byTag: {} })
+    );
+    app.get("/api/contacts/hierarchy", isAuthenticated, (_req, res) => res.json([]));
   } else {
-    // ------------------------------------------------------------------
     // Contacts (list/create/stats) — must come BEFORE the :id routes
-    // ------------------------------------------------------------------
-
-    // List contacts
     app.get("/api/contacts", isAuthenticated, async (req: any, res) => {
       try {
         const userId = req.user?.claims?.sub;
@@ -100,7 +87,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
-    // Create contact
     app.post("/api/contacts", isAuthenticated, async (req: any, res) => {
       try {
         const userId = req.user?.claims?.sub;
@@ -109,16 +95,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(201).json(contact);
       } catch (error) {
         if (error instanceof z.ZodError) {
-          return res
-            .status(400)
-            .json({ message: "Invalid contact data", errors: error.errors });
+          return res.status(400).json({ message: "Invalid contact data", errors: error.errors });
         }
         console.error("Error creating contact:", error);
         res.status(500).json({ message: "Failed to create contact" });
       }
     });
 
-    // Stats used by the UI
     app.get("/api/contacts/stats", isAuthenticated, async (req: any, res) => {
       try {
         const userId = req.user?.claims?.sub;
@@ -130,7 +113,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
-    // (Optional) Hierarchy endpoint, if your UI calls it
     app.get("/api/contacts/hierarchy", isAuthenticated, async (req: any, res) => {
       try {
         const userId = req.user?.claims?.sub;
@@ -142,21 +124,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
-    // ------------------------------------------------------------------
     // Contacts with Optimistic Concurrency (ETag) — :id routes
-    // ------------------------------------------------------------------
-
-    // GET contact (sends ETag)
     app.get("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
       try {
         const userId = req.user?.claims?.sub;
         const contactId = req.params.id;
-
         const contact = await storage.getContactById(contactId, userId);
-        if (!contact) {
-          return res.status(404).json({ message: "Contact not found" });
-        }
-
+        if (!contact) return res.status(404).json({ message: "Contact not found" });
         const etag = computeContactETag(contact);
         res.setHeader("ETag", etag);
         res.setHeader("Cache-Control", "no-store");
@@ -167,7 +141,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
-    // PUT contact (requires If-Match)
     app.put("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
       try {
         const userId = req.user?.claims?.sub;
@@ -181,9 +154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const current = await storage.getContactById(contactId, userId);
-        if (!current) {
-          return res.status(404).json({ message: "Contact not found" });
-        }
+        if (!current) return res.status(404).json({ message: "Contact not found" });
 
         const currentETag = computeContactETag(current);
         if (!ifMatchSatisfied(ifMatch, currentETag)) {
@@ -195,11 +166,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const updated = await storage.updateContact(contactId, req.body, userId);
-        if (!updated) {
-          return res.status(404).json({ message: "Contact not found" });
-        }
+        if (!updated) return res.status(404).json({ message: "Contact not found" });
 
-        // Broadcast contact modification to all connected clients
         contactWebSocketService.broadcastContactModified(contactId, req.body, updated);
 
         const newETag = computeContactETag(updated);
@@ -212,7 +180,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
-    // DELETE contact (requires If-Match)
     app.delete("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
       try {
         const userId = req.user?.claims?.sub;
@@ -226,9 +193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const current = await storage.getContactById(contactId, userId);
-        if (!current) {
-          return res.status(404).json({ message: "Contact not found" });
-        }
+        if (!current) return res.status(404).json({ message: "Contact not found" });
 
         const currentETag = computeContactETag(current);
         if (!ifMatchSatisfied(ifMatch, currentETag)) {
@@ -239,7 +204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        // CRITICAL: Check for active workflow assignments before deletion
+        // Check for active workflow assignments before deletion
         const activeAssignments = await storage.checkContactAssignments(contactId, userId);
         if (activeAssignments.length > 0) {
           return res.status(409).json({
@@ -263,18 +228,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const deleted = await storage.deleteContact(contactId, userId);
-        if (!deleted) {
-          return res.status(404).json({ message: "Contact not found" });
-        }
+        if (!deleted) return res.status(404).json({ message: "Contact not found" });
 
-        // Broadcast contact deletion to all connected clients
         contactWebSocketService.broadcastContactDeleted(contactId, current);
 
         return res.status(204).end();
       } catch (err: any) {
         console.error("Error deleting contact:", err);
-
-        // Handle database foreign key constraint violations
         if (err.code === "23503") {
           return res.status(409).json({
             message: "Cannot delete contact due to existing references",
@@ -282,31 +242,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hint: "Remove all workflow assignments before deleting this contact",
           });
         }
-
         return res.status(500).json({ message: "Failed to delete contact" });
       }
     });
 
-    // Check if contact can be deleted (pre-deletion validation)
+    // Pre-deletion validation
     app.get("/api/contacts/:id/can-delete", isAuthenticated, async (req: any, res) => {
       try {
         const userId = req.user?.claims?.sub;
         const contactId = req.params.id;
 
         const current = await storage.getContactById(contactId, userId);
-        if (!current) {
-          return res.status(404).json({ message: "Contact not found" });
-        }
+        if (!current) return res.status(404).json({ message: "Contact not found" });
 
         const activeAssignments = await storage.checkContactAssignments(contactId, userId);
 
         res.json({
           canDelete: activeAssignments.length === 0,
-          contact: {
-            id: current.id,
-            name: current.name,
-            type: current.type,
-          },
+          contact: { id: current.id, name: current.name, type: current.type },
           assignmentCount: activeAssignments.length,
           assignments: activeAssignments,
           reasons:
@@ -332,6 +285,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Simple health check (legacy path)
   app.get("/healthz", (_req, res) => res.json({ ok: true }));
+
+  // 404 + error handlers
+  app.use((_req, res) => res.status(404).json({ error: "NotFound", message: "Route not found" }));
+  app.use((err: any, _req: any, res: any, _next: any) => {
+    console.error(err);
+    res
+      .status(err?.status || 500)
+      .json({ error: err?.code || "InternalError", message: err?.message || "Unexpected error" });
+  });
 
   // Build the HTTP server and initialize websockets
   const httpServer = createServer(app);

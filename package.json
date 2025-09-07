@@ -19,7 +19,8 @@
     "drizzle:studio": "cd server && drizzle-kit studio --config ./drizzle.config.ts",
     "seed:workflow": "DOTENV_CONFIG_PATH=server/.env tsx -r dotenv/config server/scripts/seed-workflow.ts",
     "test": "cross-env NODE_ENV=test CONTACTS_STUB=true vitest --run",
-    "test:watch": "cross-env NODE_ENV=test CONTACTS_STUB=true vitest --watch"
+    "test:watch": "cross-env NODE_ENV=test CONTACTS_STUB=true vitest --watch",
+    "test:api": "cross-env NODE_ENV=test CONTACTS_STUB=true vitest --run server/routes/__tests__/*.spec.ts server/routes/__tests__/*.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

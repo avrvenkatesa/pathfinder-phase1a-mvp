@@ -1,85 +1,122 @@
 // server/services/steps.ts
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db";
-import { sql } from "drizzle-orm";
+import { stepInstances, stepDependencies } from "../db/schema";
 
-export type StepStatus =
-  | "pending" | "ready" | "in_progress" | "blocked"
-  | "completed" | "cancelled" | "failed" | "skipped";
+/**
+ * NOTE: This file assumes camelCase columns in your Drizzle schema:
+ * - stepInstances: instanceId (uuid), stepId (uuid), status (text), updatedAt (timestamp)
+ * - stepDependencies: stepId (uuid), dependsOnStepId (uuid)
+ * If your columns are snake_case, adjust the references below.
+ */
 
-const ALLOWED: Record<StepStatus, StepStatus[]> = {
-  pending:     ["ready","in_progress","blocked","cancelled","skipped"],
-  ready:       ["in_progress","blocked","cancelled","skipped"],
-  in_progress: ["blocked","completed","failed","cancelled","skipped"],
-  blocked:     ["ready","in_progress","cancelled","skipped"],
-  completed:   [],
-  cancelled:   [],
-  failed:      [],
-  skipped:     [],
+export type StepStatus = "PENDING" | "BLOCKED" | "IN_PROGRESS" | "COMPLETED";
+type TransitionResult = { stepInstance: any; changed: boolean };
+
+const ALLOWED_FORWARD: Record<StepStatus, StepStatus[]> = {
+  PENDING: ["IN_PROGRESS"],
+  BLOCKED: ["IN_PROGRESS"],
+  IN_PROGRESS: ["COMPLETED"],
+  COMPLETED: [],
 };
 
-export async function patchStepStatus(args: {
-  instanceId: string;
-  stepId: string;
-  status: StepStatus;
-  reason?: string;
-  metadata?: Record<string, any>;
-}): Promise<
-  | { kind: "ok"; step: { id: string; instanceId: string; status: StepStatus; updatedAt: string; completedAt: string | null } }
-  | { kind: "not_found"; message: string }
-  | { kind: "invalid_transition"; from: StepStatus; to: StepStatus }
-> {
-  const { instanceId, stepId, status: to } = args;
-
-  // NOTE: schema uses workflow_instance_id (not instance_id)
-  const sel: any = await db.execute(sql`
-    select id, workflow_instance_id, status, updated_at, completed_at
-      from step_instances
-     where id = ${stepId} and workflow_instance_id = ${instanceId}
-     limit 1
-  `);
-  const row = sel?.rows?.[0] ?? sel?.[0];
-  if (!row) return { kind: "not_found", message: "Step not found for instance" };
-
-  const from = row.status as StepStatus;
-
-  // Idempotent if unchanged
-  if (from === to) {
-    return {
-      kind: "ok",
-      step: {
-        id: row.id,
-        instanceId: row.workflow_instance_id,
-        status: from,
-        updatedAt: (row.updated_at instanceof Date ? row.updated_at : new Date(row.updated_at)).toISOString(),
-        completedAt: row.completed_at ? (row.completed_at instanceof Date ? row.completed_at : new Date(row.completed_at)).toISOString() : null,
-      },
-    };
+class ApiError extends Error {
+  code: string;
+  detail?: string;
+  blockingDeps?: string[];
+  constructor(code: string, message: string, detail?: string, blockingDeps?: string[]) {
+    super(message);
+    this.code = code;
+    this.detail = detail;
+    this.blockingDeps = blockingDeps;
   }
-
-  // Validate transition
-  if (!ALLOWED[from]?.includes(to)) {
-    return { kind: "invalid_transition", from, to };
-  }
-
-  // Update (cast to enum; adjust completed_at when completing)
-  const upd: any = await db.execute(sql`
-    update step_instances
-       set status = ${to}::step_status,
-           updated_at = now(),
-           completed_at = case when ${to} = 'completed' then now() else completed_at end
-     where id = ${stepId} and workflow_instance_id = ${instanceId}
-     returning id, workflow_instance_id, status, updated_at, completed_at
-  `);
-  const u = upd?.rows?.[0] ?? upd?.[0];
-
-  return {
-    kind: "ok",
-    step: {
-      id: u.id,
-      instanceId: u.workflow_instance_id,
-      status: u.status,
-      updatedAt: (u.updated_at instanceof Date ? u.updated_at : new Date(u.updated_at)).toISOString(),
-      completedAt: u.completed_at ? (u.completed_at instanceof Date ? u.completed_at : new Date(u.completed_at)).toISOString() : null,
-    },
-  };
 }
+
+async function loadStepInstance(instanceId: string, stepId: string) {
+  const rows = await db
+    .select()
+    .from(stepInstances)
+    .where(and(eq(stepInstances.instanceId, instanceId), eq(stepInstances.stepId, stepId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Dependencies for `stepId` must be COMPLETED within the same instance.
+ * Returns array of blocking dependency stepIds, if any.
+ */
+async function getBlockingDeps(instanceId: string, stepId: string): Promise<string[]> {
+  const res = await db.execute(sql`
+    SELECT d."dependsOnStepId" AS dep_id
+    FROM ${stepDependencies} d
+    LEFT JOIN ${stepInstances} si
+      ON si."stepId" = d."dependsOnStepId" AND si."instanceId" = ${instanceId}
+    WHERE d."stepId" = ${stepId}
+      AND (si."status" IS NULL OR si."status" <> 'COMPLETED')
+  `);
+
+  const rows = (res as any).rows ?? (res as any);
+  return rows.map((r: any) => r.dep_id);
+}
+
+async function applyTransition(
+  instanceId: string,
+  stepId: string,
+  target: StepStatus
+): Promise<{ updated: any; changed: boolean }> {
+  const current = await loadStepInstance(instanceId, stepId);
+  if (!current) throw new ApiError("NOT_FOUND", "Step instance not found");
+
+  const from: StepStatus = current.status;
+  const allowed = ALLOWED_FORWARD[from] ?? [];
+  if (!allowed.includes(target)) {
+    throw new ApiError("INVALID_TRANSITION", "Transition not allowed", `${from} -> ${target}`);
+  }
+
+  if (from === target) {
+    return { updated: current, changed: false };
+  }
+
+  const updatedRows = await db
+    .update(stepInstances)
+    .set({ status: target, updatedAt: new Date() })
+    .where(and(eq(stepInstances.instanceId, instanceId), eq(stepInstances.stepId, stepId)))
+    .returning();
+
+  const updated = updatedRows[0];
+  return { updated, changed: updated?.status !== current.status };
+}
+
+export async function advanceStepService(
+  instanceId: string,
+  stepId: string,
+  _req?: any
+): Promise<TransitionResult> {
+  if (!instanceId || !stepId) throw new ApiError("NOT_FOUND", "Missing ids");
+
+  const blocking = await getBlockingDeps(instanceId, stepId);
+  if (blocking.length) {
+    throw new ApiError("DEP_NOT_READY", "Dependencies not complete", undefined, blocking);
+  }
+
+  const { updated, changed } = await applyTransition(instanceId, stepId, "IN_PROGRESS");
+  return { stepInstance: updated, changed };
+}
+
+export async function completeStepService(
+  instanceId: string,
+  stepId: string,
+  _req?: any
+): Promise<TransitionResult> {
+  if (!instanceId || !stepId) throw new ApiError("NOT_FOUND", "Missing ids");
+
+  const blocking = await getBlockingDeps(instanceId, stepId);
+  if (blocking.length) {
+    throw new ApiError("DEP_NOT_READY", "Dependencies not complete", undefined, blocking);
+  }
+
+  const { updated, changed } = await applyTransition(instanceId, stepId, "COMPLETED");
+  return { stepInstance: updated, changed };
+}
+
+export { ApiError };

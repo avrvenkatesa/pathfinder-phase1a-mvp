@@ -1,0 +1,61 @@
+
+--- BEGIN: steps convenience endpoints ---
+
+/api/instances/{instanceId}/steps/{stepInstanceId}/advance:
+post:
+tags: [Instances]
+summary: Advance a step to in_progress (sequence-guarded)
+parameters:
+- in: path
+name: instanceId
+required: true
+schema: { type: string, format: uuid }
+- in: path
+name: stepInstanceId
+required: true
+schema: { type: string, format: uuid }
+responses:
+'200':
+description: advanced
+'400':
+description: invalid UUIDs
+'409':
+description: dependencies not satisfied
+content:
+application/json:
+schema:
+type: object
+properties:
+error: { type: string, example: NotReady }
+code: { type: string, example: NotReady }
+
+/api/instances/{instanceId}/steps/{stepInstanceId}/complete:
+post:
+tags: [Instances]
+summary: Complete a step (sequence-guarded)
+parameters:
+- in: path
+name: instanceId
+required: true
+schema: { type: string, format: uuid }
+- in: path
+name: stepInstanceId
+required: true
+schema: { type: string, format: uuid }
+responses:
+'200':
+description: completed
+'400':
+description: invalid UUIDs
+'409':
+description: dependencies not satisfied
+content:
+application/json:
+schema:
+type: object
+properties:
+error: { type: string, example: NotReady }
+code: { type: string, example: NotReady }
+
+--- END: steps convenience endpoints ---
+

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- feat: convenience step endpoints (advance/complete) with sequence guard
+- test: add convenience spec and align 409 payload to { error: , code:  }
+
 ## 2025-09-05 — M1: Instances list/filter (PR #22)
 
 ### Added
