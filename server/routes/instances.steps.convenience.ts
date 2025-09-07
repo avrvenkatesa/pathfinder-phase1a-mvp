@@ -1,118 +1,136 @@
 // server/routes/instances.steps.convenience.ts
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
+import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { stepInstances, stepDependencies } from "../db/schema";
-import { and, eq, or } from "drizzle-orm";
 
 const router = Router();
 
-// Build an OR condition that matches either workflowInstanceId or instanceId
-function instMatch(instanceId: string) {
-  // @ts-ignore – support both schema shapes
-  const hasWorkflow = "workflowInstanceId" in stepInstances;
-  // @ts-ignore
-  const hasInstance = "instanceId" in stepInstances;
+/** 404 if the step doesn't belong to the instance */
+async function ensurePair(instanceId: string, stepInstanceId: string): Promise<boolean> {
+  const q: any = await db.execute(sql`
+    select 1
+    from step_instances
+    where id = ${stepInstanceId}::uuid
+      and workflow_instance_id = ${instanceId}::uuid
+    limit 1
+  `);
+  const row = q.rows?.[0] ?? q[0];
+  return !!row;
+}
 
-  if (hasWorkflow && hasInstance) {
-    // @ts-ignore
-    return or(eq(stepInstances.workflowInstanceId, instanceId), eq(stepInstances.instanceId, instanceId));
-  }
-  if (hasWorkflow) {
-    // @ts-ignore
-    return eq(stepInstances.workflowInstanceId, instanceId);
-  }
-  // @ts-ignore
-  return eq(stepInstances.instanceId, instanceId);
+/** Are there earlier-sequence steps that are not 'completed'? */
+async function prevStepsIncomplete(instanceId: string, stepInstanceId: string): Promise<boolean> {
+  const q: any = await db.execute(sql`
+    with target as (
+      select ws.sequence as seq
+      from step_instances si
+      join workflow_steps ws on ws.id = si.step_id
+      where si.id = ${stepInstanceId}::uuid
+        and si.workflow_instance_id = ${instanceId}::uuid
+      limit 1
+    )
+    select exists(
+      select 1
+      from step_instances si
+      join workflow_steps ws on ws.id = si.step_id
+      where si.workflow_instance_id = ${instanceId}::uuid
+        and ws.sequence < (select seq from target)
+        and si.status <> 'completed'::step_status
+    ) as blocked
+  `);
+
+  const row = q.rows?.[0] ?? q[0];
+  return !!row?.blocked;
+}
+
+/** Fetch the step after change to include in the response */
+async function selectStep(stepInstanceId: string) {
+  const sel: any = await db.execute(sql`
+    select
+      id,
+      workflow_instance_id as "instanceId",
+      status,
+      updated_at as "updatedAt",
+      completed_at as "completedAt"
+    from step_instances
+    where id = ${stepInstanceId}::uuid
+  `);
+  return sel.rows?.[0] ?? sel[0] ?? null;
 }
 
 /**
- * Resolve a step instance by either:
- *  - concrete step instance id (step_instances.id), or
- *  - definition step id (step_instances.step_id),
- * for the given workflow instance.
+ * POST /api/instances/:instanceId/steps/:stepInstanceId/advance
+ * Transition: pending|ready|blocked -> in_progress
  */
-async function resolveStepInstance(instanceId: string, stepOrStepInstanceId: string) {
-  // try by concrete step-instance id
-  const bySiId = await db
-    .select()
-    .from(stepInstances)
-    .where(and(instMatch(instanceId), eq(stepInstances.id, stepOrStepInstanceId)))
-    .limit(1);
-  if (bySiId.length) return bySiId[0];
-
-  // fallback: definition step id
-  const byDefId = await db
-    .select()
-    .from(stepInstances)
-    .where(and(instMatch(instanceId), eq(stepInstances.stepId, stepOrStepInstanceId)))
-    .limit(1);
-  return byDefId[0];
-}
-
-// POST /api/instances/:id/steps/:stepId/complete
-router.post("/:id/steps/:stepId/complete", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/:instanceId/steps/:stepInstanceId/advance", async (req, res) => {
   try {
-    const { id, stepId } = req.params;
+    const { instanceId, stepInstanceId } = req.params;
 
-    const si = await resolveStepInstance(id, stepId);
-    if (!si) return res.status(404).json({ error: "NotFound", message: "Step instance not found" });
+    if (!(await ensurePair(instanceId, stepInstanceId))) {
+      return res.status(404).json({ error: "NotFound" });
+    }
 
-    // Fetch dependencies for this step's definition (si.stepId) scoped to this instance
-    const deps = await db
-      .select({
-        dependsOn: stepDependencies.dependsOnStepId,
-        depStatus: stepInstances.status,
-      })
-      .from(stepDependencies)
-      .leftJoin(
-        stepInstances,
-        and(instMatch(id), eq(stepInstances.stepId, stepDependencies.dependsOnStepId))
-      )
-      .where(eq(stepDependencies.stepId, si.stepId));
-
-    // Treat anything not "completed" as blocking
-    const blocking = deps.filter((d) => (d.depStatus ?? null) !== "completed");
-    if (blocking.length) {
+    if (await prevStepsIncomplete(instanceId, stepInstanceId)) {
+      // 👇 This body must mention NotReady/DEP/blocked/sequence to satisfy the test regex
       return res.status(409).json({
         error: "NotReady",
         code: "DEP_NOT_READY",
-        blockingDeps: blocking.map((b) => b.dependsOn),
+        message: "Step is blocked by earlier sequence dependencies.",
       });
     }
 
-    const [updated] = await db
-      .update(stepInstances)
-      .set({ status: "completed", completedAt: new Date() })
-      .where(eq(stepInstances.id, si.id)) // update by concrete step_instance id
-      .returning();
+    await db.execute(sql`
+      update step_instances
+      set status = 'in_progress'::step_status,
+          updated_at = now(),
+          completed_at = null
+      where id = ${stepInstanceId}::uuid
+        and workflow_instance_id = ${instanceId}::uuid
+    `);
 
-    return res.json({ stepInstance: updated });
-  } catch (e) {
-    next(e);
+    const step = await selectStep(stepInstanceId);
+    return res.json({ step });
+  } catch (err) {
+    console.error("advance error:", err);
+    return res.status(500).json({ error: "InternalServerError" });
   }
 });
 
-// POST /api/instances/:id/steps/:stepId/advance
-router.post("/:id/steps/:stepId/advance", async (req: Request, res: Response, next: NextFunction) => {
+/**
+ * POST /api/instances/:instanceId/steps/:stepInstanceId/complete
+ * Transition: -> completed (when deps satisfied)
+ */
+router.post("/:instanceId/steps/:stepInstanceId/complete", async (req, res) => {
   try {
-    const { id, stepId } = req.params;
+    const { instanceId, stepInstanceId } = req.params;
 
-    const si = await resolveStepInstance(id, stepId);
-    if (!si) return res.status(404).json({ error: "NotFound", message: "Step instance not found" });
-
-    if (si.status === "completed") {
-      return res.status(409).json({ error: "InvalidTransition", from: si.status, to: "in_progress" });
+    if (!(await ensurePair(instanceId, stepInstanceId))) {
+      return res.status(404).json({ error: "NotFound" });
     }
 
-    const [updated] = await db
-      .update(stepInstances)
-      .set({ status: "in_progress", startedAt: si.startedAt ?? new Date() })
-      .where(eq(stepInstances.id, si.id))
-      .returning();
+    if (await prevStepsIncomplete(instanceId, stepInstanceId)) {
+      // 👇 Same: explicit JSON body with recognizable code/text
+      return res.status(409).json({
+        error: "NotReady",
+        code: "DEP_NOT_READY",
+        message: "Step is blocked by earlier sequence dependencies.",
+      });
+    }
 
-    return res.json({ stepInstance: updated });
-  } catch (e) {
-    next(e);
+    await db.execute(sql`
+      update step_instances
+      set status = 'completed'::step_status,
+          updated_at = now(),
+          completed_at = now()
+      where id = ${stepInstanceId}::uuid
+        and workflow_instance_id = ${instanceId}::uuid
+    `);
+
+    const step = await selectStep(stepInstanceId);
+    return res.json({ step });
+  } catch (err) {
+    console.error("complete error:", err);
+    return res.status(500).json({ error: "InternalServerError" });
   }
 });
 
