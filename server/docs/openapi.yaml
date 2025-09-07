@@ -4,7 +4,7 @@ info:
   description: |
     Production-ready Contact Management API with hierarchical relationships, 
     advanced search, bulk operations, analytics, and workflow integration preparation.
-    
+
     ## Features
     - Hierarchical contact management (companies → divisions → people)
     - Advanced search with full-text search and filtering
@@ -13,22 +13,22 @@ info:
     - Workflow assignment preparation
     - Real-time monitoring and metrics
     - Production-ready security and validation
-    
+
     ## Authentication
     All endpoints require authentication via session cookies or JWT tokens.
-    
+
     ## Rate Limiting
     - General endpoints: 100 requests/minute
     - Authentication: 5 requests/15 minutes
     - Bulk operations: 10 requests/5 minutes
     - Search/read: 200 requests/minute
-    
+
     ## Caching
     - Contact lists: 5 minutes
     - Individual contacts: 10 minutes
     - Analytics: 30 minutes
     - Stats: 15 minutes
-    
+
   version: 1.0.0
   contact:
     name: API Support
@@ -106,7 +106,7 @@ paths:
             enum: [asc, desc]
             default: asc
       responses:
-        '200':
+        "200":
           description: List of contacts
           content:
             application/json:
@@ -122,20 +122,20 @@ paths:
                       contacts:
                         type: array
                         items:
-                          $ref: '#/components/schemas/Contact'
+                          $ref: "#/components/schemas/Contact"
                       pagination:
-                        $ref: '#/components/schemas/Pagination'
+                        $ref: "#/components/schemas/Pagination"
                       filters:
                         type: object
                         description: Applied filters
                       performance:
-                        $ref: '#/components/schemas/PerformanceMetrics'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '429':
-          $ref: '#/components/responses/RateLimited'
+                        $ref: "#/components/schemas/PerformanceMetrics"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
     post:
       summary: Create a new contact
@@ -146,9 +146,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ContactCreate'
+              $ref: "#/components/schemas/ContactCreate"
       responses:
-        '201':
+        "201":
           description: Contact created successfully
           content:
             application/json:
@@ -159,13 +159,13 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/Contact'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
+                    $ref: "#/components/schemas/Contact"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /contacts/{id}:
     get:
@@ -192,7 +192,7 @@ paths:
             type: boolean
             default: false
       responses:
-        '200':
+        "200":
           description: Contact details
           content:
             application/json:
@@ -203,9 +203,9 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/ContactDetailed'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/ContactDetailed"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
     put:
       summary: Update contact
@@ -223,9 +223,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ContactUpdate'
+              $ref: "#/components/schemas/ContactUpdate"
       responses:
-        '200':
+        "200":
           description: Contact updated successfully
           content:
             application/json:
@@ -236,11 +236,11 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/Contact'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/Contact"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
     delete:
       summary: Delete contact
@@ -260,7 +260,7 @@ paths:
             type: boolean
             default: false
       responses:
-        '200':
+        "200":
           description: Contact deleted successfully
           content:
             application/json:
@@ -273,8 +273,8 @@ paths:
                   message:
                     type: string
                     example: Contact deleted successfully
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   # Bulk Operations
   /contacts/bulk:
@@ -293,7 +293,7 @@ paths:
                   type: array
                   maxItems: 1000
                   items:
-                    $ref: '#/components/schemas/ContactCreate'
+                    $ref: "#/components/schemas/ContactCreate"
                 options:
                   type: object
                   properties:
@@ -307,12 +307,12 @@ paths:
                       type: boolean
                       default: true
       responses:
-        '201':
+        "201":
           description: Bulk operation results
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BulkOperationResult'
+                $ref: "#/components/schemas/BulkOperationResult"
 
     put:
       summary: Bulk update contacts
@@ -343,7 +343,7 @@ paths:
                       items:
                         type: string
                 updates:
-                  $ref: '#/components/schemas/ContactUpdate'
+                  $ref: "#/components/schemas/ContactUpdate"
                 options:
                   type: object
                   properties:
@@ -356,12 +356,12 @@ paths:
                       maximum: 100
                       default: 50
       responses:
-        '200':
+        "200":
           description: Bulk update results
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BulkOperationResult'
+                $ref: "#/components/schemas/BulkOperationResult"
 
     delete:
       summary: Bulk delete contacts
@@ -390,12 +390,12 @@ paths:
                       type: boolean
                       default: false
       responses:
-        '200':
+        "200":
           description: Bulk delete results
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BulkOperationResult'
+                $ref: "#/components/schemas/BulkOperationResult"
 
   # Search and Analytics
   /contacts/search:
@@ -434,7 +434,8 @@ paths:
                       type: array
                       items:
                         type: string
-                        enum: [available, busy, partially_available, unavailable]
+                        enum:
+                          [available, busy, partially_available, unavailable]
                 limit:
                   type: integer
                   minimum: 1
@@ -445,7 +446,7 @@ paths:
                   minimum: 0
                   default: 0
       responses:
-        '200':
+        "200":
           description: Search results with ranking
           content:
             application/json:
@@ -461,7 +462,7 @@ paths:
                         type: array
                         items:
                           allOf:
-                            - $ref: '#/components/schemas/Contact'
+                            - $ref: "#/components/schemas/Contact"
                             - type: object
                               properties:
                                 relevance_score:
@@ -482,7 +483,7 @@ paths:
       description: Basic statistics about contacts in the system
       tags: [Analytics]
       responses:
-        '200':
+        "200":
           description: Contact statistics
           content:
             application/json:
@@ -541,7 +542,7 @@ paths:
             enum: [day, week, month, quarter, year]
             default: month
       responses:
-        '200':
+        "200":
           description: Detailed analytics data
           content:
             application/json:
@@ -604,7 +605,7 @@ paths:
                   items:
                     type: string
       responses:
-        '200':
+        "200":
           description: Matching contacts with scores
           content:
             application/json:
@@ -624,7 +625,7 @@ paths:
                         type: array
                         items:
                           allOf:
-                            - $ref: '#/components/schemas/Contact'
+                            - $ref: "#/components/schemas/Contact"
                             - type: object
                               properties:
                                 match_score:
@@ -633,7 +634,12 @@ paths:
                                   type: integer
                                 qualification_status:
                                   type: string
-                                  enum: [fully_qualified, partially_qualified, not_qualified]
+                                  enum:
+                                    [
+                                      fully_qualified,
+                                      partially_qualified,
+                                      not_qualified,
+                                    ]
                                 missing_skills:
                                   type: array
                                   items:
@@ -672,7 +678,7 @@ paths:
                       items:
                         type: string
       responses:
-        '200':
+        "200":
           description: Capacity analysis results
           content:
             application/json:
@@ -702,7 +708,7 @@ paths:
       description: Check system health and dependencies
       tags: [System]
       responses:
-        '200':
+        "200":
           description: System is healthy
           content:
             application/json:
@@ -726,7 +732,7 @@ paths:
       description: Get application performance and usage metrics
       tags: [System]
       responses:
-        '200':
+        "200":
           description: Application metrics
           content:
             application/json:
@@ -745,6 +751,53 @@ paths:
                       timestamp:
                         type: string
                         format: date-time
+
+  # === Instances Convenience Endpoints (M1) ===
+  /instances/{instanceId}/steps/{stepInstanceId}/advance:
+    post:
+      summary: Advance a step to in_progress (sequence-guarded)
+      description: |
+        Transitions a step from `pending/ready/blocked` to `in_progress`, enforcing
+        sequence dependency rules. If earlier steps are not completed, returns 409
+        with `{ "error": "Conflict", "code": "NotReady" }`.
+      tags: [Instances]
+      parameters:
+        - $ref: "#/components/parameters/InstanceIdParam"
+        - $ref: "#/components/parameters/StepInstanceIdParam"
+      responses:
+        "200":
+          description: Step advanced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StepResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/SequenceBlocked"
+
+  /instances/{instanceId}/steps/{stepInstanceId}/complete:
+    post:
+      summary: Complete a step (sequence-guarded)
+      description: |
+        Transitions a step from `in_progress` to `completed`, enforcing
+        sequence dependency rules. If earlier steps are not completed, returns 409
+        with `{ "error": "Conflict", "code": "NotReady" }`.
+      tags: [Instances]
+      parameters:
+        - $ref: "#/components/parameters/InstanceIdParam"
+        - $ref: "#/components/parameters/StepInstanceIdParam"
+      responses:
+        "200":
+          description: Step completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StepResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/SequenceBlocked"
 
 components:
   schemas:
@@ -889,19 +942,19 @@ components:
 
     ContactDetailed:
       allOf:
-        - $ref: '#/components/schemas/Contact'
+        - $ref: "#/components/schemas/Contact"
         - type: object
           properties:
             children:
               type: array
               items:
-                $ref: '#/components/schemas/Contact'
+                $ref: "#/components/schemas/Contact"
             relationships:
               type: array
               items:
-                $ref: '#/components/schemas/Relationship'
+                $ref: "#/components/schemas/Relationship"
             parent:
-              $ref: '#/components/schemas/Contact'
+              $ref: "#/components/schemas/Contact"
               nullable: true
 
     Relationship:
@@ -960,7 +1013,7 @@ components:
                   error:
                     type: string
             performance:
-              $ref: '#/components/schemas/PerformanceMetrics'
+              $ref: "#/components/schemas/PerformanceMetrics"
 
     Pagination:
       type: object
@@ -1018,13 +1071,53 @@ components:
             request_id:
               type: string
 
+    # === Instances: step & response shapes ===
+    Step:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        instanceId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, ready, blocked, in_progress, completed]
+        updatedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, instanceId, status, updatedAt]
+
+    StepResponse:
+      type: object
+      properties:
+        step:
+          $ref: "#/components/schemas/Step"
+      required: [step]
+
+    Error409NotReady:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Conflict
+        code:
+          type: string
+          example: NotReady
+      required: [error, code]
+
   responses:
     BadRequest:
       description: Bad request - validation error
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
           example:
             success: false
             error:
@@ -1038,7 +1131,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
           example:
             success: false
             error:
@@ -1051,7 +1144,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
           example:
             success: false
             error:
@@ -1064,7 +1157,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
           example:
             success: false
             error:
@@ -1077,7 +1170,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
           example:
             success: false
             error:
@@ -1085,13 +1178,26 @@ components:
               message: Too many requests, please try again later
               status_code: 429
 
+    # === Instances: 409 NotReady response ===
+    SequenceBlocked:
+      description: Blocked by sequence dependencies
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error409NotReady"
+          examples:
+            notReady:
+              value:
+                error: Conflict
+                code: NotReady
+
   securitySchemes:
     sessionAuth:
       type: apiKey
       in: cookie
       name: session_id
       description: Session-based authentication
-    
+
     bearerAuth:
       type: http
       scheme: bearer
@@ -1103,6 +1209,24 @@ components:
       in: header
       name: X-API-Key
       description: API key authentication
+
+  parameters:
+    InstanceIdParam:
+      name: instanceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Workflow instance ID (UUID)
+    StepInstanceIdParam:
+      name: stepInstanceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Step instance ID (UUID)
 
 security:
   - sessionAuth: []
@@ -1122,6 +1246,8 @@ tags:
     description: Workflow integration preparation (Phase 1B)
   - name: System
     description: System health and monitoring
+  - name: Instances
+    description: Workflow instances & step transitions
 
 externalDocs:
   description: Find more info about the Contact Management API
