@@ -17,6 +17,10 @@
     "drizzle:gen": "cd server && drizzle-kit generate --config ./drizzle.config.ts",
     "drizzle:push": "cd server && drizzle-kit migrate --config ./drizzle.config.ts",
     "drizzle:studio": "cd server && drizzle-kit studio --config ./drizzle.config.ts",
+    "openapi:validate": "redocly lint server/docs/openapi.yaml",
+    "openapi:lint": "spectral lint server/docs/openapi.yaml -r .spectral.yaml",
+    "openapi:ci": "npm run openapi:validate && npm run openapi:lint",
+    "openapi:bundle": "redocly bundle server/docs/openapi.yaml -o server/docs/openapi.bundle.yaml --ext yaml",
     "seed:workflow": "DOTENV_CONFIG_PATH=server/.env tsx -r dotenv/config server/scripts/seed-workflow.ts",
     "test": "cross-env NODE_ENV=test CONTACTS_STUB=true vitest --run",
     "test:watch": "cross-env NODE_ENV=test CONTACTS_STUB=true vitest --watch",
@@ -114,8 +118,10 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@redocly/cli": "^1.34.5",
     "@replit/vite-plugin-cartographer": "^0.2.8",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
+    "@stoplight/spectral-cli": "^6.15.0",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.1.3",
     "@types/compression": "^1.8.1",
