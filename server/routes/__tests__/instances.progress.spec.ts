@@ -16,13 +16,17 @@ beforeAll(async () => {
 
 describe("GET /api/instances/:id/progress", () => {
   it("returns 400 for invalid uuid", async () => {
-    const res = await request(app).get("/api/instances/not-a-uuid/progress");
+    const res = await request(app)
+      .get("/api/instances/not-a-uuid/progress")
+      .set("X-Test-Auth", "1");
     expect(res.status).toBe(400);
     expect(res.body?.error).toBe("BadRequest");
   });
 
   it("returns 404 for a valid-but-nonexistent uuid", async () => {
-    const res = await request(app).get("/api/instances/00000000-0000-4000-8000-000000000000/progress");
+    const res = await request(app)
+      .get("/api/instances/00000000-0000-4000-8000-000000000000/progress")
+      .set("X-Test-Auth", "1");
     expect(res.status).toBe(404);
     expect(res.body?.error).toBe("NotFound");
   });
@@ -32,7 +36,9 @@ describe("GET /api/instances/:id/progress", () => {
       console.warn("[test] No instances; did you run the seed?");
       return;
     }
-    const res = await request(app).get(`/api/instances/${existingInstanceId}/progress`);
+    const res = await request(app)
+      .get(`/api/instances/${existingInstanceId}/progress`)
+      .set("X-Test-Auth", "1");
     expect(res.status).toBe(200);
 
     // basic shape checks
@@ -58,8 +64,7 @@ describe("GET /api/instances/:id/progress", () => {
         isReady: expect.any(Boolean),
         isTerminal: expect.any(Boolean),
       });
-      // stepId may be null if not yet materialized
-      expect("stepId" in s).toBe(true);
+      expect("stepId" in s).toBe(true); // may be null if not materialized
     }
   });
 });
