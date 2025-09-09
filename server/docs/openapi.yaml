@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Contact Management API - Phase 1A
   description: |
-    Production-ready Contact Management API with hierarchical relationships, 
+    Production-ready Contact Management API with hierarchical relationships,
     advanced search, bulk operations, analytics, and workflow integration preparation.
 
     ## Features
@@ -28,7 +28,6 @@ info:
     - Individual contacts: 10 minutes
     - Analytics: 30 minutes
     - Stats: 15 minutes
-
   version: 1.0.0
   contact:
     name: API Support
@@ -40,14 +39,32 @@ info:
 
 servers:
   - url: https://api.pathfinder.dev/v1
-    description: Production server
+    description: Production server (v1)
   - url: https://staging-api.pathfinder.dev/v1
-    description: Staging server
+    description: Staging server (v1)
   - url: http://localhost:5000/api/v1
-    description: Development server
+    description: Development server (v1)
+
+tags:
+  - name: Contacts
+    description: Contact management operations
+  - name: Bulk Operations
+    description: Bulk operations for efficient data management
+  - name: Search
+    description: Advanced search and filtering
+  - name: Analytics
+    description: Analytics and reporting
+  - name: Workflow Integration
+    description: Workflow integration preparation (Phase 1B)
+  - name: System
+    description: System health and monitoring
+  - name: Instances
+    description: Workflow instances & step transitions
 
 paths:
-  # Contact Management Endpoints
+  # ---------------------------------------------------------------------------
+  # Contact Management Endpoints  (served under /api/v1)
+  # ---------------------------------------------------------------------------
   /contacts:
     get:
       summary: List contacts
@@ -276,7 +293,9 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  # ---------------------------------------------------------------------------
   # Bulk Operations
+  # ---------------------------------------------------------------------------
   /contacts/bulk:
     post:
       summary: Bulk create contacts
@@ -397,7 +416,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/BulkOperationResult"
 
+  # ---------------------------------------------------------------------------
   # Search and Analytics
+  # ---------------------------------------------------------------------------
   /contacts/search:
     post:
       summary: Advanced contact search
@@ -563,145 +584,9 @@ paths:
                       relationships:
                         type: object
 
-  # Workflow Integration (Phase 1B Preparation)
-  /workflow/contacts/match:
-    post:
-      summary: Find matching contacts for workflow
-      description: Find contacts that match specific skill and availability requirements
-      tags: [Workflow Integration]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                skills:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      skill:
-                        type: string
-                      proficiency_level:
-                        type: string
-                        enum: [beginner, intermediate, advanced, expert]
-                      required:
-                        type: boolean
-                        default: true
-                      weight:
-                        type: number
-                        minimum: 0
-                        maximum: 10
-                        default: 5
-                availability_requirement:
-                  type: array
-                  items:
-                    type: string
-                    enum: [available, partially_available]
-                  default: [available]
-                department_preference:
-                  type: array
-                  items:
-                    type: string
-      responses:
-        "200":
-          description: Matching contacts with scores
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      total_candidates:
-                        type: integer
-                      qualified_candidates:
-                        type: integer
-                      matches:
-                        type: array
-                        items:
-                          allOf:
-                            - $ref: "#/components/schemas/Contact"
-                            - type: object
-                              properties:
-                                match_score:
-                                  type: number
-                                skill_match_percentage:
-                                  type: integer
-                                qualification_status:
-                                  type: string
-                                  enum:
-                                    [
-                                      fully_qualified,
-                                      partially_qualified,
-                                      not_qualified,
-                                    ]
-                                missing_skills:
-                                  type: array
-                                  items:
-                                    type: string
-
-  /workflow/capacity/analyze:
-    post:
-      summary: Analyze team capacity
-      description: Analyze current team capacity and utilization for workflow planning
-      tags: [Workflow Integration]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                timeframe:
-                  type: object
-                  properties:
-                    start_date:
-                      type: string
-                      format: date-time
-                    end_date:
-                      type: string
-                      format: date-time
-                filters:
-                  type: object
-                  properties:
-                    departments:
-                      type: array
-                      items:
-                        type: string
-                    skills:
-                      type: array
-                      items:
-                        type: string
-      responses:
-        "200":
-          description: Capacity analysis results
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      overview:
-                        type: object
-                      department_breakdown:
-                        type: object
-                      skill_distribution:
-                        type: object
-                      recommendations:
-                        type: array
-                        items:
-                          type: object
-
+  # ---------------------------------------------------------------------------
   # System and Monitoring
+  # ---------------------------------------------------------------------------
   /health:
     get:
       summary: Health check
@@ -752,8 +637,62 @@ paths:
                         type: string
                         format: date-time
 
-  # === Instances Convenience Endpoints (M1) ===
-  /instances/{instanceId}/steps/{stepInstanceId}/advance:
+  # ---------------------------------------------------------------------------
+  # Instances (Runtime) — mounted at /api/instances (no /api/v1)
+  # We keep them in this spec and include 429 and validation behaviors.
+  # ---------------------------------------------------------------------------
+  /api/instances:
+    get:
+      tags: [Instances]
+      summary: List workflow instances
+      description: >
+        Seek-paginated list; ordered by `updated_at DESC, id DESC`.
+        Forward-only pagination using an opaque `seek` token returned as `next`
+        in the response. Echo `next` back as `seek` to continue.
+      parameters:
+        - in: query
+          name: definitionId
+          description: Filter by workflow definition
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: status
+          description: Filter by instance status
+          schema:
+            type: string
+            enum: [pending, running, completed, cancelled, failed, paused]
+        - in: query
+          name: limit
+          description: Max number of items to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - in: query
+          name: seek
+          description: >
+            Opaque cursor to fetch the next page (use the `next` value from the
+            previous response).
+          schema:
+            type: string
+            nullable: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstancesListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /api/instances/{instanceId}/steps/{stepInstanceId}/advance:
     post:
       summary: Advance a step to in_progress (sequence-guarded)
       description: |
@@ -775,8 +714,10 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/SequenceBlocked"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
-  /instances/{instanceId}/steps/{stepInstanceId}/complete:
+  /api/instances/{instanceId}/steps/{stepInstanceId}/complete:
     post:
       summary: Complete a step (sequence-guarded)
       description: |
@@ -798,8 +739,13 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/SequenceBlocked"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
 components:
+  # ---------------------------------------------------------------------------
+  # Schemas
+  # ---------------------------------------------------------------------------
   schemas:
     Contact:
       type: object
@@ -1100,6 +1046,54 @@ components:
           $ref: "#/components/schemas/Step"
       required: [step]
 
+    # === Instances list ===
+    Instance:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workflow_definition_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, completed, cancelled, failed, paused]
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - workflow_definition_id
+        - status
+        - created_at
+        - updated_at
+
+    InstancesListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Instance"
+        next:
+          type: string
+          nullable: true
+          description: Opaque token to request the next page (pass as `seek`)
+      required:
+        - items
+
     Error409NotReady:
       type: object
       properties:
@@ -1111,6 +1105,9 @@ components:
           example: NotReady
       required: [error, code]
 
+  # ---------------------------------------------------------------------------
+  # Common responses, security schemes, and parameters
+  # ---------------------------------------------------------------------------
   responses:
     BadRequest:
       description: Bad request - validation error
@@ -1166,7 +1163,24 @@ components:
               status_code: 409
 
     RateLimited:
-      description: Too many requests
+      description: Too many requests — client must slow down
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+        X-RateLimit-Limit:
+          description: Max requests allowed in the current window
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          description: Remaining requests in the current window
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          description: Unix epoch when the window resets
+          schema:
+            type: integer
       content:
         application/json:
           schema:
@@ -1197,13 +1211,11 @@ components:
       in: cookie
       name: session_id
       description: Session-based authentication
-
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
       description: JWT token authentication
-
     apiKeyAuth:
       type: apiKey
       in: header
@@ -1232,22 +1244,6 @@ security:
   - sessionAuth: []
   - bearerAuth: []
   - apiKeyAuth: []
-
-tags:
-  - name: Contacts
-    description: Contact management operations
-  - name: Bulk Operations
-    description: Bulk operations for efficient data management
-  - name: Search
-    description: Advanced search and filtering
-  - name: Analytics
-    description: Analytics and reporting
-  - name: Workflow Integration
-    description: Workflow integration preparation (Phase 1B)
-  - name: System
-    description: System health and monitoring
-  - name: Instances
-    description: Workflow instances & step transitions
 
 externalDocs:
   description: Find more info about the Contact Management API

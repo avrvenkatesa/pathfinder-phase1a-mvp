@@ -1,5 +1,6 @@
 // server/appRoutes.ts
 import type { Express } from "express";
+import instancesRouter from "./routes/instances";
 import { createServer, type Server } from "http";
 
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -51,11 +52,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/workflows", workflows);
 
   // Instances family — most specific first
-  app.use("/api/instances", instancesProgress);           // GET   /:id/progress
-  app.use("/api/instances", instancesSteps);              // PATCH /:id/steps/:stepId/status
-  app.use("/api/instances", instancesStepsConvenience);   // POST  /:id/steps/:stepId/{advance,complete}
-  app.use("/api/instances", instancesById);               // GET   /:id
-  app.use("/api/instances", instances);                   // GET   /  (seek list)
+  // ✅ Instances family — most specific first
+app.use("/api/instances", instancesRouter);  
+app.use("/api/instances", instancesStepsConvenience); // POST /:id/steps/:stepId/{advance,complete}
+app.use("/api/instances", instancesSteps);            // PATCH /:id/steps/:stepId/status
+app.use("/api/instances", instancesProgress);         // GET   /:id/progress
+app.use("/api/instances", instancesById);             // GET   /:id
+app.use("/api/instances", instances);                 // GET   /   (list with seek)
+
 
   // ---- TEMP: contacts stubs to avoid DB errors while contacts schema is not ready
   const useContactStubs =

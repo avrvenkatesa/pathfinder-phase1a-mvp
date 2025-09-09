@@ -1,7 +1,7 @@
 // server/app.ts
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
+import helmet from 'helmet'; // (kept; your securityHeaders may already set most headers)
 import compression from 'compression';
 import session from 'express-session';
 import rateLimit from 'express-rate-limit';
@@ -27,14 +27,17 @@ import {
 import { validate, contactSchemas } from './middleware/validation.js';
 import { cacheConfigs, invalidateCache, cacheAdmin } from './middleware/cache.js';
 
-// Controllers
+// Controllers (contacts/analytics/workflow prep)
 import * as contactsController from './controllers/contacts.js';
 import * as bulkController from './controllers/bulk.js';
 import * as analyticsController from './controllers/analytics.js';
 import * as workflowController from './controllers/workflow.js';
 
-// 🔗 Phase 1A routers (workflows/instances etc.)
-import registerRoutes from './appRoutes'; // <-- default export from appRoutes.ts
+// Phase 1A routers (workflows/instances/etc.)
+import registerRoutes from './appRoutes'; // mounts workflows + instances family
+
+// WebSocket service — initialize it on the *same* HTTP server we export
+import { contactWebSocketService } from './services/websocketService';
 
 // Validate configuration on startup
 validateConfig();
@@ -61,6 +64,7 @@ app.use(performanceMonitor);
 app.use(ipFilter.middleware);
 app.use(securityHeaders);
 app.use(compression(config.performance.compression));
+// If you maintain a dedicated corsOptions export, use that instead of config.security.cors
 app.use(cors(config.security.cors));
 
 // Body parsing
@@ -74,7 +78,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: config.security.session,
-    // In production, add session store (Redis/PostgreSQL)
+    // In production, add a session store (e.g., Redis)
   })
 );
 
@@ -83,7 +87,7 @@ app.use(
 // ──────────────────────────────────────────────────────────────────────────────
 app.get(
   '/health',
-  asyncHandler(async (req: any, res: any) => {
+  asyncHandler(async (_req: any, res: any) => {
     const health = await healthMonitor.checkHealth();
     res.status(health.status === 'healthy' ? 200 : 503).json(health);
   })
@@ -105,11 +109,11 @@ if (config.server.environment !== 'production') {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-/** API v1 routes (contacts/analytics/workflow prep) */
+// API v1 routes (contacts/analytics/workflow prep)
 // ──────────────────────────────────────────────────────────────────────────────
 const apiRouter = express.Router();
 
-// Contacts
+// Contacts (controllers commented where intentionally stubbed in your current setup)
 apiRouter.get('/contacts', rateLimiters.read, cacheConfigs.contactsList /*, contactsController.listContacts */);
 apiRouter.get('/contacts/stats', rateLimiters.read, cacheConfigs.contactStats /*, contactsController.getContactStats */);
 apiRouter.get('/contacts/:id', rateLimiters.read, cacheConfigs.contactDetail /*, contactsController.getContact */);
@@ -144,6 +148,7 @@ apiRouter.put('/contacts/bulk', rateLimiters.bulk, invalidateCache(['contacts'])
 apiRouter.delete('/contacts/bulk', rateLimiters.bulk, invalidateCache(['contacts']), bulkController.bulkDeleteContacts);
 
 // File upload (bulk import)
+// NOTE: add multer middleware when you wire real upload handling
 apiRouter.post('/contacts/import/csv', rateLimiters.bulk, invalidateCache(['contacts']) /*, multer middleware */, bulkController.bulkImportCSV);
 
 // Relationships
@@ -176,6 +181,9 @@ app.use('/api/v1', apiRouter);
 // Use top-level await so tests don’t race and hit 404s.
 // ──────────────────────────────────────────────────────────────────────────────
 await registerRoutes(app);
+
+// Initialize websockets on the HTTP server we actually export
+contactWebSocketService.initialize(server);
 
 // Global rate limiter for everything else
 app.use(rateLimiters.general);
@@ -223,7 +231,7 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-// Don’t auto-listen in tests to avoid port conflicts
+// Do not listen here in test environments (avoid port conflicts)
 // const startServer = async () => { ... }
 // startServer();
 
