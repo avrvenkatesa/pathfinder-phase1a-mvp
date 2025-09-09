@@ -15,20 +15,21 @@ info:
     - Production-ready security and validation
 
     ## Authentication
-    All endpoints require authentication via session cookies or JWT tokens.
+    All endpoints require authentication via session cookies or JWT tokens unless
+    explicitly marked with `security: []` (e.g., health & metrics).
 
     ## Rate Limiting
     - General endpoints: 100 requests/minute
     - Authentication: 5 requests/15 minutes
     - Bulk operations: 10 requests/5 minutes
     - Search/read: 200 requests/minute
+    - Runtime (instances): see per-route 429 responses
 
     ## Caching
     - Contact lists: 5 minutes
     - Individual contacts: 10 minutes
     - Analytics: 30 minutes
     - Stats: 15 minutes
-
   version: 1.0.0
   contact:
     name: API Support
@@ -39,15 +40,26 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
+  # Versioned API (contacts, analytics, etc.)
   - url: https://api.pathfinder.dev/v1
-    description: Production server
+    description: Production server (v1)
   - url: https://staging-api.pathfinder.dev/v1
-    description: Staging server
+    description: Staging server (v1)
   - url: http://localhost:5000/api/v1
-    description: Development server
+    description: Development server (v1)
+
+  # Runtime (unversioned) endpoints
+  - url: https://api.pathfinder.dev
+    description: Production server (runtime /api/*)
+  - url: https://staging-api.pathfinder.dev
+    description: Staging server (runtime /api/*)
+  - url: http://localhost:5000
+    description: Development server (runtime /api/*)
 
 paths:
-  # Contact Management Endpoints
+  # ────────────────────────────────────────────────────────────────────────────
+  # Contact Management Endpoints (v1)
+  # ────────────────────────────────────────────────────────────────────────────
   /contacts:
     get:
       summary: List contacts
@@ -56,55 +68,44 @@ paths:
       parameters:
         - name: page
           in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
+          schema: { type: integer, minimum: 1, default: 1 }
         - name: limit
           in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 1000
-            default: 50
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 50 }
         - name: type
           in: query
           schema:
             type: array
-            items:
-              type: string
-              enum: [company, division, person]
+            items: { type: string, enum: [company, division, person] }
         - name: department
           in: query
           schema:
             type: array
-            items:
-              type: string
+            items: { type: string }
         - name: availability_status
           in: query
           schema:
             type: array
             items:
-              type: string
-              enum: [available, busy, partially_available, unavailable]
+              {
+                type: string,
+                enum: [available, busy, partially_available, unavailable],
+              }
         - name: search
           in: query
           description: Full-text search across name, email, job title, department, and notes
-          schema:
-            type: string
-            maxLength: 500
+          schema: { type: string, maxLength: 500 }
         - name: sort_by
           in: query
           schema:
-            type: string
-            enum: [name, created_at, updated_at, type]
-            default: name
+            {
+              type: string,
+              enum: [name, created_at, updated_at, type],
+              default: name,
+            }
         - name: sort_order
           in: query
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: asc
+          schema: { type: string, enum: [asc, desc], default: asc }
       responses:
         "200":
           description: List of contacts
@@ -113,29 +114,20 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                    example: true
+                  success: { type: boolean, example: true }
                   data:
                     type: object
                     properties:
                       contacts:
                         type: array
-                        items:
-                          $ref: "#/components/schemas/Contact"
-                      pagination:
-                        $ref: "#/components/schemas/Pagination"
-                      filters:
-                        type: object
-                        description: Applied filters
+                        items: { $ref: "#/components/schemas/Contact" }
+                      pagination: { $ref: "#/components/schemas/Pagination" }
+                      filters: { type: object, description: Applied filters }
                       performance:
-                        $ref: "#/components/schemas/PerformanceMetrics"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "429":
-          $ref: "#/components/responses/RateLimited"
+                        { $ref: "#/components/schemas/PerformanceMetrics" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
     post:
       summary: Create a new contact
@@ -145,8 +137,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/ContactCreate"
+            schema: { $ref: "#/components/schemas/ContactCreate" }
       responses:
         "201":
           description: Contact created successfully
@@ -155,17 +146,11 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: "#/components/schemas/Contact"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                  success: { type: boolean, example: true }
+                  data: { $ref: "#/components/schemas/Contact" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /contacts/{id}:
     get:
@@ -176,21 +161,15 @@ paths:
         - name: id
           in: path
           required: true
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, format: uuid }
         - name: include_children
           in: query
           description: Include child contacts in the response
-          schema:
-            type: boolean
-            default: false
+          schema: { type: boolean, default: false }
         - name: include_relationships
           in: query
           description: Include all relationships for this contact
-          schema:
-            type: boolean
-            default: false
+          schema: { type: boolean, default: false }
       responses:
         "200":
           description: Contact details
@@ -199,13 +178,9 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: "#/components/schemas/ContactDetailed"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                  success: { type: boolean, example: true }
+                  data: { $ref: "#/components/schemas/ContactDetailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
     put:
       summary: Update contact
@@ -215,15 +190,12 @@ paths:
         - name: id
           in: path
           required: true
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/ContactUpdate"
+            schema: { $ref: "#/components/schemas/ContactUpdate" }
       responses:
         "200":
           description: Contact updated successfully
@@ -232,15 +204,10 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: "#/components/schemas/Contact"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                  success: { type: boolean, example: true }
+                  data: { $ref: "#/components/schemas/Contact" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
     delete:
       summary: Delete contact
@@ -250,15 +217,11 @@ paths:
         - name: id
           in: path
           required: true
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, format: uuid }
         - name: hard_delete
           in: query
           description: Permanently delete the contact (cannot be recovered)
-          schema:
-            type: boolean
-            default: false
+          schema: { type: boolean, default: false }
       responses:
         "200":
           description: Contact deleted successfully
@@ -267,14 +230,10 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                    example: true
+                  success: { type: boolean, example: true }
                   message:
-                    type: string
-                    example: Contact deleted successfully
-        "404":
-          $ref: "#/components/responses/NotFound"
+                    { type: string, example: Contact deleted successfully }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   # Bulk Operations
   /contacts/bulk:
@@ -292,27 +251,19 @@ paths:
                 contacts:
                   type: array
                   maxItems: 1000
-                  items:
-                    $ref: "#/components/schemas/ContactCreate"
+                  items: { $ref: "#/components/schemas/ContactCreate" }
                 options:
                   type: object
                   properties:
-                    skip_duplicates:
-                      type: boolean
-                      default: false
-                    validate_hierarchy:
-                      type: boolean
-                      default: true
-                    create_transaction:
-                      type: boolean
-                      default: true
+                    skip_duplicates: { type: boolean, default: false }
+                    validate_hierarchy: { type: boolean, default: true }
+                    create_transaction: { type: boolean, default: true }
       responses:
         "201":
           description: Bulk operation results
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/BulkOperationResult"
+              schema: { $ref: "#/components/schemas/BulkOperationResult" }
 
     put:
       summary: Bulk update contacts
@@ -330,38 +281,26 @@ paths:
                   properties:
                     ids:
                       type: array
-                      items:
-                        type: string
-                        format: uuid
+                      items: { type: string, format: uuid }
                     types:
                       type: array
-                      items:
-                        type: string
-                        enum: [company, division, person]
+                      items: { type: string, enum: [company, division, person] }
                     departments:
                       type: array
-                      items:
-                        type: string
-                updates:
-                  $ref: "#/components/schemas/ContactUpdate"
+                      items: { type: string }
+                updates: { $ref: "#/components/schemas/ContactUpdate" }
                 options:
                   type: object
                   properties:
-                    skip_audit:
-                      type: boolean
-                      default: false
+                    skip_audit: { type: boolean, default: false }
                     batch_size:
-                      type: integer
-                      minimum: 1
-                      maximum: 100
-                      default: 50
+                      { type: integer, minimum: 1, maximum: 100, default: 50 }
       responses:
         "200":
           description: Bulk update results
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/BulkOperationResult"
+              schema: { $ref: "#/components/schemas/BulkOperationResult" }
 
     delete:
       summary: Bulk delete contacts
@@ -377,25 +316,18 @@ paths:
                 ids:
                   type: array
                   maxItems: 1000
-                  items:
-                    type: string
-                    format: uuid
+                  items: { type: string, format: uuid }
                 options:
                   type: object
                   properties:
-                    soft_delete:
-                      type: boolean
-                      default: true
-                    cascade_delete:
-                      type: boolean
-                      default: false
+                    soft_delete: { type: boolean, default: true }
+                    cascade_delete: { type: boolean, default: false }
       responses:
         "200":
           description: Bulk delete results
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/BulkOperationResult"
+              schema: { $ref: "#/components/schemas/BulkOperationResult" }
 
   # Search and Analytics
   /contacts/search:
@@ -419,32 +351,23 @@ paths:
                   properties:
                     types:
                       type: array
-                      items:
-                        type: string
-                        enum: [company, division, person]
+                      items: { type: string, enum: [company, division, person] }
                     departments:
                       type: array
-                      items:
-                        type: string
+                      items: { type: string }
                     skills:
                       type: array
-                      items:
-                        type: string
+                      items: { type: string }
                     availability_status:
                       type: array
                       items:
-                        type: string
-                        enum:
-                          [available, busy, partially_available, unavailable]
-                limit:
-                  type: integer
-                  minimum: 1
-                  maximum: 1000
-                  default: 50
-                offset:
-                  type: integer
-                  minimum: 0
-                  default: 0
+                        {
+                          type: string,
+                          enum:
+                            [available, busy, partially_available, unavailable],
+                        }
+                limit: { type: integer, minimum: 1, maximum: 1000, default: 50 }
+                offset: { type: integer, minimum: 0, default: 0 }
       responses:
         "200":
           description: Search results with ranking
@@ -453,8 +376,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
+                  success: { type: boolean }
                   data:
                     type: object
                     properties:
@@ -465,17 +387,12 @@ paths:
                             - $ref: "#/components/schemas/Contact"
                             - type: object
                               properties:
-                                relevance_score:
-                                  type: number
-                                  format: float
+                                relevance_score: { type: number, format: float }
                                 match_highlights:
                                   type: array
-                                  items:
-                                    type: string
-                      total_results:
-                        type: integer
-                      search_time_ms:
-                        type: integer
+                                  items: { type: string }
+                      total_results: { type: integer }
+                      search_time_ms: { type: integer }
 
   /contacts/stats:
     get:
@@ -490,34 +407,27 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
+                  success: { type: boolean }
                   data:
                     type: object
                     properties:
-                      total_contacts:
-                        type: integer
-                      total_companies:
-                        type: integer
-                      total_divisions:
-                        type: integer
-                      total_people:
-                        type: integer
+                      total_contacts: { type: integer }
+                      total_companies: { type: integer }
+                      total_divisions: { type: integer }
+                      total_people: { type: integer }
                       availability_breakdown:
                         type: array
                         items:
                           type: object
                           properties:
-                            status:
-                              type: string
-                            count:
-                              type: integer
+                            status: { type: string }
+                            count: { type: integer }
                       recent_growth:
-                        type: integer
-                        description: New contacts in last 30 days
-                      last_updated:
-                        type: string
-                        format: date-time
+                        {
+                          type: integer,
+                          description: New contacts in last 30 days,
+                        }
+                      last_updated: { type: string, format: date-time }
 
   /analytics/contacts:
     get:
@@ -527,20 +437,18 @@ paths:
       parameters:
         - name: start_date
           in: query
-          schema:
-            type: string
-            format: date-time
+          schema: { type: string, format: date-time }
         - name: end_date
           in: query
-          schema:
-            type: string
-            format: date-time
+          schema: { type: string, format: date-time }
         - name: period
           in: query
           schema:
-            type: string
-            enum: [day, week, month, quarter, year]
-            default: month
+            {
+              type: string,
+              enum: [day, week, month, quarter, year],
+              default: month,
+            }
       responses:
         "200":
           description: Detailed analytics data
@@ -549,19 +457,14 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
+                  success: { type: boolean }
                   data:
                     type: object
                     properties:
-                      summary:
-                        type: object
-                      distributions:
-                        type: object
-                      trends:
-                        type: object
-                      relationships:
-                        type: object
+                      summary: { type: object }
+                      distributions: { type: object }
+                      trends: { type: object }
+                      relationships: { type: object }
 
   # Workflow Integration (Phase 1B Preparation)
   /workflow/contacts/match:
@@ -581,29 +484,23 @@ paths:
                   items:
                     type: object
                     properties:
-                      skill:
-                        type: string
+                      skill: { type: string }
                       proficiency_level:
-                        type: string
-                        enum: [beginner, intermediate, advanced, expert]
-                      required:
-                        type: boolean
-                        default: true
+                        {
+                          type: string,
+                          enum: [beginner, intermediate, advanced, expert],
+                        }
+                      required: { type: boolean, default: true }
                       weight:
-                        type: number
-                        minimum: 0
-                        maximum: 10
-                        default: 5
+                        { type: number, minimum: 0, maximum: 10, default: 5 }
                 availability_requirement:
                   type: array
                   items:
-                    type: string
-                    enum: [available, partially_available]
+                    { type: string, enum: [available, partially_available] }
                   default: [available]
                 department_preference:
                   type: array
-                  items:
-                    type: string
+                  items: { type: string }
       responses:
         "200":
           description: Matching contacts with scores
@@ -612,15 +509,12 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
+                  success: { type: boolean }
                   data:
                     type: object
                     properties:
-                      total_candidates:
-                        type: integer
-                      qualified_candidates:
-                        type: integer
+                      total_candidates: { type: integer }
+                      qualified_candidates: { type: integer }
                       matches:
                         type: array
                         items:
@@ -628,22 +522,21 @@ paths:
                             - $ref: "#/components/schemas/Contact"
                             - type: object
                               properties:
-                                match_score:
-                                  type: number
-                                skill_match_percentage:
-                                  type: integer
+                                match_score: { type: number }
+                                skill_match_percentage: { type: integer }
                                 qualification_status:
-                                  type: string
-                                  enum:
-                                    [
-                                      fully_qualified,
-                                      partially_qualified,
-                                      not_qualified,
-                                    ]
+                                  {
+                                    type: string,
+                                    enum:
+                                      [
+                                        fully_qualified,
+                                        partially_qualified,
+                                        not_qualified,
+                                      ],
+                                  }
                                 missing_skills:
                                   type: array
-                                  items:
-                                    type: string
+                                  items: { type: string }
 
   /workflow/capacity/analyze:
     post:
@@ -660,23 +553,17 @@ paths:
                 timeframe:
                   type: object
                   properties:
-                    start_date:
-                      type: string
-                      format: date-time
-                    end_date:
-                      type: string
-                      format: date-time
+                    start_date: { type: string, format: date-time }
+                    end_date: { type: string, format: date-time }
                 filters:
                   type: object
                   properties:
                     departments:
                       type: array
-                      items:
-                        type: string
+                      items: { type: string }
                     skills:
                       type: array
-                      items:
-                        type: string
+                      items: { type: string }
       responses:
         "200":
           description: Capacity analysis results
@@ -685,28 +572,26 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
+                  success: { type: boolean }
                   data:
                     type: object
                     properties:
-                      overview:
-                        type: object
-                      department_breakdown:
-                        type: object
-                      skill_distribution:
-                        type: object
+                      overview: { type: object }
+                      department_breakdown: { type: object }
+                      skill_distribution: { type: object }
                       recommendations:
                         type: array
-                        items:
-                          type: object
+                        items: { type: object }
 
-  # System and Monitoring
+  # ────────────────────────────────────────────────────────────────────────────
+  # System and Monitoring (public)
+  # ────────────────────────────────────────────────────────────────────────────
   /health:
     get:
       summary: Health check
       description: Check system health and dependencies
       tags: [System]
+      security: [] # Public
       responses:
         "200":
           description: System is healthy
@@ -715,22 +600,17 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    enum: [healthy, unhealthy]
-                  timestamp:
-                    type: string
-                    format: date-time
-                  checks:
-                    type: object
-                  system:
-                    type: object
+                  status: { type: string, enum: [healthy, unhealthy] }
+                  timestamp: { type: string, format: date-time }
+                  checks: { type: object }
+                  system: { type: object }
 
   /metrics:
     get:
       summary: Application metrics
       description: Get application performance and usage metrics
       tags: [System]
+      security: [] # Public
       responses:
         "200":
           description: Application metrics
@@ -739,21 +619,90 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
+                  success: { type: boolean }
                   data:
                     type: object
                     properties:
-                      application:
-                        type: object
-                      system:
-                        type: object
-                      timestamp:
-                        type: string
-                        format: date-time
+                      application: { type: object }
+                      system: { type: object }
+                      timestamp: { type: string, format: date-time }
 
-  # === Instances Convenience Endpoints (M1) ===
-  /instances/{instanceId}/steps/{stepInstanceId}/advance:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Runtime: Instances (unversioned /api)
+  # ────────────────────────────────────────────────────────────────────────────
+  /api/instances:
+    get:
+      tags: [Instances]
+      summary: List workflow instances
+      description: >
+        Seek-paginated list; ordered by `updatedAt DESC, id DESC`.
+        Forward-only pagination using an opaque `cursor` token returned as `nextCursor`
+        in the response. Echo `nextCursor` back as `cursor` to continue.
+      parameters:
+        - in: query
+          name: definitionId
+          description: Filter by workflow definition
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          description: Filter by instance status
+          schema:
+            type: string
+            enum: [pending, running, completed, cancelled, failed, paused]
+        - in: query
+          name: limit
+          description: Max number of items to return
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - in: query
+          name: cursor
+          description: Opaque cursor to fetch the next page (use `nextCursor` from the previous response)
+          schema: { type: string, nullable: true }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstancesListResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/instances/{instanceId}:
+    get:
+      tags: [Instances]
+      summary: Get instance by ID
+      parameters:
+        - $ref: "#/components/parameters/InstanceIdParam"
+      responses:
+        "200":
+          description: Instance details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstanceDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/instances/{instanceId}/progress:
+    get:
+      tags: [Instances]
+      summary: Get progress for an instance
+      parameters:
+        - $ref: "#/components/parameters/InstanceIdParam"
+      responses:
+        "200":
+          description: Progress information for an instance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstanceProgressResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/instances/{instanceId}/steps/{stepInstanceId}/advance:
     post:
       summary: Advance a step to in_progress (sequence-guarded)
       description: |
@@ -769,14 +718,14 @@ paths:
           description: Step advanced
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/StepResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/SequenceBlocked"
+              schema: { $ref: "#/components/schemas/StepResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SequenceBlocked" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
-  /instances/{instanceId}/steps/{stepInstanceId}/complete:
+  /api/instances/{instanceId}/steps/{stepInstanceId}/complete:
     post:
       summary: Complete a step (sequence-guarded)
       description: |
@@ -792,153 +741,76 @@ paths:
           description: Step completed
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/StepResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/SequenceBlocked"
+              schema: { $ref: "#/components/schemas/StepResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SequenceBlocked" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
 components:
   schemas:
+    # Contacts
     Contact:
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
-        name:
-          type: string
-          minLength: 1
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          nullable: true
-        type:
-          type: string
-          enum: [company, division, person]
-        parent_id:
-          type: string
-          format: uuid
-          nullable: true
-        job_title:
-          type: string
-          maxLength: 255
-          nullable: true
-        department:
-          type: string
-          maxLength: 255
-          nullable: true
+        id: { type: string, format: uuid, readOnly: true }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        email: { type: string, format: email, nullable: true }
+        type: { type: string, enum: [company, division, person] }
+        parent_id: { type: string, format: uuid, nullable: true }
+        job_title: { type: string, maxLength: 255, nullable: true }
+        department: { type: string, maxLength: 255, nullable: true }
         skills:
           type: array
-          items:
-            type: string
-            maxLength: 100
+          items: { type: string, maxLength: 100 }
         availability_status:
           type: string
           enum: [available, busy, partially_available, unavailable]
           nullable: true
-        notes:
-          type: string
-          maxLength: 5000
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
+        notes: { type: string, maxLength: 5000, nullable: true }
+        created_at: { type: string, format: date-time, readOnly: true }
+        updated_at: { type: string, format: date-time, readOnly: true }
         deleted_at:
-          type: string
-          format: date-time
-          nullable: true
-          readOnly: true
+          { type: string, format: date-time, nullable: true, readOnly: true }
 
     ContactCreate:
       type: object
       required: [name, type]
       properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          nullable: true
-        type:
-          type: string
-          enum: [company, division, person]
-        parent_id:
-          type: string
-          format: uuid
-          nullable: true
-        job_title:
-          type: string
-          maxLength: 255
-          nullable: true
-        department:
-          type: string
-          maxLength: 255
-          nullable: true
+        name: { type: string, minLength: 1, maxLength: 255 }
+        email: { type: string, format: email, nullable: true }
+        type: { type: string, enum: [company, division, person] }
+        parent_id: { type: string, format: uuid, nullable: true }
+        job_title: { type: string, maxLength: 255, nullable: true }
+        department: { type: string, maxLength: 255, nullable: true }
         skills:
           type: array
-          items:
-            type: string
-            maxLength: 100
+          items: { type: string, maxLength: 100 }
           default: []
         availability_status:
           type: string
           enum: [available, busy, partially_available, unavailable]
           nullable: true
-        notes:
-          type: string
-          maxLength: 5000
-          nullable: true
+        notes: { type: string, maxLength: 5000, nullable: true }
 
     ContactUpdate:
       type: object
       properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          nullable: true
-        type:
-          type: string
-          enum: [company, division, person]
-        parent_id:
-          type: string
-          format: uuid
-          nullable: true
-        job_title:
-          type: string
-          maxLength: 255
-          nullable: true
-        department:
-          type: string
-          maxLength: 255
-          nullable: true
+        name: { type: string, minLength: 1, maxLength: 255 }
+        email: { type: string, format: email, nullable: true }
+        type: { type: string, enum: [company, division, person] }
+        parent_id: { type: string, format: uuid, nullable: true }
+        job_title: { type: string, maxLength: 255, nullable: true }
+        department: { type: string, maxLength: 255, nullable: true }
         skills:
           type: array
-          items:
-            type: string
-            maxLength: 100
+          items: { type: string, maxLength: 100 }
         availability_status:
           type: string
           enum: [available, busy, partially_available, unavailable]
           nullable: true
-        notes:
-          type: string
-          maxLength: 5000
-          nullable: true
+        notes: { type: string, maxLength: 5000, nullable: true }
 
     ContactDetailed:
       allOf:
@@ -947,12 +819,10 @@ components:
           properties:
             children:
               type: array
-              items:
-                $ref: "#/components/schemas/Contact"
+              items: { $ref: "#/components/schemas/Contact" }
             relationships:
               type: array
-              items:
-                $ref: "#/components/schemas/Relationship"
+              items: { $ref: "#/components/schemas/Relationship" }
             parent:
               $ref: "#/components/schemas/Contact"
               nullable: true
@@ -960,133 +830,164 @@ components:
     Relationship:
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-        source_id:
-          type: string
-          format: uuid
-        target_id:
-          type: string
-          format: uuid
+        id: { type: string, format: uuid }
+        source_id: { type: string, format: uuid }
+        target_id: { type: string, format: uuid }
         relationship_type:
-          type: string
-          enum: [reports_to, works_with, supervises, collaborates]
-        notes:
-          type: string
-          maxLength: 1000
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
+          {
+            type: string,
+            enum: [reports_to, works_with, supervises, collaborates],
+          }
+        notes: { type: string, maxLength: 1000, nullable: true }
+        created_at: { type: string, format: date-time }
 
     BulkOperationResult:
       type: object
       properties:
-        success:
-          type: boolean
+        success: { type: boolean }
         data:
           type: object
           properties:
             summary:
               type: object
               properties:
-                total:
-                  type: integer
-                created:
-                  type: integer
-                updated:
-                  type: integer
-                deleted:
-                  type: integer
-                skipped:
-                  type: integer
-                errors:
-                  type: integer
+                total: { type: integer }
+                created: { type: integer }
+                updated: { type: integer }
+                deleted: { type: integer }
+                skipped: { type: integer }
+                errors: { type: integer }
             errors:
               type: array
               items:
                 type: object
                 properties:
-                  item:
-                    type: string
-                  error:
-                    type: string
-            performance:
-              $ref: "#/components/schemas/PerformanceMetrics"
+                  item: { type: string }
+                  error: { type: string }
+            performance: { $ref: "#/components/schemas/PerformanceMetrics" }
 
     Pagination:
       type: object
       properties:
-        page:
-          type: integer
-        limit:
-          type: integer
-        total:
-          type: integer
-        pages:
-          type: integer
-        has_next:
-          type: boolean
-        has_prev:
-          type: boolean
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
+        pages: { type: integer }
+        has_next: { type: boolean }
+        has_prev: { type: boolean }
 
     PerformanceMetrics:
       type: object
       properties:
         duration:
-          type: number
-          description: Operation duration in milliseconds
-        throughput:
-          type: number
-          description: Items processed per second
-        cache_hit_rate:
-          type: number
-          description: Cache hit rate percentage
+          { type: number, description: Operation duration in milliseconds }
+        throughput: { type: number, description: Items processed per second }
+        cache_hit_rate: { type: number, description: Cache hit rate percentage }
 
     Error:
       type: object
       properties:
-        success:
-          type: boolean
-          example: false
+        success: { type: boolean, example: false }
         error:
           type: object
           properties:
-            code:
-              type: string
-            message:
-              type: string
-            status_code:
-              type: integer
-            timestamp:
-              type: string
-              format: date-time
-            path:
-              type: string
-            method:
-              type: string
-            details:
-              type: object
-            request_id:
-              type: string
+            code: { type: string }
+            message: { type: string }
+            status_code: { type: integer }
+            timestamp: { type: string, format: date-time }
+            path: { type: string }
+            method: { type: string }
+            details: { type: object }
+            request_id: { type: string }
 
-    # === Instances: step & response shapes ===
+    # Runtime: Instances
+    Instance:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        definitionId: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [pending, running, completed, cancelled, failed, paused]
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, definitionId, status, createdAt, updatedAt]
+
+    InstancesListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Instance" }
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque token to request the next page (pass as `cursor`)
+      required: [items]
+
+    InstanceDetail:
+      allOf:
+        - $ref: "#/components/schemas/Instance"
+        - type: object
+          properties:
+            summary:
+              type: object
+              properties:
+                totalSteps: { type: integer }
+                completedSteps: { type: integer }
+                runningSteps: { type: integer }
+                failedSteps: { type: integer }
+                pendingSteps: { type: integer }
+
+    ProgressStep:
+      type: object
+      properties:
+        stepId:
+          type: string
+          format: uuid
+          nullable: true
+          description: May be null if the step is not yet materialized
+        definitionStepId: { type: string, format: uuid }
+        index: { type: integer }
+        status:
+          {
+            type: string,
+            enum: [pending, ready, blocked, in_progress, completed],
+          }
+        blockedBy:
+          type: array
+          items: { type: string, format: uuid }
+        isBlocked: { type: boolean }
+        isReady: { type: boolean }
+        isTerminal: { type: boolean }
+
+    InstanceProgressResponse:
+      type: object
+      properties:
+        instanceId: { type: string, format: uuid }
+        summary:
+          type: object
+          properties:
+            total: { type: integer }
+            completed: { type: integer }
+            running: { type: integer }
+            pending: { type: integer }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/ProgressStep" }
+
+    # Steps (convenience / status endpoints)
     Step:
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-        instanceId:
-          type: string
-          format: uuid
+        id: { type: string, format: uuid }
+        instanceId: { type: string, format: uuid }
         status:
-          type: string
-          enum: [pending, ready, blocked, in_progress, completed]
-        updatedAt:
-          type: string
-          format: date-time
+          {
+            type: string,
+            enum: [pending, ready, blocked, in_progress, completed],
+          }
+        updatedAt: { type: string, format: date-time }
         completedAt:
           type: string
           format: date-time
@@ -1096,19 +997,14 @@ components:
     StepResponse:
       type: object
       properties:
-        step:
-          $ref: "#/components/schemas/Step"
+        step: { $ref: "#/components/schemas/Step" }
       required: [step]
 
     Error409NotReady:
       type: object
       properties:
-        error:
-          type: string
-          example: Conflict
-        code:
-          type: string
-          example: NotReady
+        error: { type: string, example: Conflict }
+        code: { type: string, example: NotReady }
       required: [error, code]
 
   responses:
@@ -1116,8 +1012,7 @@ components:
       description: Bad request - validation error
       content:
         application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
+          schema: { $ref: "#/components/schemas/Error" }
           example:
             success: false
             error:
@@ -1130,8 +1025,7 @@ components:
       description: Unauthorized - authentication required
       content:
         application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
+          schema: { $ref: "#/components/schemas/Error" }
           example:
             success: false
             error:
@@ -1143,34 +1037,44 @@ components:
       description: Resource not found
       content:
         application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
+          schema: { $ref: "#/components/schemas/Error" }
           example:
             success: false
             error:
               code: NOT_FOUND
-              message: Contact not found
+              message: Resource not found
               status_code: 404
 
     Conflict:
-      description: Conflict - resource already exists
+      description: Conflict - resource already exists or invalid transition
       content:
         application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
+          schema: { $ref: "#/components/schemas/Error" }
           example:
             success: false
             error:
               code: CONFLICT_ERROR
-              message: Contact already exists
+              message: Conflict
               status_code: 409
 
     RateLimited:
-      description: Too many requests
+      description: Too many requests — client must slow down
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema: { type: integer }
+        X-RateLimit-Limit:
+          description: Max requests allowed in the current window
+          schema: { type: integer }
+        X-RateLimit-Remaining:
+          description: Remaining requests in the current window
+          schema: { type: integer }
+        X-RateLimit-Reset:
+          description: Unix epoch when the window resets
+          schema: { type: integer }
       content:
         application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
+          schema: { $ref: "#/components/schemas/Error" }
           example:
             success: false
             error:
@@ -1178,18 +1082,26 @@ components:
               message: Too many requests, please try again later
               status_code: 429
 
-    # === Instances: 409 NotReady response ===
     SequenceBlocked:
       description: Blocked by sequence dependencies
       content:
         application/json:
-          schema:
-            $ref: "#/components/schemas/Error409NotReady"
+          schema: { $ref: "#/components/schemas/Error409NotReady" }
           examples:
             notReady:
-              value:
-                error: Conflict
-                code: NotReady
+              value: { error: Conflict, code: NotReady }
+
+    ServerError:
+      description: Server Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            success: false
+            error:
+              code: INTERNAL_SERVER_ERROR
+              message: Unexpected server error
+              status_code: 500
 
   securitySchemes:
     sessionAuth:
@@ -1197,13 +1109,11 @@ components:
       in: cookie
       name: session_id
       description: Session-based authentication
-
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
       description: JWT token authentication
-
     apiKeyAuth:
       type: apiKey
       in: header
@@ -1215,17 +1125,13 @@ components:
       name: instanceId
       in: path
       required: true
-      schema:
-        type: string
-        format: uuid
+      schema: { type: string, format: uuid }
       description: Workflow instance ID (UUID)
     StepInstanceIdParam:
       name: stepInstanceId
       in: path
       required: true
-      schema:
-        type: string
-        format: uuid
+      schema: { type: string, format: uuid }
       description: Step instance ID (UUID)
 
 security:
