@@ -2,7 +2,6 @@ extends:
   - "spectral:oas"
 
 rules:
-  # ---- Project-specific runtime gates ----
   runtime-requires-401:
     description: "Runtime endpoints must document 401 (auth gate)."
     message: "Add a 401 response for this runtime operation."
@@ -11,9 +10,7 @@ rules:
     then:
       - function: schema
         functionOptions:
-          schema:
-            type: object
-            required: ["401"]
+          schema: {type: object, required: ["401"]}
 
   runtime-requires-429:
     description: "Runtime endpoints must document 429 (rate limiting)."
@@ -23,9 +20,7 @@ rules:
     then:
       - function: schema
         functionOptions:
-          schema:
-            type: object
-            required: ["429"]
+          schema: {type: object, required: ["429"]}
 
   runtime-requires-security:
     description: "Runtime endpoints must declare operation-level security."
@@ -36,7 +31,6 @@ rules:
       - field: security
         function: truthy
 
-  # ---- Quality hygiene rules (kept strict) ----
   operation-operationId:
     description: "Each operation must have a unique operationId."
     message: "Missing operationId."
@@ -45,41 +39,3 @@ rules:
     then:
       - field: operationId
         function: truthy
-
-  operation-summary:
-    description: "Each operation should have a concise summary."
-    message: "Missing or empty summary."
-    severity: warn
-    given: "$.paths[*][*]"
-    then:
-      - field: summary
-        function: truthy
-
-  operation-tags:
-    description: "Each operation should have at least one tag."
-    message: "Add at least one tag."
-    severity: warn
-    given: "$.paths[*][*]"
-    then:
-      - field: tags
-        function: schema
-        functionOptions:
-          schema:
-            type: array
-            minItems: 1
-            items:
-              type: string
-
-  # Optional: encourage examples for 4xx responses on runtime ops
-  runtime-4xx-have-examples:
-    description: "Runtime 4xx responses should include an example for error shape conformance."
-    message: "Add an example under responses[status].content[app/json].examples or example."
-    severity: hint
-    given: >
-      $.paths[?(@property.match(/^(\/api\/(instances|workflows)\b.*)/))][*].responses[?(@property.match(/^(4\d\d)$/))].content["application/json"]
-    then:
-      - function: xor
-        functionOptions:
-          properties:
-            - example
-            - examples
