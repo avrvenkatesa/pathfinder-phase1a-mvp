@@ -1,0 +1,60 @@
+name: OpenAPI CI
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "server/docs/**"
+      - ".spectral.yaml"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/openapi-ci.yml"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "server/docs/**"
+      - ".spectral.yaml"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/openapi-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openapi-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  openapi:
+    name: Validate & Lint OpenAPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate with Redocly
+        run: npm run openapi:validate
+
+      - name: Lint with Spectral
+        run: npm run openapi:lint
+
+      - name: Bundle (artifact)
+        run: npm run openapi:bundle
+
+      - name: Upload bundled spec
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-bundle
+          path: server/docs/openapi.bundle.yaml
