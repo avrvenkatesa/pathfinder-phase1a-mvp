@@ -762,6 +762,7 @@ components:
               allOf:
                 - $ref: '#/components/schemas/ContactSummary'
               nullable: true
+              type: object
     Relationship:
       type: object
       properties:
@@ -916,6 +917,22 @@ components:
         error: {type: string, example: Conflict}
         code: {type: string, example: NotReady}
       required: [error, code]
+    ContactSummary:
+      type: object
+      description: Minimal summary projection for Contact references.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+      required:
+        - id
+        - name
+      additionalProperties: false
   responses:
     BadRequest:
       description: Bad request - validation error
