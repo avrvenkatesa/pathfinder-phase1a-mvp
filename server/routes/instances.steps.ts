@@ -1,7 +1,9 @@
 // server/routes/instances.steps.ts
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
+import { errors } from "../errors";
+import { AppError } from "../errors/types";
 
 const router = Router();
 
@@ -74,143 +76,178 @@ async function prevStepsIncomplete(
  * - 409 invalid transition
  * - 200 on success, returns { step: { ... } }
  */
-router.patch("/:instanceId/steps/:stepId/status", async (req, res) => {
-  try {
-    const { instanceId, stepId } = req.params;
+router.patch(
+  "/:instanceId/steps/:stepId/status",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { instanceId, stepId } = req.params;
 
-    if (!UUID_RE.test(instanceId) || !UUID_RE.test(stepId)) {
-      return res.status(400).json({ error: "BadRequest", message: "Invalid UUID(s)" });
+      if (!UUID_RE.test(instanceId) || !UUID_RE.test(stepId)) {
+        return next(
+          errors.validation({
+            issues: [
+              { path: ["instanceId"], code: "invalid_uuid", message: "Invalid UUID" },
+              { path: ["stepId"], code: "invalid_uuid", message: "Invalid UUID" },
+            ],
+          })
+        );
+      }
+
+      const pair = await getPair(instanceId, stepId);
+      if (!pair) {
+        return next(errors.notFound("Step"));
+      }
+
+      const from = pair.status;
+      const targetRaw = String(req.body?.status ?? "").toLowerCase();
+      const target = targetRaw as StepStatus;
+
+      const allowed = ALLOWED_FORWARD[from] ?? [];
+      if (!allowed.includes(target)) {
+        return next(
+          new AppError({
+            status: 409,
+            code: "CONFLICT",
+            message: "INVALID_TRANSITION",
+            details: { from, target, allowed },
+          })
+        );
+      }
+
+      await db.execute(sql`
+        update step_instances
+        set status = ${target}::step_status,
+            updated_at = now(),
+            completed_at = case when ${target}::text = 'completed' then now() else null end
+        where id = ${stepId}::uuid
+          and workflow_instance_id = ${instanceId}::uuid
+      `);
+
+      const out: any = await db.execute(sql`
+        select id,
+               workflow_instance_id as "instanceId",
+               status,
+               updated_at as "updatedAt",
+               completed_at as "completedAt"
+        from step_instances
+        where id = ${stepId}::uuid
+      `);
+
+      return res.json({ step: out.rows?.[0] ?? out[0] });
+    } catch (err) {
+      console.error("PATCH status error:", err);
+      return next(err);
     }
-
-    const pair = await getPair(instanceId, stepId);
-    if (!pair) {
-      return res.status(404).json({ error: "NotFound", message: "Step not found" });
-    }
-
-    const from = pair.status;
-    const targetRaw = String(req.body?.status ?? "").toLowerCase();
-    const target = targetRaw as StepStatus;
-
-    const allowed = ALLOWED_FORWARD[from] ?? [];
-    if (!allowed.includes(target)) {
-      return res.status(409).json({
-        error: "INVALID_TRANSITION",
-        from,
-        target,
-        allowed,
-      });
-    }
-
-    await db.execute(sql`
-      update step_instances
-      set status = ${target}::step_status,
-          updated_at = now(),
-          completed_at = case when ${target}::text = 'completed' then now() else null end
-      where id = ${stepId}::uuid
-        and workflow_instance_id = ${instanceId}::uuid
-    `);
-
-    const out: any = await db.execute(sql`
-      select id,
-             workflow_instance_id as "instanceId",
-             status,
-             updated_at as "updatedAt",
-             completed_at as "completedAt"
-      from step_instances
-      where id = ${stepId}::uuid
-    `);
-
-    return res.json({ step: out.rows?.[0] ?? out[0] });
-  } catch (err) {
-    console.error("PATCH status error:", err);
-    return res.status(500).json({ error: "InternalServerError" });
   }
-});
+);
 
 /**
  * POST /:instanceId/steps/:stepInstanceId/advance
  * - 409 when earlier steps are not completed
  * - 200 on success, sets status = in_progress
  */
-router.post("/:instanceId/steps/:stepInstanceId/advance", async (req, res) => {
-  try {
-    const { instanceId, stepInstanceId } = req.params;
+router.post(
+  "/:instanceId/steps/:stepInstanceId/advance",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { instanceId, stepInstanceId } = req.params;
 
-    // sequence-guard
-    if (await prevStepsIncomplete(instanceId, stepInstanceId)) {
-      return res.status(409).json({
-        error: "NotReady", // important for the test
-        code: "NotReady",
-      });
+      if (await prevStepsIncomplete(instanceId, stepInstanceId)) {
+        // Keep recognizable words for existing tests: NotReady / blocked / sequence
+        return next(
+          new AppError({
+            status: 409,
+            code: "CONFLICT",
+            message:
+              "NotReady: Step is blocked by earlier sequence dependencies. (code=DEP_NOT_READY)",
+            details: {
+              reason: "NotReady",
+              code: "DEP_NOT_READY",
+              cause: "blocked_by_earlier_sequence",
+            },
+          })
+        );
+      }
+
+      await db.execute(sql`
+        update step_instances
+        set status = 'in_progress'::step_status,
+            updated_at = now(),
+            completed_at = null
+        where id = ${stepInstanceId}::uuid
+          and workflow_instance_id = ${instanceId}::uuid
+      `);
+
+      const out: any = await db.execute(sql`
+        select id,
+               workflow_instance_id as "instanceId",
+               status,
+               updated_at as "updatedAt",
+               completed_at as "completedAt"
+        from step_instances
+        where id = ${stepInstanceId}::uuid
+      `);
+
+      return res.json({ step: out.rows?.[0] ?? out[0] });
+    } catch (err) {
+      console.error("advance error:", err);
+      return next(err);
     }
-
-    await db.execute(sql`
-      update step_instances
-      set status = 'in_progress'::step_status,
-          updated_at = now(),
-          completed_at = null
-      where id = ${stepInstanceId}::uuid
-        and workflow_instance_id = ${instanceId}::uuid
-    `);
-
-    const out: any = await db.execute(sql`
-      select id,
-             workflow_instance_id as "instanceId",
-             status,
-             updated_at as "updatedAt",
-             completed_at as "completedAt"
-      from step_instances
-      where id = ${stepInstanceId}::uuid
-    `);
-
-    return res.json({ step: out.rows?.[0] ?? out[0] });
-  } catch (err) {
-    console.error("advance error:", err);
-    return res.status(500).json({ error: "InternalServerError" });
   }
-});
+);
 
 /**
  * POST /:instanceId/steps/:stepInstanceId/complete
  * - 409 when earlier steps are not completed
  * - 200 on success, sets status = completed
  */
-router.post("/:instanceId/steps/:stepInstanceId/complete", async (req, res) => {
-  try {
-    const { instanceId, stepInstanceId } = req.params;
+router.post(
+  "/:instanceId/steps/:stepInstanceId/complete",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { instanceId, stepInstanceId } = req.params;
 
-    // sequence-guard
-    if (await prevStepsIncomplete(instanceId, stepInstanceId)) {
-      return res.status(409).json({
-        error: "NotReady", // important for the test
-        code: "NotReady",
-      });
+      if (await prevStepsIncomplete(instanceId, stepInstanceId)) {
+        return next(
+          new AppError({
+            status: 409,
+            code: "CONFLICT",
+            message:
+              "NotReady: Step is blocked by earlier sequence dependencies. (code=DEP_NOT_READY)",
+            details: {
+              reason: "NotReady",
+              code: "DEP_NOT_READY",
+              cause: "blocked_by_earlier_sequence",
+            },
+          })
+        );
+      }
+
+      await db.execute(sql`
+        update step_instances
+        set status = 'completed'::step_status,
+            updated_at = now(),
+            completed_at = now()
+        where id = ${stepInstanceId}::uuid
+          and workflow_instance_id = ${instanceId}::uuid
+      `);
+
+      const out: any = await db.execute(sql`
+        select id,
+               workflow_instance_id as "instanceId",
+               status,
+               updated_at as "updatedAt",
+               completed_at as "completedAt"
+        from step_instances
+        where id = ${stepInstanceId}::uuid
+      `);
+
+      return res.json({ step: out.rows?.[0] ?? out[0] });
+    } catch (err) {
+      console.error("complete error:", err);
+      return next(err);
     }
-
-    await db.execute(sql`
-      update step_instances
-      set status = 'completed'::step_status,
-          updated_at = now(),
-          completed_at = now()
-      where id = ${stepInstanceId}::uuid
-        and workflow_instance_id = ${instanceId}::uuid
-    `);
-
-    const out: any = await db.execute(sql`
-      select id,
-             workflow_instance_id as "instanceId",
-             status,
-             updated_at as "updatedAt",
-             completed_at as "completedAt"
-      from step_instances
-      where id = ${stepInstanceId}::uuid
-    `);
-
-    return res.json({ step: out.rows?.[0] ?? out[0] });
-  } catch (err) {
-    console.error("complete error:", err);
-    return res.status(500).json({ error: "InternalServerError" });
   }
-});
+);
 
 export default router;

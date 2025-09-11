@@ -1,5 +1,6 @@
 // server/replitAuth.ts
 import type { Express, Request, Response, NextFunction } from 'express';
+import { errors } from './errors';
 
 const DEV_MODE = !process.env.REPLIT_DOMAINS;
 
@@ -38,7 +39,7 @@ export async function setupAuth(app: Express) {
 export function isAuthenticated(req: Request & { user?: any }, res: Response, next: NextFunction) {
   if (DEV_MODE) return next();
   if (req.user?.claims) return next();
-  return res.status(401).json({ error: 'Unauthorized' });
+  return next(errors.authMissing());
 }
 
 export default { setupAuth, isAuthenticated };
