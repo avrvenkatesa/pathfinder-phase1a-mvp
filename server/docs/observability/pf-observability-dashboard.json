@@ -1,0 +1,312 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus data source for Pathfinder",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.4.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "bargauge", "name": "Bar gauge", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" }
+  ],
+  "id": null,
+  "uid": "pf-obsv-m1",
+  "title": "Pathfinder · M1 Observability Baseline",
+  "timezone": "",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "tags": ["pathfinder", "m1", "observability"],
+  "templating": {
+    "list": [
+      {
+        "name": "route",
+        "label": "Route",
+        "type": "query",
+        "hide": 0,
+        "refresh": 2,
+        "datasource": "${DS_PROMETHEUS}",
+        "query": "label_values(pf_http_requests_total, route)",
+        "definition": "label_values(pf_http_requests_total, route)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "regex": "",
+        "current": {}
+      },
+      {
+        "name": "method",
+        "label": "Method",
+        "type": "query",
+        "hide": 0,
+        "refresh": 2,
+        "datasource": "${DS_PROMETHEUS}",
+        "query": "label_values(pf_http_requests_total, method)",
+        "definition": "label_values(pf_http_requests_total, method)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "regex": "",
+        "current": {}
+      },
+      {
+        "name": "status",
+        "label": "Status",
+        "type": "query",
+        "hide": 2,
+        "refresh": 2,
+        "datasource": "${DS_PROMETHEUS}",
+        "query": "label_values(pf_http_requests_total, status)",
+        "definition": "label_values(pf_http_requests_total, status)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "regex": "",
+        "current": {}
+      },
+      {
+        "name": "code",
+        "label": "Error Code",
+        "type": "query",
+        "hide": 0,
+        "refresh": 2,
+        "datasource": "${DS_PROMETHEUS}",
+        "query": "label_values(pf_errors_total, code)",
+        "definition": "label_values(pf_errors_total, code)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "regex": "",
+        "current": {}
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "type": "dashboard",
+        "name": "Annotations & Alerts",
+        "hide": true,
+        "enable": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Request Rate (req/min)",
+      "id": 1,
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": "${DS_PROMETHEUS}",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(pf_http_requests_total[5m])) * 60",
+          "legendFormat": "all",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Error Rate (errors/min)",
+      "id": 2,
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": "${DS_PROMETHEUS}",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(pf_errors_total[5m])) * 60",
+          "legendFormat": "all",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "429 Rate (req/min)",
+      "id": 3,
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": "${DS_PROMETHEUS}",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(pf_rate_limited_total[5m])) * 60",
+          "legendFormat": "429s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Request Rate by Route",
+      "id": 4,
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": { "defaults": { "unit": "req/s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum by (route, method) (rate(pf_http_requests_total{route=~\"$route\",method=~\"$method\"}[5m]))",
+          "legendFormat": "{{route}} {{method}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency (P50/P95/P99) by Route",
+      "id": 5,
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, route, method) (rate(pf_http_request_duration_ms_bucket{route=~\"$route\",method=~\"$method\"}[5m])))",
+          "legendFormat": "P50 {{route}} {{method}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, route, method) (rate(pf_http_request_duration_ms_bucket{route=~\"$route\",method=~\"$method\"}[5m])))",
+          "legendFormat": "P95 {{route}} {{method}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, route, method) (rate(pf_http_request_duration_ms_bucket{route=~\"$route\",method=~\"$method\"}[5m])))",
+          "legendFormat": "P99 {{route}} {{method}}",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Errors by error.code (5m rate)",
+      "id": 6,
+      "gridPos": { "x": 0, "y": 12, "w": 8, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+      },
+      "targets": [
+        {
+          "expr": "sum by (code) (rate(pf_errors_total{code=~\"$code\"}[5m]))",
+          "legendFormat": "{{code}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "req/s" }, "overrides": [] }
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Status Breakdown",
+      "id": 7,
+      "gridPos": { "x": 8, "y": 12, "w": 8, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": { "defaults": { "unit": "req/s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(pf_http_requests_total{status=~\"$status\"}[5m]))",
+          "legendFormat": "HTTP {{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Top Endpoints by P95 Latency",
+      "id": 8,
+      "gridPos": { "x": 16, "y": 12, "w": 8, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "targets": [
+        {
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, route, method) (rate(pf_http_request_duration_ms_bucket[5m]))))",
+          "legendFormat": "{{route}} {{method}}",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "type": "stat",
+      "title": "DB Pool In Use",
+      "id": 9,
+      "gridPos": { "x": 0, "y": 20, "w": 4, "h": 4 },
+      "datasource": "${DS_PROMETHEUS}",
+      "targets": [
+        {
+          "expr": "pf_db_pool_in_use",
+          "legendFormat": "in use",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "DB Query Latency (P50/P95)",
+      "id": 10,
+      "gridPos": { "x": 4, "y": 20, "w": 10, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(pf_db_query_duration_ms_bucket[5m])))",
+          "legendFormat": "DB P50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(pf_db_query_duration_ms_bucket[5m])))",
+          "legendFormat": "DB P95",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "DB Pool Wait (ms) — Histogram P95",
+      "id": 11,
+      "gridPos": { "x": 14, "y": 20, "w": 10, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(pf_db_pool_wait_ms_bucket[5m])))",
+          "legendFormat": "Pool wait P95",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}
