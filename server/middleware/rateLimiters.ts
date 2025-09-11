@@ -1,4 +1,5 @@
-import rateLimit from "express-rate-limit";
+// server/middleware/rateLimiters.ts
+import rateLimit, { ipKeyGenerator, type Options } from "express-rate-limit";
 import type { Request, Response, NextFunction } from "express";
 
 /**
@@ -13,15 +14,20 @@ const convenienceLimit = Number(process.env.RATE_CONVENIENCE_LIMIT ?? 30);
 const generalLimit = Number(process.env.RATE_GENERAL_LIMIT ?? 300);
 
 /** Common options */
-const baseOptions = {
+const baseOptions: Partial<Options> = {
   windowMs,
-  standardHeaders: true as const,
+  standardHeaders: true,
   legacyHeaders: false,
+
   // Allow disabling via env for local debugging (keep enabled in CI)
   skip: () => process.env.RATE_LIMITS_OFF === "1",
-  // Make tests deterministic per X-Test-Auth header
-  keyGenerator: (req: Request) => `${req.ip}|${req.header("X-Test-Auth") ?? ""}`,
-  handler: (_req: Request, res: Response, _next: NextFunction) => {
+
+  // ✅ IPv6-safe IP normalization + keep deterministic salt for tests
+  keyGenerator: (req: Request, res: Response) =>
+    `${ipKeyGenerator(req, res)}|${req.header("X-Test-Auth") ?? ""}`,
+
+  // Canonical 429 envelope
+  handler: (_req: Request, res: Response, _next?: NextFunction) => {
     const retryAfterSec = Math.ceil(windowMs / 1000);
     res.setHeader("Retry-After", String(retryAfterSec));
     return res.status(429).json({

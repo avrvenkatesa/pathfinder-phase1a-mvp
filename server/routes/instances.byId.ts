@@ -1,6 +1,7 @@
 // server/routes/instances.byId.ts
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { getInstanceById } from "../services/instancesById";
+import { errors } from "../errors";
 
 const router = Router();
 
@@ -18,31 +19,31 @@ const UUID_V4 =
  *   summary: { totalSteps, completedSteps, runningSteps, failedSteps, pendingSteps }
  * }
  */
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
 
   if (!UUID_V4.test(id)) {
-    return res.status(400).json({
-      error: "BadRequest",
-      message: "Invalid id",
-    });
+    return next(
+      errors.validation({
+        issues: [
+          {
+            path: ["id"],
+            code: "invalid_uuid",
+            message: "Invalid id (expected UUID v4)",
+          },
+        ],
+      })
+    );
   }
 
   try {
     const result = await getInstanceById(id);
     if (!result) {
-      return res.status(404).json({
-        error: "NotFound",
-        message: "Instance not found",
-      });
+      return next(errors.notFound("Instance"));
     }
     return res.status(200).json(result);
   } catch (err) {
-    // If you have centralized error middleware, rethrow instead.
-    return res.status(500).json({
-      error: "InternalServerError",
-      message: "Unexpected error fetching instance",
-    });
+    return next(err);
   }
 });
 

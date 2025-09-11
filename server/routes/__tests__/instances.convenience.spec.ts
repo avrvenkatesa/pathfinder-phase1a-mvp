@@ -1,10 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { sql } from "drizzle-orm";
-import { app } from "../../app";
+import app from "../../app";
 import { db } from "../../db";
 
 type UUID = string;
+
+// Helper to accept legacy or canonical error envelopes
+function pickErrorText(body: any): string {
+  if (!body) return "";
+  if (typeof body.error === "string") return body.error;
+  const e = body.error ?? {};
+  return String(e.message ?? e.code ?? body.code ?? "");
+}
 
 async function ensureChain(): Promise<{ instanceId: UUID; s1: UUID; s2: UUID; s3: UUID }> {
   const rows: any = await db.execute(sql`
@@ -73,7 +81,8 @@ describe("Convenience endpoints (advance/complete)", () => {
       .set("Content-Type", "application/json")
       .expect(409);
 
-    expect(r.body?.error ?? r.body?.code ?? "").toMatch(/(NotReady|DEP|blocked|sequence)/i);
+    // accept legacy or canonical envelope
+    expect(pickErrorText(r.body)).toMatch(/(NotReady|DEP|blocked|sequence)/i);
 
     // advance step1 -> in_progress
     r = await request(app)

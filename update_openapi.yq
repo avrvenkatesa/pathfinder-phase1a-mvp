@@ -1,0 +1,20 @@
+.paths |= (
+  to_entries | 
+  map(
+    if (.key | test("^/api/(instances|workflows)(/|$)") | not) then
+      .value |= (
+        to_entries |
+        map(
+          if (.key | test("^(get|post|put|patch|delete|options|head|trace)$")) then
+            .value.responses."400" //= {"$ref": "#/components/responses/Error400"} |
+            .value.responses."500" //= {"$ref": "#/components/responses/Error500"}
+          else . 
+          end
+        ) | 
+        from_entries
+      )
+    else . 
+    end
+  ) | 
+  from_entries
+)

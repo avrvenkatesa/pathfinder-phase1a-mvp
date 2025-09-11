@@ -1022,18 +1022,6 @@ components:
               code: INTERNAL_SERVER_ERROR
               message: Unexpected server error
               status_code: 500
-    Error400:
-      description: Bad Request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Error500:
-      description: Internal Server Error
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
   securitySchemes:
     sessionAuth:
       type: apiKey
@@ -1085,3 +1073,4 @@ tags:
 externalDocs:
   description: Find more info about the Contact Management API
   url: https://docs.pathfinder.dev/api
+

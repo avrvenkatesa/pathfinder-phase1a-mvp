@@ -107,3 +107,12 @@ Related: **[Rate limits](server/docs/runtime/rate-limits.md)**.
 - Auth bootstrap under `/api/auth/*` (as defined in `authJwtRoutes`; note: `/api/auth/user` itself requires a session)
 
 **Client note:** send a valid session cookie or `Authorization: Bearer <token>` with all runtime requests; on `401`, refresh credentials and retry.
+
+Runtime docs
+
+Runtime auth
+
+Rate limits
+
+Error handling & contract
+

@@ -2,6 +2,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
+import { errors } from "../errors";
 
 const router = Router();
 
@@ -23,7 +24,17 @@ router.get(
 
       // 400 — invalid id
       if (!UUID_V4.test(id)) {
-        return res.status(400).json({ error: "BadRequest", message: "Invalid id" });
+        return next(
+          errors.validation({
+            issues: [
+              {
+                path: ["id"],
+                code: "invalid_uuid",
+                message: "Invalid id (expected UUID v4)",
+              },
+            ],
+          })
+        );
       }
 
       // Instance
@@ -42,9 +53,7 @@ router.get(
       `);
       const instanceRaw = instRes?.rows?.[0] ?? instRes?.[0] ?? null;
       if (!instanceRaw) {
-        return res
-          .status(404)
-          .json({ error: "NotFound", message: "Instance not found" });
+        return next(errors.notFound("Instance"));
       }
 
       // Steps — only columns that surely exist on step_instances
