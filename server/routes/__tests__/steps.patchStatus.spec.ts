@@ -1,8 +1,14 @@
+// server/routes/__tests__/steps.patchStatus.spec.ts
 import request from "supertest";
 import { describe, it, expect, beforeAll } from "vitest";
-import { app, appReady } from "../../index";
+import { app } from "../../app";              // ⬅️ use the Express app (not ../../index)
 import { db } from "../../db";
 import { sql } from "drizzle-orm";
+
+// Supertest sanity: fail fast if the export isn't an Express app
+if (typeof (app as any) !== "function" || typeof (app as any).use !== "function") {
+  throw new Error("Test app export is not an Express app. Import { app } from '../../app'.");
+}
 
 async function ensureOneStep(): Promise<{ instanceId: string; stepId: string }> {
   const inst: any = await db.execute(sql`
@@ -23,7 +29,7 @@ async function ensureOneStep(): Promise<{ instanceId: string; stepId: string }> 
 let pair: { instanceId: string; stepId: string };
 
 beforeAll(async () => {
-  await appReady;
+  // No need to await appReady; tests import app directly.
   pair = await ensureOneStep();
 });
 
@@ -33,6 +39,7 @@ describe("PATCH /api/instances/:id/steps/:stepId/status", () => {
       .patch(`/api/instances/not-a-uuid/steps/also-bad/status`)
       .set("X-Test-Auth", "1")
       .send({ status: "ready" });
+
     expect(res.status).toBe(400);
   });
 
@@ -41,6 +48,7 @@ describe("PATCH /api/instances/:id/steps/:stepId/status", () => {
       .patch(`/api/instances/00000000-0000-4000-8000-000000000000/steps/00000000-0000-4000-8000-000000000000/status`)
       .set("X-Test-Auth", "1")
       .send({ status: "ready" });
+
     expect(res.status).toBe(404);
   });
 

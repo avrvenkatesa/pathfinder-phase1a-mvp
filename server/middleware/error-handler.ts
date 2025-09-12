@@ -1,53 +1,72 @@
-import type { NextFunction, Request, Response } from 'express';
-import { ZodError } from 'zod';
-import { AppError, type AppErrorJSON } from '../errors/types';
-import { errors } from '../errors';
+// server/middleware/error-handler.ts
+import type { Request, Response, NextFunction } from "express";
+import { errorsTotal } from "../observability/metrics";
 
-function zodDetails(e: ZodError) {
-  // compact details for clients; still useful for UI
-  return { issues: e.issues.map(i => ({ path: i.path, code: i.code, message: i.message })) };
+function defaultCodeForStatus(status: number): string {
+  switch (status) {
+    case 400: return "VALIDATION_ERROR";
+    case 401: return "UNAUTHORIZED";
+    case 404: return "NOT_FOUND";
+    case 409: return "CONFLICT";
+    case 412: return "PRECONDITION_FAILED";
+    case 428: return "PRECONDITION_REQUIRED";
+    case 429: return "RATE_LIMITED";
+    default:  return status >= 500 ? "INTERNAL" : "ERROR";
+  }
 }
 
-export function notFoundHandler(req: Request, res: Response) {
-  const traceId = (req.headers['x-request-id'] as string) || (res.locals?.requestId as string) || undefined;
-  const payload: AppErrorJSON = { error: { code: 'NOT_FOUND', message: 'Route not found.', traceId } };
-  res.status(404).json(payload);
+export function notFoundHandler(req: Request, res: Response, _next: NextFunction) {
+  const traceId = res.locals?.traceId;
+  const code = "NOT_FOUND";
+  const envelope = {
+    error: {
+      code,
+      message: "Route not found.",
+      details: { method: req.method, path: req.path },
+      traceId,
+    },
+  };
+  try { errorsTotal.inc({ code }); } catch {}
+  res.status(404).json(envelope);
 }
 
-export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
-  if (res.headersSent) return; // let Express handle
+export function errorHandler(err: any, _req: Request, res: Response, _next: NextFunction) {
+  if (res.headersSent) return;
 
-  const traceId = (req.headers['x-request-id'] as string) || (res.locals?.requestId as string) || undefined;
+  let status =
+    (typeof err?.status === "number" && err.status) ||
+    (typeof err?.statusCode === "number" && err.statusCode) ||
+    (res.statusCode >= 400 ? res.statusCode : 500);
 
-  // Map Zod
-  if (err instanceof ZodError) {
-    const e = errors.validation(zodDetails(err));
-    const payload: AppErrorJSON = { error: { code: e.code, message: e.message, details: e.details, traceId } };
-    return res.status(e.status).json(payload);
-  }
+  const isZod = err?.name === "ZodError" || Array.isArray(err?.issues);
+  if (isZod && status < 400) status = 400;
 
-  // Known AppError
-  if (err instanceof AppError) {
-    const payload: AppErrorJSON = { error: { code: err.code, message: err.expose ? err.message : 'Unexpected server error.', traceId } };
-    if (err.details !== undefined && err.expose) payload.error.details = err.details;
-    return res.status(err.status).json(payload);
-  }
+  const code: string =
+    (err?.error?.code as string) ||
+    (typeof err?.code === "string" && err.code) ||
+    defaultCodeForStatus(status);
 
-  // express-rate-limit (handler-less) or generic errors might put status on err
-  const anyErr = err as any;
-  if (typeof anyErr?.status === 'number') {
-    const status = anyErr.status;
-    const code = status === 429 ? 'RATE_LIMITED' : (status >= 500 ? 'INTERNAL_ERROR' : 'VALIDATION_FAILED');
-    const message =
-      status === 429 ? 'Too many requests, please try again later.' :
-      status >= 500 ? 'Unexpected server error.' :
-      anyErr.message || 'Request validation failed.';
-    const payload: AppErrorJSON = { error: { code, message, traceId } };
-    return res.status(status).json(payload);
-  }
+  const message: string =
+    (err?.error?.message as string) ||
+    (typeof err?.message === "string" && err.message) ||
+    defaultCodeForStatus(status).replaceAll("_", " ").toLowerCase();
 
-  // Fallback
-  const fallback = errors.internal();
-  const payload: AppErrorJSON = { error: { code: fallback.code, message: fallback.message, traceId } };
-  return res.status(fallback.status).json(payload);
+  const details =
+    (err?.error?.details && typeof err.error.details === "object" ? err.error.details : undefined) ??
+    (isZod ? { issues: err.issues } : undefined) ??
+    undefined;
+
+  const traceId = res.locals?.traceId;
+
+  const envelope = {
+    error: {
+      code,
+      message,
+      ...(details ? { details } : {}),
+      traceId,
+    },
+  };
+
+  try { errorsTotal.inc({ code }); } catch {}
+  res.status(status).json(envelope);
 }

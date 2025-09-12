@@ -22,3 +22,8 @@
 - Invalid cursor returns **400**; unknown status returns **400**
 - Dev-only contacts stubs available with `CONTACTS_STUB=true`
 
+
+## [Unreleased]
+
+### Added
+- **M1: Seed refresh (#32)** — Idempotent seed script with deterministic IDs, realistic workflows, and smoke test for dev & CI.
