@@ -1,6 +1,6 @@
 # Seed Refresh
 
-**Status:** Shipped via PR #XX (M1)
+**Status:** Shipped via PR # (M1)
 
 ## What changed
 - Introduced a **deterministic, idempotent seed script** for the Pathfinder runtime database.
