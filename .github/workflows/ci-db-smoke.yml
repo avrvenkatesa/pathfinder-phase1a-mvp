@@ -1,0 +1,42 @@
+name: CI DB Smoke Test
+
+on: 
+  push:
+    branches: [ main, develop, docs/m1-seed-refresh-issue-32 ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  db-smoke:
+    runs-on: ubuntu-latest
+    
+    env:
+      NODE_ENV: test
+      DATABASE_URL: ${{ secrets.NEON_DIRECT_URL }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Create server/.env
+        run: |
+          mkdir -p server
+          printf "DATABASE_URL=%s\n" "$DATABASE_URL" > server/.env
+          
+      - name: Push database schema
+        run: npm run db:push
+        
+      - name: Seed database
+        run: npm run db:seed
+        
+      - name: Verify seeded data
+        run: npm run db:verify
