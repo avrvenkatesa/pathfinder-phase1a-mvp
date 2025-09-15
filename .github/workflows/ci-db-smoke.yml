@@ -2,7 +2,7 @@ name: CI DB Smoke Test
 
 on: 
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, docs/m1-seed-refresh-issue-32 ]
   pull_request:
     branches: [ main ]
 
