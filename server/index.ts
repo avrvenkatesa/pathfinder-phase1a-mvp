@@ -1,12 +1,21 @@
 import { server } from "./app";
 import { logger } from "./logger";
+import { initializeWebSocket } from "./websocket";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? "0.0.0.0";
 
 function start() {
+  // Initialize WebSocket server
+  const webSocketServer = initializeWebSocket(server);
+  
   server.listen(PORT, HOST, () => {
-    logger.info({ port: PORT, host: HOST, env: process.env.NODE_ENV }, "server started");
+    logger.info({ 
+      port: PORT, 
+      host: HOST, 
+      env: process.env.NODE_ENV,
+      websocket: true 
+    }, "server started with WebSocket support");
   });
 
   process.on("unhandledRejection", (err) => {
@@ -15,22 +24,18 @@ function start() {
 
   process.on("uncaughtException", (err) => {
     logger.error({ err }, "uncaughtException");
-    // optional: give the process a moment to flush logs
     setTimeout(() => process.exit(1), 50);
   });
 
-  const shutdown = (signal: string) => {
-    logger.info({ signal }, "shutdown initiated");
-    server.close((closeErr?: Error) => {
-      if (closeErr) logger.error({ closeErr }, "error during server.close");
+  // Graceful shutdown
+  process.on("SIGTERM", async () => {
+    logger.info("SIGTERM received, shutting down gracefully");
+    await webSocketServer.close();
+    server.close(() => {
+      logger.info("Server closed");
       process.exit(0);
     });
-    // force-exit if clean shutdown hangs
-    setTimeout(() => process.exit(0), 5000).unref();
-  };
-
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  });
 }
 
 start();
