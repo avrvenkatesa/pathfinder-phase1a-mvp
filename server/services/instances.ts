@@ -60,6 +60,69 @@ export async function startInstance(definitionId: string) {
     }
 }
 
+// Cancel an instance: set status to 'cancelled' and cancel non-terminal step instances
+export async function cancelInstance(instanceId: string) {
+    assertUUID(instanceId, 'instanceId');
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // First, check if the instance exists and get its current status
+        const inst = await client.query(
+            `select id, status from workflow_instances where id = $1`,
+            [instanceId]
+        );
+        
+        if (inst.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return null; // Instance not found
+        }
+
+        const currentStatus = inst.rows[0].status;
+        
+        // Check if already in a terminal state
+        const terminalStatuses = ['completed', 'cancelled', 'failed'];
+        if (terminalStatuses.includes(currentStatus)) {
+            await client.query('ROLLBACK');
+            throw Object.assign(
+                new Error(`Cannot cancel instance: already ${currentStatus}`), 
+                { status: 409 }
+            );
+        }
+
+        // Update the workflow instance to cancelled
+        const updatedInstance = await client.query(
+            `update workflow_instances 
+             set status = 'cancelled', 
+                 completed_at = now(), 
+                 updated_at = now()
+             where id = $1 
+             returning *`,
+            [instanceId]
+        );
+
+        // Cancel any non-terminal step instances
+        await client.query(
+            `update step_instances 
+             set status = 'cancelled', 
+                 completed_at = now(), 
+                 updated_at = now()
+             where workflow_instance_id = $1 
+               and status not in ('completed', 'cancelled', 'failed', 'skipped')`,
+            [instanceId]
+        );
+
+        await client.query('COMMIT');
+        return updatedInstance.rows[0];
+    } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+    } finally {
+        client.release();
+    }
+}
+
 export async function getProgress(instanceId: string) {
     assertUUID(instanceId, 'instanceId');
 
@@ -251,3 +314,4 @@ export async function listInstances(params: {
 
     return { items: rows, nextCursor };
 }
+// Cancel an instance: set status to 'cancelled' and cancel non-terminal step instances
