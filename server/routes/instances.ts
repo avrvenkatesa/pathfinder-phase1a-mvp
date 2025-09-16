@@ -1,11 +1,14 @@
 // server/instances.ts
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { listInstances, startInstance } from "../services/instances";
+import { listInstances, startInstance, cancelInstance } from "../services/instances";
 import { rateLimiters } from "../middleware/rateLimiters";
 import { validate, instancesListQuery } from "../middleware/validators";
 import { errors } from "../errors";
 
 const router = Router();
+
+// UUID v4 validator (reuse pattern from instances.byId.ts)
+const UUID_V4 = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
 
 /**
  * GET /api/instances
@@ -66,6 +69,38 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
 
     const result = await startInstance(definitionId);
     return res.status(201).json(result);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * DELETE /api/instances/:id
+ * Cancel a workflow instance by setting status to 'cancelled'
+ */
+router.delete("/:id", async (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+
+  if (!UUID_V4.test(id)) {
+    return next(
+      errors.validation({
+        issues: [
+          {
+            path: ["id"],
+            code: "invalid_uuid",
+            message: "Invalid id (expected UUID v4)",
+          },
+        ],
+      })
+    );
+  }
+
+  try {
+    const result = await cancelInstance(id);
+    if (!result) {
+      return next(errors.notFound("Instance"));
+    }
+    return res.status(200).json({ success: true, instance: result });
   } catch (err) {
     return next(err);
   }

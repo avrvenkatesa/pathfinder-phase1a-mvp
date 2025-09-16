@@ -2,6 +2,7 @@
 import type { Express } from 'express';
 import workflows from './workflows';
 import instances from './instances';
+import { stepsConvenienceRouter } from './steps-convenience';
 import { legacyErrorShim } from './middleware/legacy-error-shim';
 import { notFoundHandler, errorHandler } from './middleware/error-handler';
 
@@ -19,6 +20,7 @@ export function registerRoutes(app: Express) {
   // Feature routers
   app.use('/api/workflows', workflows);
   app.use('/api/instances', instances);
+  app.use(stepsConvenienceRouter);
 
   // Global handlers (MUST be last)
   app.use(notFoundHandler);
