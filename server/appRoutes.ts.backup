@@ -28,7 +28,8 @@ import instances from "./routes/instances"; // list (seek) router
  */
 const testOnlyAuthGate = (req: Request, _res: Response, next: NextFunction) => {
   if (req.get("X-Test-Auth") === "1") return next();
-  return isAuthenticated(req, _res, next);
+  // Canonical 401 envelope
+  return next(errors.authMissing());
 };
 const requireAuthRuntime =
   process.env.NODE_ENV === "test" ? testOnlyAuthGate : isAuthenticated;
@@ -53,7 +54,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/auth/user", isAuthenticated, async (req: any, res, next) => {
     try {
       const user = req.user;
-      if (!user?.claims) return isAuthenticated(req, _res, next);
+      if (!user?.claims) return next(errors.authMissing());
       return res.json({ claims: user.claims, authenticated: true });
     } catch (err) {
       return next(err);

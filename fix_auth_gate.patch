@@ -1,0 +1,12 @@
+--- a/server/appRoutes.ts
++++ b/server/appRoutes.ts
+@@ -27,8 +27,7 @@ import instances from "./routes/instances"; // list (seek) router
+  */
+ const testOnlyAuthGate = (req: Request, _res: Response, next: NextFunction) => {
+   if (req.get("X-Test-Auth") === "1") return next();
+-  // Canonical 401 envelope
+-  return next(errors.authMissing());
++  return isAuthenticated(req, _res, next);
+ };
+ const requireAuthRuntime =
+   process.env.NODE_ENV === "test" ? testOnlyAuthGate : isAuthenticated;

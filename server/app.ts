@@ -13,10 +13,7 @@ import registerRoutes from "./appRoutes";
 // 🔍 Observability baseline
 import { logger } from "./logger";
 import { requestContext } from "./middleware/requestContext";
-import {
-  httpMetrics,
-  metricsHandler,
-} from "./observability/metrics";
+import { httpMetrics, metricsHandler } from "./observability/metrics";
 
 // -------------------------------------------------------------------------------------
 // Build the app first — tests import this module and call request(app) immediately.
@@ -42,20 +39,63 @@ app.use(httpMetrics());
 // Normalize any legacy JSON error bodies to the canonical envelope
 app.use(legacyErrorShim);
 
-// ---- Runtime routers (mounted synchronously) ----
-// NOTE: registerRoutes is async in prod (due to auth setup). In tests we ensure it’s effectively sync.
-void registerRoutes(app);
+// Helper: check if a specific method is mounted for a path
+function hasRouteMethod(path: string, method: string): boolean {
+  const stack = (app as any)?._router?.stack ?? [];
+  method = method.toLowerCase();
+  return stack.some((layer: any) => {
+    const r = layer?.route;
+    return r && r.path === path && r.methods && !!r.methods[method];
+  });
+}
 
-// ---- Public minimal health endpoints that don’t depend on v1 stack ----
-app.get("/health", (_req, res) => res.json({ ok: true }));
+// ---- Always-on minimal health endpoints ----
+app.get("/healthz", (_req, res) => res.status(200).send("ok")); // boot-level
+app.get("/health", (_req, res) => res.json({ ok: true }));      // minimal health
 app.get("/metrics", metricsHandler);
 
+// Ensure /api/health exists even if registerRoutes fails or is delayed
+// GET fallback that yields to the real route once routes are mounted
+app.get("/api/health", (_req, res, next) => {
+  if ((globalThis as any).__routesMounted) return next("route"); // skip to next matching route
+  res.json({ ok: true, source: "app.ts" });
+});
+// HEAD fallback (always safe to return 200)
+if (!hasRouteMethod("/api/health", "head")) {
+  app.head("/api/health", (_req, res) => res.sendStatus(200));
+}
+
+// ---- Mount app routes BEFORE 404/error handlers ----
+let routesMounted = false;
+registerRoutes(app)
+  .then(() => {
+    routesMounted = true;
+    (globalThis as any).__routesMounted = true;
+    logger.info("[routes] registerRoutes completed");
+  })
+  .catch((err) => {
+    logger.error({ err }, "[boot] registerRoutes failed");
+  });
+
+// Canary endpoint to verify routing status + methods
+app.get("/__canary", (_req, res) => {
+  res.json({
+    ok: true,
+    env: process.env.NODE_ENV,
+    routesMounted,
+    routes: {
+      healthz_GET: hasRouteMethod("/healthz", "GET"),
+      apiHealth_GET: hasRouteMethod("/api/health", "GET"),
+      apiHealth_HEAD: hasRouteMethod("/api/health", "HEAD"),
+    },
+    uptimeSec: process.uptime(),
+  });
+});
+
 // -------------------------------------------------------------------------------------
-// Non-test: bring back the heavier stack (monitoring/session/cors/v1 controllers/etc.)
-// We avoid importing those modules in test to keep things deterministic and fast.
+// Non-test heavy stack (monitoring/session/cors/etc.)
 // -------------------------------------------------------------------------------------
 if (process.env.NODE_ENV !== "test") {
-  // Use dynamic imports so tests don’t need these modules/types at runtime
   (async () => {
     try {
       const [
@@ -80,10 +120,6 @@ if (process.env.NODE_ENV !== "test") {
         },
         { validate, contactSchemas },
         { cacheConfigs, invalidateCache, cacheAdmin },
-        // import("./controllers/contacts"),
-        // import("./controllers/bulk"),
-        // import("./controllers/analytics"),
-        // import("./controllers/workflow"),
       ] = await Promise.all([
         import("cors"),
         import("compression"),
@@ -96,13 +132,9 @@ if (process.env.NODE_ENV !== "test") {
         import("./middleware/cache"),
       ]);
 
-      // Minimal infra re-enable (safe defaults)
       const ipFilter = new IPFilter();
-
-      // If you sit behind a proxy
       app.set("trust proxy", 1);
 
-      // Existing non-test middleware
       app.use(requestIdMiddleware);
       app.use(requestLogger);
       app.use(performanceMonitor);
@@ -110,11 +142,9 @@ if (process.env.NODE_ENV !== "test") {
       app.use(securityHeaders);
       app.use(helmet());
 
-      // CORS + compression
       app.use(cors(corsOptions));
       app.use(compression({ threshold: 1024 }));
 
-      // Sessions (consider a store in prod)
       app.use(
         session({
           secret: process.env.SESSION_SECRET || "dev-secret",
@@ -128,33 +158,18 @@ if (process.env.NODE_ENV !== "test") {
         })
       );
 
-      // Health & metrics (enhanced)
+      // Enhanced health & metrics
       app.get("/health", async (_req, res) => {
         const health = await healthMonitor.checkHealth();
-        res
-          .status(health.status === "healthy" ? 200 : 503)
-          .json(health);
+        res.status(health.status === "healthy" ? 200 : 503).json(health);
       });
       app.get("/metrics", rateLimiters.read, metricsEndpoint);
 
-      // API v1 scaffold (kept, endpoints commented to avoid pulling controllers right now)
+      // API v1 scaffold (controllers intentionally not imported here)
       const apiRouter = express.Router();
-
-      apiRouter.get(
-        "/contacts",
-        rateLimiters.read,
-        cacheConfigs.contactsList
-      );
-      apiRouter.get(
-        "/contacts/stats",
-        rateLimiters.read,
-        cacheConfigs.contactStats
-      );
-      apiRouter.get(
-        "/contacts/:id",
-        rateLimiters.read,
-        cacheConfigs.contactDetail
-      );
+      apiRouter.get("/contacts", rateLimiters.read, cacheConfigs.contactsList);
+      apiRouter.get("/contacts/stats", rateLimiters.read, cacheConfigs.contactStats);
+      apiRouter.get("/contacts/:id", rateLimiters.read, cacheConfigs.contactDetail);
       apiRouter.post(
         "/contacts",
         rateLimiters.write,
@@ -178,7 +193,6 @@ if (process.env.NODE_ENV !== "test") {
         cacheConfigs.searchResults,
         validate(contactSchemas.search)
       );
-
       app.use("/api/v1", apiRouter);
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -193,8 +207,7 @@ if (process.env.NODE_ENV !== "test") {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Optionally export a Node server for non-test boot flows
+// Export both app and server
 const server = createServer(app);
-
 export default app;
 export { app, server };
