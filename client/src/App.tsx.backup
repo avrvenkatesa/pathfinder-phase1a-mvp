@@ -13,7 +13,6 @@ import Home from "@/pages/home";
 import ContactDetail from "@/pages/contact-detail";
 import ContactsPage from "@/pages/contacts";
 import WorkflowPage from "@/pages/workflow";
-import RuntimeDashboardPage from "@/pages/runtime-dashboard"; // Add this import
 import { WorkflowDashboard } from "@/components/workflow-dashboard";
 import { NewWorkflow } from "@/components/new-workflow";
 import ContactTest from "@/pages/ContactTest";
@@ -47,9 +46,6 @@ function Router() {
       <Route path="/test-contacts" component={TestContactIntegration} />
       <Route path="/assignment-engine" component={AssignmentEnginePage} />
       <Route path="/data-quality" component={DataQualityDashboardPage} />
-      
-      {/* Runtime Dashboard Route - Add this */}
-      <Route path="/runtime-dashboard" component={RuntimeDashboardPage} />
 
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
@@ -77,16 +73,7 @@ function AppShell() {
       <header className="flex items-center gap-3 p-3 border-b">
         <h1 className="text-lg font-semibold">Pathfinder</h1>
         {isAuthenticated && (
-          <div className="ml-auto flex items-center gap-4">
-            {/* Add navigation links */}
-            <nav className="flex items-center gap-4 text-sm">
-              <a href="/contacts" className="text-blue-600 hover:text-blue-800">Contacts</a>
-              <a href="/workflows" className="text-blue-600 hover:text-blue-800">Workflows</a>
-              <a href="/runtime-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
-                Runtime Dashboard
-              </a>
-              <a href="/data-quality" className="text-blue-600 hover:text-blue-800">Data Quality</a>
-            </nav>
+          <div className="ml-auto">
             <button
               type="button"
               className="px-3 py-1 rounded border"
