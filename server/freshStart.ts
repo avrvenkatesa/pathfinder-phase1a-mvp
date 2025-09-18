@@ -2,7 +2,7 @@ import { freshApp, freshServer } from './freshAppWithEvents';
 import { logger } from './logger';
 import { initializeWebSocket } from './websocket';
 
-const PORT = Number(process.env.PORT ?? 3000);
+const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "0.0.0.0";
 
 async function start() {

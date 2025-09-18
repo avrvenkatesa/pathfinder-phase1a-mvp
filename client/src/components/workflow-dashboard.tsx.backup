@@ -30,14 +30,6 @@ import {
 } from 'lucide-react';
 import type { Workflow, WorkflowInstance, WorkflowTemplate } from '@shared/schema';
 
-// Import the enhanced runtime components
-import { 
-  LiveMetricsOverview, 
-  WorkflowTimeline, 
-  TeamWorkloadView, 
-  IssuesAndBlockers 
-} from './runtime-dashboard-enhancements';
-
 // Mock API functions (to be replaced with actual API calls)
 const mockWorkflows: Workflow[] = [
   {
@@ -133,28 +125,6 @@ function StatusBadge({ status }: { status: string }) {
       <Icon size={12} />
       {status}
     </Badge>
-  );
-}
-
-// Enhanced Runtime Tab Component
-function RuntimeTab() {
-  return (
-    <div className="space-y-6">
-      {/* Live Metrics Overview */}
-      <LiveMetricsOverview />
-      
-      {/* Main Dashboard Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Timeline */}
-        <WorkflowTimeline />
-        
-        {/* Team Workload */}
-        <TeamWorkloadView />
-      </div>
-      
-      {/* Issues and Blockers */}
-      <IssuesAndBlockers />
-    </div>
   );
 }
 
@@ -642,18 +612,13 @@ export function WorkflowDashboard() {
         </Button>
       </div>
 
-      <Tabs defaultValue="runtime" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="runtime">Runtime</TabsTrigger>
+      <Tabs defaultValue="workflows" className="space-y-4">
+        <TabsList>
           <TabsTrigger value="workflows">Workflows</TabsTrigger>
           <TabsTrigger value="instances">Active Instances</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="runtime">
-          <RuntimeTab />
-        </TabsContent>
         
         <TabsContent value="workflows">
           <WorkflowsTab />
